@@ -15,7 +15,7 @@ import { useShortcutSheet } from "../shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../settings/store";
 import { useFilesDialog } from "../files/store";
 import { useQuickCapture } from "../capture/QuickCapture";
-import { duplicatePage, saveAsTemplate } from "../templates/pageTemplates";
+import { duplicatePage, saveAsTemplate, templatesContainer } from "../templates/pageTemplates";
 import { useFindBar } from "../find/store";
 import { useActiveEditor } from "../../stores/activeEditor";
 import { modKey } from "./store";
@@ -81,6 +81,13 @@ export const COMMANDS: PaletteCommand[] = [
   },
   { id: "capture", title: "Quick capture…", keywords: "inbox jot note todo add fast thought", shortcut: `${modKey}+Shift+N`, run: () => useQuickCapture.getState().show() },
   { id: "duplicate", title: "Duplicate this page", keywords: "copy clone", when: () => hasPage() && st().selectedPage!.kind === "page", run: () => duplicatePage(st().selectedPage!) },
+  { id: "import-templates", title: "Import templates…", keywords: "template share file markdown html archive gallery", run: async () => {
+    // Templates are the pages inside Templates: open it, then import "Inside" it.
+    const container = await templatesContainer(true);
+    if (!container) return;
+    await st().selectPage(container.id);
+    useTransferDialog.getState().show("import");
+  } },
   { id: "save-template", title: "Save this page as a template", keywords: "template reuse copy blueprint", when: () => hasPage() && st().selectedPage!.kind === "page", run: () => saveAsTemplate(st().selectedPage!) },
   { id: "find", title: "Find in page", keywords: "search text replace within this page", shortcut: `${modKey}+F`, when: () => !!useActiveEditor.getState().editor, run: () => useFindBar.getState().show() },
   { id: "replace", title: "Find and replace in page", keywords: "substitute change text", shortcut: `${modKey}+H`, when: () => !!useActiveEditor.getState().editor?.isEditable, run: () => useFindBar.getState().show({ replace: true }) },
