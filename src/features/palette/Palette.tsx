@@ -1,4 +1,5 @@
 import { useShortcuts } from "../shortcuts/store";
+import { forgetSearch, saveSearch, savedSearches, type SavedSearch } from "./savedSearches";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { READ_ONLY } from "../../lib/access";
 import { Icon } from "../../components/Icon";
@@ -11,7 +12,7 @@ import { usePalette } from "./store";
 import { syncDialog } from "../../lib/dialog";
 import { SearchField } from "../../components/SearchField";
 
-type Section = "Recent" | "Pages" | "In pages" | "Commands";
+type Section = "Saved searches" | "Recent" | "Pages" | "In pages" | "Commands";
 
 interface Row {
   key: string;
@@ -21,6 +22,8 @@ interface Row {
   /** Title/sub text may carry search-match markers. */
   sub?: string;
   hint?: string;
+  /** Runs inside the palette (a saved search fills the box) instead of closing it. */
+  keep?: boolean;
   run: () => void | Promise<void>;
 }
 
@@ -48,14 +51,16 @@ function PaletteBody() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
+  const [saved, setSaved] = useState<SavedSearch[]>([]);
   const seq = useRef(0);
   const list = useRef<HTMLDivElement>(null);
   const q = query.trim();
 
-  // Recent pages for the empty state.
+  // Recent pages and saved searches for the empty state.
   useEffect(() => {
     if (!ws) return;
     ipc.pageListRecent(ws.id, 9).then(setRecents).catch(() => setRecents([]));
+    setSaved(savedSearches(ws.id));
   }, [ws]);
 
   // Search as you type. Older responses are ignored; the previous results stay visible meanwhile.
@@ -95,6 +100,10 @@ function PaletteBody() {
     const out: Row[] = [];
     const open = (pageId: string, blockId: string | null = null) => () => useWorkspace.getState().openPage(pageId, blockId);
     if (!q) {
+      for (const s of saved) {
+        const filters = [s.titlesOnly ? "titles only" : "", s.dayIdx ? DAY_FILTERS[s.dayIdx]?.label.toLowerCase() : ""].filter(Boolean).join(", ");
+        out.push({ key: `saved-${s.query}`, section: "Saved searches", kind: "command", title: s.query, sub: filters || undefined, keep: true, run: () => { setQuery(s.query); setTitlesOnly(s.titlesOnly); setDayIdx(Math.min(s.dayIdx, DAY_FILTERS.length - 1)); } });
+      }
       for (const p of recents.filter((r) => r.id !== currentId).slice(0, 8)) {
         out.push({ key: `recent-${p.id}`, section: "Recent", kind: "page", title: label(p.title), run: open(p.id) });
       }
@@ -117,7 +126,7 @@ function PaletteBody() {
       out.push({ key: "create", section: "Commands", kind: "create", title: `Create page “${q}”`, run: () => useWorkspace.getState().createPage(null, q) });
     }
     return out;
-  }, [shortcutOverrides, q, hits, recents, currentId]);
+  }, [shortcutOverrides, q, hits, recents, currentId, saved]);
 
   useEffect(() => setActive((a) => Math.min(a, Math.max(0, rows.length - 1))), [rows.length]);
   useEffect(() => {
@@ -126,7 +135,7 @@ function PaletteBody() {
 
   const activate = (row: Row | undefined) => {
     if (!row) return;
-    usePalette.getState().hide();
+    if (!row.keep) usePalette.getState().hide();
     void row.run();
   };
 
@@ -178,6 +187,9 @@ function PaletteBody() {
           <button type="button" className={`chip${titlesOnly ? " on" : ""}`} aria-pressed={titlesOnly} onClick={() => setTitlesOnly((v) => !v)}>
             Titles only
           </button>
+          {ws && (saved.some((s) => s.query === q)
+            ? <button type="button" className="chip on" aria-pressed="true" title="Remove from saved searches" onClick={() => setSaved(forgetSearch(ws.id, q))}>Saved</button>
+            : <button type="button" className="chip" title="Show this search when the palette opens" onClick={() => setSaved(saveSearch(ws.id, { query: q, titlesOnly, dayIdx }))}>Save search</button>)}
         </div>
       )}
 
@@ -188,7 +200,7 @@ function PaletteBody() {
           </p>
         )}
         {q && !busy && !error && !hasMatches && <p className="palette-note">No pages or text match “{q}”.</p>}
-        {!q && rows.every((r) => r.section !== "Recent") && <p className="palette-note">Search pages and text, or run a command.</p>}
+        {!q && rows.every((r) => r.section !== "Recent" && r.section !== "Saved searches") && <p className="palette-note">Search pages and text, or run a command.</p>}
         {rows.map((row, i) => {
           const header = row.section !== prev ? row.section : null;
           prev = row.section;
