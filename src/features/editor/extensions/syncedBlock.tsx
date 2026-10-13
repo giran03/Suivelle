@@ -1,14 +1,16 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { useEffect, useId, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { Icon } from "../../../components/Icon";
 import { ipc, toAppError } from "../../../lib/ipc";
 import { useWorkspace } from "../../../stores/workspace";
 import type { Page } from "../../../types";
-import { SyncedEditor } from "../SyncedEditor";
 import { createSyncedPage, listSyncedPages, unsyncBlock } from "../synced";
 import "../embeds.css";
 import { PickItem, useLoaded } from "./pickers";
+
+// Loaded on use: the nested editor builds these same extensions, so a static import would be a cycle.
+const SyncedEditor = lazy(() => import("../SyncedEditor").then((m) => ({ default: m.SyncedEditor })));
 
 /**
  * Only one place on a page may edit a given synced block at a time: two live editors writing the
@@ -164,7 +166,7 @@ function SyncedView({ node, updateAttributes, editor, selected, getPos }: NodeVi
       {ownership === false && (
         <p className="synced-note">This synced block is also shown above on this page, so it can only be edited there. This copy updates as you edit it.</p>
       )}
-      {ownership !== null && <SyncedEditor key={pageId} pageId={pageId} editable={canEdit} />}
+      {ownership !== null && <Suspense fallback={null}><SyncedEditor key={pageId} pageId={pageId} editable={canEdit} /></Suspense>}
     </NodeViewWrapper>
   );
 }
