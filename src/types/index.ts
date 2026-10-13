@@ -670,3 +670,11 @@ export interface Health {
   lastBackup: string | null;
   leftovers: Sweep;
 }
+
+/** A reminder about a page, fired once at a local time ("2026-10-13T09:00:00"). */
+export interface Reminder { id: string; pageId: string; pageTitle: string; remindAt: string; note: string; firedAt: string | null }
+
+export interface TagCount { tag: string; pages: number }
+
+/** Pages and the links between them: [from page id, to page id]. */
+export interface LinkGraph { nodes: PageTitle[]; edges: [string, string][] }

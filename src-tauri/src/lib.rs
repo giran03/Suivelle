@@ -11,6 +11,7 @@ pub mod history;
 mod legacy;
 pub mod maintenance;
 pub mod queries;
+pub mod reminders;
 pub mod repositories;
 pub mod search;
 pub mod services;
@@ -147,6 +148,29 @@ fn spawn_automation(app: tauri::AppHandle) {
                         Ok(n) if n > 0 => tracing::info!(runs = n, "automations started"),
                         Ok(_) => {}
                         Err(e) => tracing::warn!(error = %e, "automation scheduler failed"),
+                    }
+                    match reminders::fire_due(&conn, now) {
+                        Ok(due) => {
+                            for r in due {
+                                let title = if r.page_title.trim().is_empty() {
+                                    "Untitled"
+                                } else {
+                                    r.page_title.trim()
+                                };
+                                let body = if r.note.is_empty() {
+                                    "Reminder".to_string()
+                                } else {
+                                    r.note.clone()
+                                };
+                                sink(automation::engine::Notification {
+                                    title: title.to_string(),
+                                    body,
+                                });
+                                // The open window shows it too, with a way to jump to the page.
+                                let _ = tauri::Emitter::emit(&app, "reminder-due", &r);
+                            }
+                        }
+                        Err(e) => tracing::warn!(error = %e, "reminders failed"),
                     }
                     // Hourly, fold the write-ahead log back in so a long session does not keep
                     // the -wal file at its peak size until exit.
@@ -309,6 +333,12 @@ pub fn run() {
             commands::backup_mirror_get,
             commands::backup_mirror_choose,
             commands::backup_mirror_clear,
+            commands::reminder_create,
+            commands::reminder_delete,
+            queries::reminder_list,
+            queries::tag_list,
+            queries::tag_pages,
+            queries::link_graph,
             commands::database_create,
             commands::property_create,
             commands::property_update,

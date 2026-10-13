@@ -128,6 +128,49 @@ pub mod index {
                 params![page_id, block_id, target],
             )?;
         }
+        set_tags(conn, workspace_id, page_id, block_id, &text)
+    }
+
+    fn set_tags(
+        conn: &Connection,
+        workspace_id: &str,
+        page_id: &str,
+        block_id: &str,
+        text: &str,
+    ) -> AppResult<()> {
+        conn.execute("DELETE FROM block_tag WHERE block_id = ?1", [block_id])?;
+        for tag in text::extract_tags(text) {
+            conn.execute(
+                "INSERT OR IGNORE INTO block_tag (block_id, page_id, workspace_id, tag) VALUES (?1, ?2, ?3, ?4)",
+                params![block_id, page_id, workspace_id, tag],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Fills the tag table from existing blocks, once, when the table is introduced.
+    pub fn backfill_tags(conn: &Connection) -> AppResult<()> {
+        let blocks: Vec<(String, String, String, String, i64, String)> = {
+            let mut stmt = conn.prepare(
+                "SELECT b.id, b.page_id, p.workspace_id, b.type, b.schema_version, b.data_json
+                 FROM block b JOIN page p ON p.id = b.page_id WHERE instr(b.data_json, '#') > 0",
+            )?;
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                ))
+            })?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (id, page_id, workspace_id, kind, version, data) in blocks {
+            let text = text::plain_text(&kind, version, &data);
+            set_tags(conn, &workspace_id, &page_id, &id, &text)?;
+        }
         Ok(())
     }
 
@@ -479,4 +522,92 @@ pub fn page_titles(conn: &Connection, ids: &[String]) -> AppResult<Vec<PageTitle
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------------------------
+// tags and the link graph
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TagCount {
+    pub tag: String,
+    pub pages: i64,
+}
+
+/// Every #tag in the workspace with how many live pages use it, most used first.
+pub fn tags(conn: &Connection, workspace_id: &str) -> AppResult<Vec<TagCount>> {
+    validate_id(workspace_id, "workspace")?;
+    let mut stmt = conn.prepare(
+        "SELECT t.tag, COUNT(DISTINCT t.page_id) FROM block_tag t
+         JOIN page p ON p.id = t.page_id AND p.deleted_at IS NULL
+         WHERE t.workspace_id = ?1 GROUP BY t.tag ORDER BY 2 DESC, 1",
+    )?;
+    let rows = stmt.query_map([workspace_id], |r| {
+        Ok(TagCount {
+            tag: r.get(0)?,
+            pages: r.get(1)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// Live pages whose text uses `tag`, most recently edited first.
+pub fn tagged_pages(conn: &Connection, workspace_id: &str, tag: &str) -> AppResult<Vec<PageTitle>> {
+    validate_id(workspace_id, "workspace")?;
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT p.id, p.title, p.icon, p.updated_at FROM block_tag t
+         JOIN page p ON p.id = t.page_id AND p.deleted_at IS NULL
+         WHERE t.workspace_id = ?1 AND t.tag = ?2 ORDER BY p.updated_at DESC LIMIT 200",
+    )?;
+    let rows = stmt.query_map(
+        params![workspace_id, tag.trim_start_matches('#').to_lowercase()],
+        |r| {
+            Ok(PageTitle {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                icon: r.get(2)?,
+                deleted: false,
+            })
+        },
+    )?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkGraph {
+    pub nodes: Vec<PageTitle>,
+    /// Pairs of page ids: the page that links, and the page it links to.
+    pub edges: Vec<(String, String)>,
+}
+
+/// Pages and the links between them, for the graph view. Database records are left out so the
+/// graph shows documents rather than every row.
+pub fn link_graph(conn: &Connection, workspace_id: &str) -> AppResult<LinkGraph> {
+    validate_id(workspace_id, "workspace")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, title, icon FROM page
+         WHERE workspace_id = ?1 AND deleted_at IS NULL AND kind != 'record' LIMIT 5000",
+    )?;
+    let nodes: Vec<PageTitle> = stmt
+        .query_map([workspace_id], |r| {
+            Ok(PageTitle {
+                id: r.get(0)?,
+                title: r.get(1)?,
+                icon: r.get(2)?,
+                deleted: false,
+            })
+        })?
+        .collect::<Result<_, _>>()?;
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT r.source_page_id, r.target_page_id FROM page_reference r
+         JOIN page s ON s.id = r.source_page_id AND s.deleted_at IS NULL AND s.kind != 'record'
+         JOIN page t ON t.id = r.target_page_id AND t.deleted_at IS NULL AND t.kind != 'record'
+         WHERE s.workspace_id = ?1 AND r.source_page_id != r.target_page_id",
+    )?;
+    let edges = stmt
+        .query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    Ok(LinkGraph { nodes, edges })
 }

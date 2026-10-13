@@ -5,6 +5,9 @@ import type {
   Attachment,
   Health,
   Sweep,
+  Reminder,
+  TagCount,
+  LinkGraph,
   AttachmentKind,
   Action,
   Automation,
@@ -242,6 +245,12 @@ export const ipc = {
   backupMirrorGet: () => call<{ folder: string | null }>("backup_mirror_get"),
   backupMirrorChoose: () => call<{ folder: string | null } | null>("backup_mirror_choose"),
   backupMirrorClear: () => call<{ folder: string | null }>("backup_mirror_clear"),
+  reminderCreate: (pageId: string, remindAt: string, note: string) => call<Reminder>("reminder_create", { pageId, remindAt, note }),
+  reminderDelete: (id: string) => call<void>("reminder_delete", { id }),
+  reminderList: (workspaceId: string) => call<Reminder[]>("reminder_list", { workspaceId }),
+  tagList: (workspaceId: string) => call<TagCount[]>("tag_list", { workspaceId }),
+  tagPages: (workspaceId: string, tag: string) => call<PageTitle[]>("tag_pages", { workspaceId, tag }),
+  linkGraph: (workspaceId: string) => call<LinkGraph>("link_graph", { workspaceId }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>

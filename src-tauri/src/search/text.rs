@@ -149,6 +149,38 @@ pub fn fts_query(input: &str, titles_only: bool) -> Option<String> {
     })
 }
 
+/// Longest tag kept, in characters; anything longer is cut there.
+const MAX_TAG_CHARS: usize = 48;
+
+/// The #tags in `text`, lowercased, in first-seen order. A tag starts with a letter after `#`
+/// that does not follow a word character (so `C#`, URL fragments and `#1` are not tags) and
+/// runs over letters, digits, `_`, `-` and `/`.
+pub fn extract_tags(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: Vec<String> = Vec::new();
+    for i in 0..chars.len() {
+        if chars[i] != '#' {
+            continue;
+        }
+        let after_word = i > 0
+            && (chars[i - 1].is_alphanumeric() || matches!(chars[i - 1], '#' | '/' | '&' | '_'));
+        if after_word || !chars.get(i + 1).is_some_and(|c| c.is_alphabetic()) {
+            continue;
+        }
+        let tag: String = chars[i + 1..]
+            .iter()
+            .take_while(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '/'))
+            .take(MAX_TAG_CHARS)
+            .collect::<String>()
+            .trim_end_matches(['-', '/', '_'])
+            .to_lowercase();
+        if !tag.is_empty() && !out.contains(&tag) {
+            out.push(tag);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

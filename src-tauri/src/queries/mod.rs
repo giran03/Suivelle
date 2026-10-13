@@ -425,3 +425,57 @@ pub async fn workspace_stats(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn tag_list(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<Vec<crate::search::TagCount>> {
+    blocking("tag_list", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::search::tags(&conn, &workspace_id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn tag_pages(
+    app: tauri::AppHandle,
+    workspace_id: String,
+    tag: String,
+) -> AppResult<Vec<crate::search::PageTitle>> {
+    blocking("tag_pages", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::search::tagged_pages(&conn, &workspace_id, &tag)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn link_graph(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<crate::search::LinkGraph> {
+    blocking("link_graph", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::search::link_graph(&conn, &workspace_id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn reminder_list(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<Vec<crate::reminders::Reminder>> {
+    blocking("reminder_list", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        let now = chrono::Local::now().naive_local();
+        crate::reminders::list(&conn, &workspace_id, now)
+    })
+    .await
+}

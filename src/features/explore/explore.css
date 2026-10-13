@@ -1,0 +1,25 @@
+.palette.explore { width: min(560px, calc(100vw - 32px)); }
+.palette.explore-graph { width: min(960px, calc(100vw - 48px)); max-height: min(720px, 86vh); margin-top: 6vh; }
+.explore-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 6px 20px; }
+.explore-head h2 { margin: 0; font-size: 1rem; }
+.explore-body { padding: 4px 20px 18px; overflow: auto; min-height: 0; }
+.explore-form { display: flex; flex-direction: column; gap: 10px; }
+.explore-form .set-hint { margin: -4px 0 0; }
+.explore-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.explore-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.explore-list li { display: flex; align-items: center; gap: 4px; }
+.explore-list li.done { opacity: 0.7; }
+.explore-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: var(--r-md, 6px); background: none; color: var(--fg); text-align: start; cursor: pointer; }
+.explore-row:hover, .explore-row:focus-visible { background: var(--surface-hover); }
+.explore-row-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explore-row-main small { display: block; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+.explore-row time, .explore-row > small { color: var(--text-muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-chip { padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); color: var(--fg); font-size: 0.8125rem; cursor: pointer; }
+.tag-chip small { color: var(--text-muted); }
+.tag-chip:hover { background: var(--surface-hover); }
+.tag-chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-1)); }
+.explore-graph { display: flex; flex-direction: column; gap: 8px; height: min(600px, 70vh); }
+.explore-graph-bar { display: flex; align-items: center; justify-content: space-between; }
+.graph-canvas { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-1); cursor: grab; }
+.explore-graph .explore-list { overflow: auto; }

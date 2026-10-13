@@ -192,6 +192,7 @@ const READ_COMMANDS = new Set([
   "automation_list", "automation_runs", "dashboard_get", "template_list", "backup_list", "attachment_list",
   "shell_get_behavior", "quick_capture_shortcut", "formula_preview", "export_shape",
   "maintenance_health", "diagnostics_report", "backup_mirror_get", "app_safe_mode",
+  "reminder_list", "tag_list", "tag_pages", "link_graph",
 ]);
 
 /** Only read commands and temporary display preferences cross the showcase boundary. */
@@ -378,6 +379,25 @@ function dispatch(cmd: string, a: any): unknown {
     case "diagnostics_report": return "Suivelle showcase (read-only mock)";
     case "backup_mirror_get": return { folder: null };
     case "app_safe_mode": return null;
+    case "reminder_list": return [];
+    case "tag_list": case "tag_pages": {
+      // The sample content has no stored tag index; derive it from block text the same way.
+      const found = new Map<string, Set<string>>();
+      for (const blk of db.blocks) for (const m of blk.dataJson.matchAll(/(?:^|[^\p{L}\p{N}#/&_])#(\p{L}[\p{L}\p{N}_\-/]*)/gu)) {
+        const tag = m[1].toLowerCase();
+        if (!found.has(tag)) found.set(tag, new Set());
+        found.get(tag)!.add(blk.pageId);
+      }
+      if (cmd === "tag_list") return [...found].map(([tag, pages]) => ({ tag, pages: pages.size })).sort((x, y) => y.pages - x.pages || x.tag.localeCompare(y.tag));
+      const ids = found.get(String(a.tag).replace(/^#/, "").toLowerCase()) ?? new Set();
+      return db.pages.filter((p) => ids.has(p.id)).map((p) => ({ id: p.id, title: p.title, icon: p.icon, deleted: false }));
+    }
+    case "link_graph": {
+      // The sample has no stored links, so the page tree stands in for them.
+      const pages = db.pages.filter((p) => live(p) && p.kind !== "record");
+      const ids = new Set(pages.map((p) => p.id));
+      return { nodes: pages.map((p) => ({ id: p.id, title: p.title, icon: p.icon, deleted: false })), edges: pages.filter((p) => p.parentPageId && ids.has(p.parentPageId)).map((p) => [p.parentPageId, p.id]) };
+    }
     case "attachment_list": return [];
     case "shell_get_behavior": return { tray: false, closeToTray: false, minimizeToTray: false, startWithSystem: false, startMinimized: false };
     case "shell_set_behavior": return a.behavior;

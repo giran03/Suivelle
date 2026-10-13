@@ -675,3 +675,100 @@ fn search_scales_to_the_design_target() {
     let r = index::rebuild_workspace(&conn, &ws.id).unwrap();
     println!("rebuild of {r} docs took {:?}", t.elapsed());
 }
+
+#[test]
+fn tags_are_words_after_a_hash_not_code_fragments_or_numbers() {
+    assert_eq!(
+        text::extract_tags("Plan #Launch and #ux/research, #ux-research. C# x#y #1 # gap https://a.b/#frag ##double #launch"),
+        ["launch", "ux/research", "ux-research"]
+    );
+    assert_eq!(text::extract_tags("#été #日本"), ["été", "日本"]);
+}
+
+#[test]
+fn tags_follow_block_edits_and_hide_trashed_pages() {
+    let (mut conn, ws) = setup();
+    let a = page(&mut conn, &ws, None, "A");
+    let b = page(&mut conn, &ws, None, "B");
+    let block = add_block(&mut conn, &a, "paragraph", rich("#idea and #todo"));
+    add_block(&mut conn, &b, "paragraph", rich("another #idea"));
+    let counts = |conn: &Connection| {
+        tags(conn, &ws.id)
+            .unwrap()
+            .into_iter()
+            .map(|t| (t.tag, t.pages))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        counts(&conn),
+        [("idea".to_string(), 2), ("todo".to_string(), 1)]
+    );
+    assert_eq!(tagged_pages(&conn, &ws.id, "#IDEA").unwrap().len(), 2);
+
+    services::block::apply_batch(
+        &mut conn,
+        BlockBatch {
+            page_id: a.id.clone(),
+            upserts: vec![BlockUpsert {
+                id: block,
+                parent_block_id: None,
+                block_type: "paragraph".into(),
+                position: 0.0,
+                data_json: rich("no tags now"),
+                schema_version: 2,
+            }],
+            delete_ids: vec![],
+        },
+    )
+    .unwrap();
+    assert_eq!(counts(&conn), [("idea".to_string(), 1)]);
+    services::page::delete(&mut conn, &b.id).unwrap();
+    assert!(counts(&conn).is_empty());
+}
+
+#[test]
+fn link_graph_has_pages_and_their_links_without_records_or_trash() {
+    let (mut conn, ws) = setup();
+    let a = page(&mut conn, &ws, None, "A");
+    let b = page(&mut conn, &ws, None, "B");
+    let c = page(&mut conn, &ws, None, "C");
+    add_block(
+        &mut conn,
+        &a,
+        "paragraph",
+        format!(
+            r#"{{"content":[{{"type":"pageMention","attrs":{{"pageId":"{}"}}}}]}}"#,
+            b.id
+        ),
+    );
+    add_block(
+        &mut conn,
+        &c,
+        "paragraph",
+        format!(
+            r#"{{"content":[{{"type":"pageMention","attrs":{{"pageId":"{}"}}}}]}}"#,
+            a.id
+        ),
+    );
+    services::page::delete(&mut conn, &c.id).unwrap();
+    let graph = link_graph(&conn, &ws.id).unwrap();
+    assert_eq!(graph.nodes.len(), 2);
+    assert_eq!(graph.edges, [(a.id.clone(), b.id.clone())]);
+}
+
+#[test]
+fn upgrading_backfills_tags_from_existing_blocks() {
+    let (mut conn, ws) = setup();
+    let a = page(&mut conn, &ws, None, "A");
+    add_block(&mut conn, &a, "paragraph", rich("old note about #garden"));
+    add_block(&mut conn, &a, "paragraph", rich("no tags here"));
+    conn.execute("DELETE FROM block_tag", []).unwrap();
+    index::backfill_tags(&conn).unwrap();
+    assert_eq!(
+        tags(&conn, &ws.id).unwrap(),
+        [TagCount {
+            tag: "garden".into(),
+            pages: 1
+        }]
+    );
+}

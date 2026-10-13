@@ -1343,3 +1343,28 @@ mod corner_tests {
         assert!(corner_preference("invalid").is_err());
     }
 }
+
+#[tauri::command]
+pub async fn reminder_create(
+    app: tauri::AppHandle,
+    page_id: String,
+    remind_at: String,
+    note: String,
+) -> AppResult<crate::reminders::Reminder> {
+    blocking("reminder_create", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::reminders::create(&conn, &page_id, &remind_at, &note)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn reminder_delete(app: tauri::AppHandle, id: String) -> AppResult<()> {
+    blocking("reminder_delete", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::reminders::delete(&conn, &id)
+    })
+    .await
+}

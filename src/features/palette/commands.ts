@@ -22,6 +22,7 @@ import { modKey } from "./store";
 import { openDailyNote } from "../journal/journal";
 import { reopenClosedTab } from "../tabs/tabs";
 import { useOutline } from "../outline/store";
+import { useExplore } from "../explore/store";
 
 export interface PaletteCommand {
   id: string;
@@ -47,6 +48,10 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "switch-workspace", title: "Switch workspace…", keywords: "open space work personal", run: () => useWorkspaceDialog.getState().show("manage") },
   { id: "new-page", title: "New page", keywords: "create add page", shortcut: `${modKey}+N`, run: () => st().createPage(null) },
   { id: "daily-note", title: "Open today's note", keywords: "journal daily diary today date log", run: () => openDailyNote() },
+  { id: "remind", title: "Remind me about this page…", keywords: "reminder alarm notify later due schedule", when: hasPage, run: () => useExplore.getState().show("remind") },
+  { id: "reminders", title: "Reminders…", keywords: "reminder list upcoming due alarms", run: () => useExplore.getState().show("reminders") },
+  { id: "tags", title: "Browse tags…", keywords: "tag hashtag # labels topics", run: () => useExplore.getState().show("tags") },
+  { id: "graph", title: "Link graph", keywords: "graph map links connections network backlinks", run: () => useExplore.getState().show("graph") },
   { id: "new-database", title: "New database", keywords: "create add table records tasks", run: () => st().createDatabase(null) },
   { id: "new-dashboard", title: "New dashboard", keywords: "create add charts widgets overview kpi report", run: () => st().createDashboard(null) },
   { id: "new-from-template", title: "New from template…", keywords: "project manager tasks tracker sprint milestone software bugs", run: () => useTemplateGallery.getState().show() },

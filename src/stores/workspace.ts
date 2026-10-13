@@ -29,6 +29,8 @@ export interface Toast {
   id: number;
   message: string;
   undo?: () => void | Promise<void>;
+  /** The button's label when the action is not an undo, such as "Open". */
+  action?: string;
 }
 
 /** Cached title info for mention chips; `missing` means the page no longer exists. */
@@ -85,7 +87,7 @@ interface State {
   openPage: (id: string, blockId?: string | null) => Promise<void>;
   ensureTitles: (ids: string[]) => Promise<void>;
   refreshTitles: () => Promise<void>;
-  notify: (message: string, undo?: Toast["undo"]) => void;
+  notify: (message: string, undo?: Toast["undo"], action?: string) => void;
   createDatabase: (parentId: string | null) => Promise<void>;
   /** Bumped when something other than the open view changed records (a button, an automation). */
   dataEpoch: number;
@@ -157,7 +159,7 @@ export const useWorkspace = create<State>((set, get) => {
     set({ children: next, favorites });
   };
 
-  const pushToast = (message: string, undo?: Toast["undo"]) => set({ toast: { id: ++toastSeq, message, undo } });
+  const pushToast = (message: string, undo?: Toast["undo"], action?: string) => set({ toast: { id: ++toastSeq, message, undo, action } });
 
   let selectionSeq = 0;
   let treeSeq = 0;
@@ -614,7 +616,7 @@ export const useWorkspace = create<State>((set, get) => {
       }
     },
 
-    notify: (message, undo) => pushToast(message, undo),
+    notify: (message, undo, action) => pushToast(message, undo, action),
     dataEpoch: 0,
     bumpData: () => set((s) => ({ dataEpoch: s.dataEpoch + 1 })),
 

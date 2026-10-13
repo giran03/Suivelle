@@ -53,6 +53,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "value_lookup",
         include_str!("../../migrations/0010_value_lookup.sql"),
     ),
+    (
+        11,
+        "reminders_tags",
+        include_str!("../../migrations/0011_reminders_tags.sql"),
+    ),
 ];
 
 /// The schema version a fully migrated database has.
@@ -218,6 +223,10 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
     for (version, name, sql) in MIGRATIONS.iter().filter(|m| m.0 > current) {
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
+        // Data a migration cannot derive in SQL alone.
+        if *version == 11 {
+            crate::search::index::backfill_tags(&tx)?;
+        }
         tx.execute(
             "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
             rusqlite::params![version, name, crate::domain::now()],

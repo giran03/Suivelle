@@ -9,6 +9,8 @@ import { safeModeReason } from "../lib/safeMode";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useWorkspaceDialog } from "../features/workspaces/store";
 import { useOutline } from "../features/outline/store";
+import { useExplore } from "../features/explore/store";
+import { installReminderToasts } from "../features/explore/events";
 import { registerFlusher } from "../features/editor/flushRegistry";
 import { AppContextMenu } from "../components/AppContextMenu";
 import { Titlebar } from "../components/Titlebar";
@@ -54,6 +56,7 @@ const Editor = lazy(() => import("../features/editor/Editor").then((m) => ({ def
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
+const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
 const BackupsDialog = lazy(() => import("../features/backup/BackupsDialog").then((m) => ({ default: m.BackupsDialog })));
 const TransferDialog = lazy(() => import("../features/transfer/TransferDialog").then((m) => ({ default: m.TransferDialog })));
@@ -256,6 +259,7 @@ export function App() {
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
   const WorkspaceDialogOpen = useWorkspaceDialog((s) => s.open);
   const outlineOpen = useOutline((s) => s.open);
+  const exploreOpen = useExplore((s) => !!s.panel);
   const TransferDialogOpen = useTransferDialog((s) => s.open);
   const HistoryPanelOpen = useHistoryPanel((s) => s.open);
   const TemplateGalleryOpen = useTemplateGallery((s) => s.open);
@@ -288,6 +292,7 @@ export function App() {
   useEffect(() => installSessionPersistence(), []);
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
+  useEffect(() => installReminderToasts(), []);
 
   // The global shortcut opens a separate jot window; saves use this workspace and editor.
   useEffect(() => {
@@ -424,6 +429,7 @@ export function App() {
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
     <OnDemand open={outlineOpen}><OutlinePanel /></OnDemand>
+    <OnDemand open={exploreOpen}><ExploreDialog /></OnDemand>
     <UpdatesRoot />
     {workspaceBusy && <div className="workspace-pending" role="status"><Loading variant="orbit" label="Saving changes and preparing workspace…" /></div>}
     </div>
