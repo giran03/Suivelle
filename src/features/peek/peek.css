@@ -4,3 +4,4 @@
 .peek-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px 40px; }
 .peek-body .editor { max-width: none; }
 .app-frame:has(.peek-panel) .outline-panel { right: calc(min(46vw, 640px) + 16px); }
+@media (max-width: 960px) { .peek-panel { width: 100%; min-width: 0; } .app-frame:has(.peek-panel) .outline-panel { display: none; } }
