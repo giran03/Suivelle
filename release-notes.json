@@ -1,5 +1,5 @@
 {
   "version": "0.1.4",
   "date": "2026-10-13",
-  "notes": "## Improved\n- Replaced the window-corner toggle with independent Sharp, Default and Round icon buttons. Sharp explicitly keeps the window square; the choice is remembered and no longer follows interface corner changes."
+  "notes": "## Improved\n- Replaced the window-corner toggle with independent Sharp, Soft and Round icon buttons. Soft uses Windows’ smaller corner radius, while Round uses its fuller radius. The independent choice is remembered across restarts; Sharp explicitly keeps the window square."
 }

@@ -126,8 +126,8 @@ function Switch({ label, checked, disabled, onChange }: { label: string; checked
 function WindowCornersRow() {
   const style = usePreferences((s) => s.windowCorners);
   const setStyle = usePreferences((s) => s.setWindowCorners);
-  return <Row title="Window corners" hint="Sharp keeps the window square. Default follows Windows; Round requests rounded corners. Windows 11 only; maximized and snapped windows stay square.">
-    <div className="set-window-corners"><Segmented label="Window corners" value={style} options={[["sharp", "Sharp", "corner-sharp"], ["default", "Default", "corner-default"], ["round", "Round", "corner-round"]]} onChange={setStyle} /></div>
+  return <Row title="Window corners" hint="Choose square, subtle or full rounding. Windows 11 only; maximized and snapped windows stay square.">
+    <div className="set-window-corners"><Segmented label="Window corners" value={style} options={[["sharp", "Sharp", "corner-sharp"], ["soft", "Soft", "corner-soft"], ["round", "Round", "corner-round"]]} onChange={setStyle} /></div>
   </Row>;
 }
 
@@ -287,7 +287,7 @@ function SettingsBody() {
           <ChoiceRow k="density" />
           <InterfaceSizeRow />
           <ChoiceRow k="motion" />
-          <div className="set-reset"><button className="btn ghost" onClick={() => { for (const key of ["corners", "lines", "density", "uiScale", "motion"] as const) usePreferences.getState().set(key, CHOICES[key].fallback); usePreferences.getState().setWindowCorners("default"); }}>Restore default layout</button></div>
+          <div className="set-reset"><button className="btn ghost" onClick={() => { for (const key of ["corners", "lines", "density", "uiScale", "motion"] as const) usePreferences.getState().set(key, CHOICES[key].fallback); usePreferences.getState().setWindowCorners("soft"); }}>Restore default layout</button></div>
         </SettingsPage>
 
         <SettingsPage id="editor" active={query.trim() ? "search" : page}>

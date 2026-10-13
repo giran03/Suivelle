@@ -139,12 +139,14 @@ export interface ShellChoices {
 }
 export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false, focusShortcut: true };
 
-export type WindowCornerStyle = "sharp" | "default" | "round";
+export type WindowCornerStyle = "sharp" | "soft" | "round";
 
 /** Preserve the previous window appearance when migrating the old opt-in toggle. */
 export function windowCornersFrom(raw: Partial<Record<string, unknown>>): WindowCornerStyle {
-  if (raw.windowCorners === "sharp" || raw.windowCorners === "default" || raw.windowCorners === "round") return raw.windowCorners;
-  return raw.windowCorners === true ? sanitize(raw).corners as WindowCornerStyle : "default";
+  if (raw.windowCorners === "sharp" || raw.windowCorners === "soft" || raw.windowCorners === "round") return raw.windowCorners;
+  if (raw.windowCorners === "default" || raw.windowCorners === false) return "round";
+  if (raw.windowCorners === true) return sanitize(raw).corners === "sharp" ? "sharp" : "round";
+  return "soft";
 }
 
 interface Saved extends Choices {
@@ -212,7 +214,7 @@ function read(): Saved {
     const theme = v.theme === "system" || v.theme === "light" || v.theme === "dark" ? v.theme : null;
     return { ...sanitize(v), theme, globalCapture: v.globalCapture === true, windowCorners: windowCornersFrom(v), shell };
   } catch {
-    return { ...defaults(), theme: null, globalCapture: false, windowCorners: "default", shell: SHELL_DEFAULTS };
+    return { ...defaults(), theme: null, globalCapture: false, windowCorners: "soft", shell: SHELL_DEFAULTS };
   }
 }
 
@@ -251,6 +253,6 @@ export const usePreferences = create<PreferencesState>((set, get) => {
     setGlobalCapture: (globalCapture) => save({ globalCapture }),
     setWindowCorners: (windowCorners) => save({ windowCorners }),
     setShell: (shell) => save({ shell }),
-    reset: () => save({ ...defaults(), windowCorners: "default" }),
+    reset: () => save({ ...defaults(), windowCorners: "soft" }),
   };
 });

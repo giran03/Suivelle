@@ -1300,7 +1300,7 @@ pub fn window_set_corners(
 fn corner_preference(corners: &str) -> AppResult<u32> {
     let preference = match corners {
         "sharp" => 1,
-        "default" => 0,
+        "soft" => 3,
         "round" => 2,
         _ => return Err(AppError::Validation("Unknown window corner style".into())),
     };
@@ -1310,9 +1310,9 @@ fn corner_preference(corners: &str) -> AppResult<u32> {
 #[cfg(test)]
 mod corner_tests {
     #[test]
-    fn sharp_explicitly_disables_rounding_and_default_follows_windows() {
+    fn window_corner_styles_use_distinct_native_preferences() {
         use super::corner_preference;
-        for (choice, expected) in [("sharp", 1), ("default", 0), ("round", 2)] {
+        for (choice, expected) in [("sharp", 1), ("soft", 3), ("round", 2)] {
             assert_eq!(corner_preference(choice).unwrap(), expected);
         }
         assert!(corner_preference("invalid").is_err());
