@@ -3,7 +3,8 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tip
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../../components/Icon";
 import { copyText } from "../../../components/editingMenu";
-import { ipc, toAppError } from "../../../lib/ipc";
+import { openExternalLink } from "../../../lib/links";
+import { toAppError } from "../../../lib/ipc";
 import { EMBED_DEFAULTS, embedData, embedTarget, type EmbedTarget } from "../embedModel";
 import { pickAttachment } from "./media";
 import "../embed.css";
@@ -65,7 +66,7 @@ function EmbedView({ node, editor, updateAttributes, getPos, selected }: NodeVie
       </div>
     </form> : <>
       <div className="embed-head"><Icon name={target?.provider === "YouTube" ? "play" : "open"} size={16} /><strong>{data.title || target?.provider || "Embed"}</strong>
-        {target && <button type="button" className="icon-btn" aria-label="Open embed in browser" title="Open in browser" onClick={() => void run(() => ipc.imageOpenLink(target.source))}><Icon name="open" size={16} /></button>}
+        {target && <button type="button" className="icon-btn" aria-label="Open embed in browser" title="Open in browser" onClick={() => void run(() => openExternalLink(target.source))}><Icon name="open" size={16} /></button>}
         {editable && <details className="embed-menu"><summary aria-label="Embed options" title="Embed options"><Icon name="more" size={16} /></summary><div>
           <button type="button" className="btn" onClick={() => { setDraft(data); setEditing(true); }}>Edit link and caption</button>
           {target && <button type="button" className="btn" onClick={() => void run(() => copyText(target.source))}>Copy link</button>}
@@ -83,7 +84,7 @@ function EmbedView({ node, editor, updateAttributes, getPos, selected }: NodeVie
           {editable && <button type="button" className="embed-resize" aria-label="Resize embed height. Use Up and Down arrow keys." title="Drag to resize height" onPointerDown={(e) => { if (e.button !== 0) return; e.preventDefault(); size.current = { y: e.clientY, height: frameBox.current?.clientHeight ?? 360 }; e.currentTarget.setPointerCapture(e.pointerId); setInteractive(false); }} onPointerMove={(e) => { if (size.current && e.currentTarget.hasPointerCapture(e.pointerId)) setResizeHeight(changeSize(size.current.height + e.clientY - size.current.y)); }} onPointerUp={(e) => { if (!size.current) return; updateAttributes({ height: changeSize(size.current.height + e.clientY - size.current.y) }); size.current = null; setResizeHeight(null); }} onLostPointerCapture={() => { size.current = null; setResizeHeight(null); }} onKeyDown={(e) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); updateAttributes({ height: changeSize((data.height ?? frameBox.current?.clientHeight ?? 360) + (e.key === "ArrowUp" ? -20 : 20)) }); } }}><Icon name="grip" size={14} /></button>}
         </div>
         {loaded && online && <div className="embed-actions"><button type="button" className="link" onClick={() => { setReload((n) => n + 1); setSlow(false); setError(null); }}>Reload</button><button type="button" className="link" onClick={() => setInteractive(false)}>Return to page scrolling</button>{slow && <small>Blank or unavailable? Open the link in your browser.</small>}</div>}
-      </> : <div className="embed-link-card">{target ? <><span>{target.source}</span><button type="button" className="btn" onClick={() => void run(() => ipc.imageOpenLink(target.source))}>Open in browser</button></> : <p>{data.url ? "This saved link is invalid. Edit it to choose a new link." : "Add a YouTube, Google Maps, or website link."}</p>}</div>}
+      </> : <div className="embed-link-card">{target ? <><span>{target.source}</span><button type="button" className="btn" onClick={() => void run(() => openExternalLink(target.source))}>Open in browser</button></> : <p>{data.url ? "This saved link is invalid. Edit it to choose a new link." : "Add a YouTube, Google Maps, or website link."}</p>}</div>}
       {data.caption && <p className="embed-caption">{data.caption}</p>}
     </>}
     {error && <p className="field-error" role="alert">{error}</p>}

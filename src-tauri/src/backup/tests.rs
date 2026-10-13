@@ -135,14 +135,19 @@ fn legacy_backups_remain_listed_and_restore_with_new_safety_backups() {
     let legacy_path = e.paths.backups().join(&legacy_name);
     fs::rename(e.paths.backups().join(&info.name), &legacy_path).unwrap();
     assert_eq!(list(&e.paths)[0].name, legacy_name);
-    assert_eq!(app_backup_path(&e.paths, &legacy_name).unwrap(), legacy_path);
+    assert_eq!(
+        app_backup_path(&e.paths, &legacy_name).unwrap(),
+        legacy_path
+    );
     page(&e, "Later");
     let restored = restore(&e.conn, &e.paths, &legacy_path).unwrap();
     assert_eq!(titles(&e), ["Original"]);
     assert!(restored.safety_backup.ends_with(".suibk"));
     let backups = list(&e.paths);
     assert!(backups.iter().any(|backup| backup.name == legacy_name));
-    assert!(backups.iter().any(|backup| backup.name == restored.safety_backup));
+    assert!(backups
+        .iter()
+        .any(|backup| backup.name == restored.safety_backup));
 }
 
 #[test]

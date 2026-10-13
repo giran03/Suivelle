@@ -37,6 +37,8 @@ pub const BLOCK_TYPES: &[&str] = &[
     "columns",
     "column",
     "database_view",
+    "calendar",
+    "calendar_event",
     "table_of_contents",
     "synced_block",
 ];

@@ -81,10 +81,10 @@ export function PagesToolbar() {
       </div>
       <div className="pages-tree-tools" role="group" aria-label="Page tree controls">
         <button type="button" className="pages-tree-action" aria-label={expanding ? "Expanding all pages" : "Expand all pages"} title="Expand all pages" disabled={!available || !hasBranches || expanding || refreshing} onClick={() => void useWorkspace.getState().expandAllPages()}>
-          <Icon name="expandAll" size={14} /><span>{expanding ? "Expanding…" : "Expand"}</span>
+          <Icon name="expandAll" size={14} />
         </button>
         <button type="button" className="pages-tree-action" aria-label="Collapse all pages" title={expanding ? "Stop expanding and collapse all pages" : "Collapse all pages"} disabled={!available || (!hasExpanded && !expanding)} onClick={() => useWorkspace.getState().collapseAllPages()}>
-          <Icon name="collapseAll" size={14} /><span>Collapse</span>
+          <Icon name="collapseAll" size={14} />
         </button>
         {!READ_ONLY && held && <button type="button" className="icon-btn" aria-label="Paste pages at top level" title={`Paste pages at top level${pasteShortcut.label ? ` (${pasteShortcut.label})` : ""}`} disabled={!available || pasting} onClick={() => void pastePages(null)}><Icon name="duplicate" /></button>}
         <button type="button" className="icon-btn pages-options" aria-label="Page tree options" title="Page tree options" aria-haspopup="menu" aria-expanded={menu?.kind === "options"} disabled={!available} onClick={(e) => openMenu(e.currentTarget, "options")}>

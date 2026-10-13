@@ -28,7 +28,7 @@ const GROUPS: { title: string; rows: [string, string[]][] }[] = [
       ["Heading 1, 2, 3", ["#", "##", "###", "+ Space"]],
       ["Bulleted list", ["-", "+ Space"]],
       ["Numbered list", ["1.", "+ Space"]],
-      ["To-do", ["[]", "+ Space"]],
+      ["To-do", ["[", "]", "+ Space"]],
       ["Quote", [">", "+ Space"]],
       ["Code block", ["```"]],
       ["Divider", ["---"]],

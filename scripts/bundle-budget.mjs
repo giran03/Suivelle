@@ -7,7 +7,8 @@ const dist = "dist";
 const assets = join(dist, "assets");
 const kB = 1000;
 /** Everything loaded before the first render: the entry, the modules main.tsx imports right away, and their static imports. */
-const STARTUP_MAX = 510 * kB;
+// Calendar/media commands and shell integration; heavy views and dialogs load on demand.
+const STARTUP_MAX = 530 * kB;
 const STARTUP_ROOTS = [/^App-.*\.js$/, /^ErrorBoundary-.*\.js$/, /^CaptureWindow-.*\.js$/];
 const BUDGETS = [
   { name: "Editor", match: (file) => /^Editor-.*\.js$/.test(file), max: 720 * kB },
@@ -15,7 +16,8 @@ const BUDGETS = [
   { name: "EmojiPicker", match: (file) => /^EmojiPicker-.*\.js$/.test(file), max: 250 * kB },
   { name: "DatabaseView", match: (file) => /^DatabaseView-.*\.js$/.test(file), max: 190 * kB },
 ];
-const TOTAL_JS_MAX = 2_600 * kB;
+// Includes the calendar views, recurrence/import support, and date/time pickers.
+const TOTAL_JS_MAX = 2_800 * kB;
 
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const entry = html.match(/<script[^>]+src="\/?assets\/([^"]+\.js)"/)?.[1];

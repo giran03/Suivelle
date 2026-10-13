@@ -18,6 +18,8 @@ import { ThemeEditor } from "./ThemeEditor";
 import { useThemes } from "./themes";
 import { radioKeys } from "./radioKeys";
 import type { PaletteMode } from "./theme";
+import { READ_ONLY } from "../../lib/access";
+import { seedGettingStarted } from "../onboarding/gettingStarted";
 
 const PAGES: { id: string; title: string; icon: IconName }[] = [
   { id: "appearance", title: "Appearance", icon: "sun" },
@@ -186,6 +188,9 @@ function WindowSection() {
 }
 
 function SettingsBody() {
+  const workspaceId = useWorkspace((s) => s.workspace?.id);
+  const [creatingStarter, setCreatingStarter] = useState(false);
+  const [starterError, setStarterError] = useState<string | null>(null);
   const legacyTheme = useWorkspace((s) => s.settings.theme);
   const theme = usePreferences((s) => s.theme) ?? legacyTheme;
   const autoBackup = useWorkspace((s) => s.settings.autoBackup);
@@ -205,8 +210,25 @@ function SettingsBody() {
   const content = useRef<HTMLDivElement>(null);
   const nav = useRef<HTMLDivElement>(null);
   const [horizontalTabs, setHorizontalTabs] = useState(false);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(committed) || (draftMode !== null && draftMode !== theme);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(committed) || draftMode !== null;
   const close = (after?: () => void) => useSettingsDialog.getState().requestClose(after);
+  const addGettingStarted = async () => {
+    if (!workspaceId || READ_ONLY || creatingStarter) return;
+    setCreatingStarter(true);
+    setStarterError(null);
+    try {
+      const created = await seedGettingStarted(workspaceId);
+      if (useWorkspace.getState().workspace?.id !== workspaceId) return;
+      await useWorkspace.getState().reloadTree();
+      close(() => {
+        if (useWorkspace.getState().workspace?.id === workspaceId) void useWorkspace.getState().selectPage(created.id);
+      });
+    } catch (e) {
+      setStarterError(toAppError(e).message);
+    } finally {
+      setCreatingStarter(false);
+    }
+  };
   const finish = () => { useThemes.getState().setPreview(null); useSettingsDialog.getState().finishClose(afterClose.current); };
   const apply = () => {
     const invalid = content.current?.querySelector<HTMLInputElement>(".theme-color-control input[aria-invalid='true']");
@@ -364,6 +386,12 @@ function SettingsBody() {
               <div className="set-hint">{VERSION ? `Version ${VERSION}. ` : ""}Your notes and data stay on this computer.</div>
             </div>
           </div>
+          <Row title="Getting started" hint="Add a fresh copy of the introductory checklist to your current workspace.">
+            <button type="button" className="btn" disabled={!workspaceId || READ_ONLY || creatingStarter} onClick={() => void addGettingStarted()}>
+              {creatingStarter ? "Creating…" : "Add Getting started page"}
+            </button>
+          </Row>
+          {starterError && <p className="field-error" role="alert">{starterError}</p>}
           <Row title="Diagnostic report" hint="Versions, storage sizes and the recent log, to attach to a bug report. It never includes your notes.">
             <DiagnosticsButton />
           </Row>

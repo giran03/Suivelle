@@ -44,6 +44,13 @@ pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> Str
     };
     match block_type {
         "code" | "equation" | "divider" => String::new(),
+        "calendar_event" => squash(
+            &["start", "end", "location"]
+                .iter()
+                .filter_map(|k| data.get(k).and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
         "embed" => squash(
             &["title", "caption", "url"]
                 .iter()
@@ -120,6 +127,17 @@ pub fn extract_refs(data_json: &str) -> Vec<String> {
         return Vec::new();
     };
     let mut out = Vec::new();
+    if let Some(links) = data.get("links").and_then(Value::as_array) {
+        for link in links {
+            if let Some(id) = link
+                .get("pageId")
+                .and_then(Value::as_str)
+                .filter(|s| looks_like_id(s))
+            {
+                out.push(id.to_ascii_lowercase());
+            }
+        }
+    }
     walk_refs(&data, &mut out);
     out.sort();
     out.dedup();

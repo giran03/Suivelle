@@ -21,6 +21,8 @@ export const ID_TYPES = [
   "columns",
   "column",
   "databaseView",
+  "calendar",
+  "calendarEvent",
   "tableOfContents",
   "syncedBlock",
   "image",

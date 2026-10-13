@@ -1,4 +1,5 @@
 @import "./select.css";
+@import "./date-time-inputs.css";
 /* ==========================================================================
    Suivelle design system: semantic tokens first, then shell, then shared
    controls. Dark is the home theme; light and system follow via light-dark().
@@ -78,7 +79,7 @@
   --r-2xl: 14px;
 
   /* elevation is only for things that float */
-  --menu-shadow: light-dark(0 10px 30px rgba(21, 27, 46, 0.14), 0 14px 36px rgba(2, 5, 15, 0.55));
+  --menu-shadow: 0 12px 32px light-dark(rgba(21, 27, 46, 0.14), rgba(2, 5, 15, 0.55));
   --shadow-btn: light-dark(0 1px 2px rgba(30, 50, 120, 0.25), 0 1px 2px rgba(0, 0, 0, 0.45));
   --scrim: light-dark(rgba(21, 27, 46, 0.32), rgba(3, 6, 16, 0.65));
 
@@ -121,8 +122,12 @@ button:disabled { cursor: default; }
 input, textarea { caret-color: var(--accent-ui); }
 input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
 ::selection { background: color-mix(in srgb, var(--accent-ui) 32%, transparent); }
+/* Replace browser black focus frames; keyboard controls keep the themed focus cue. */
+:where(:focus) { outline: none; }
 :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 @media (forced-colors: none) {
+  /* Overlay containers receive focus for navigation, without framing the whole surface. */
+  body :is(dialog, [role="dialog"], [popover]):focus { outline: none; }
   /* Text-entry fields show focus on their existing border, without an outer ring. */
   body :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"]), textarea):focus {
     outline: none;
@@ -160,6 +165,7 @@ svg { flex: none; }
 .ws-input { flex: 1; min-width: 0; font-weight: 600; background: var(--field); border: 1px solid var(--accent-ui); border-radius: var(--r-xs); padding: 2px 6px; outline: 0; }
 
 .sidebar .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0 8px; }
+.sidebar nav.scroll:focus { outline: none; }
 .sidebar section + section { margin-top: var(--block-gap); }
 .sidebar h2 { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; color: var(--text-muted); padding: 6px 16px 4px; }
 .pages-tools { padding: 0 12px 6px; }
@@ -172,16 +178,12 @@ svg { flex: none; }
 .pages-new-menu svg { transform: rotate(90deg); }
 .pages-new:hover:not(:disabled), .pages-new-menu:hover:not(:disabled), .pages-new-menu[aria-expanded="true"] { background: var(--surface-active); }
 .pages-tree-tools { display: flex; align-items: center; gap: 2px; }
-.pages-tree-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 28px; min-height: max(28px, var(--icon-btn)); padding: 0 6px; border-radius: var(--r-sm); color: var(--text-muted); font-size: 0.75rem; transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
+.pages-tree-action { display: inline-flex; align-items: center; justify-content: center; width: max(28px, var(--icon-btn)); min-width: 28px; min-height: max(28px, var(--icon-btn)); padding: 0; border-radius: var(--r-sm); color: var(--text-muted); transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
 .pages-tree-action svg { flex: none; }
 .pages-tree-action:hover:not(:disabled) { background: var(--surface-active); color: var(--fg); }
 .pages-tree-action:disabled, .pages-create button:disabled { opacity: 0.4; }
 .pages-options { margin-left: auto; min-width: 28px; min-height: 28px; }
 .pages-options[aria-expanded="true"] { background: var(--surface-active); color: var(--fg); }
-@container (max-width: 239px) {
-  .pages-tree-action span { display: none; }
-  .pages-tree-action { width: max(28px, var(--icon-btn)); padding: 0; }
-}
 .tree, .tree ul { list-style: none; padding: 0; }
 .tree ul { position: relative; }
 .tree ul::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: calc(22px + var(--d, 0) * 16px); width: 1px; background: var(--border-subtle); pointer-events: none; }
@@ -343,8 +345,17 @@ main { position: relative; display: flex; flex-direction: column; min-width: 0; 
 .palette[open]::backdrop { animation: scrim-in var(--modal-open-dur) var(--ease-plain); }
 .palette[open].is-closing::backdrop { animation: scrim-out var(--modal-close-dur) var(--ease-plain) forwards; }
 /* Menu dropdown (transitions.dev): grows from where it was opened (ContextMenu sets transform-origin). */
-@keyframes dropdown-in { from { opacity: 0; scale: var(--dropdown-pre-scale); } }
-@keyframes dropdown-out { to { opacity: 0; scale: var(--dropdown-closing-scale); } }
+/* Hide scrollbar paint during motion, preserving its space so sizing stays stable.
+   The temporary color inherits into nested picker lists and resets when the animation ends. */
+:is(.menu, .popover), :is(.menu, .popover) * { scrollbar-color: var(--dropdown-scrollbar-color, var(--border-strong) transparent); }
+@keyframes dropdown-in {
+  from { opacity: 0; scale: var(--dropdown-pre-scale); --dropdown-scrollbar-color: transparent transparent; }
+  to { opacity: 1; scale: 1; --dropdown-scrollbar-color: transparent transparent; }
+}
+@keyframes dropdown-out {
+  from { opacity: 1; scale: 1; --dropdown-scrollbar-color: transparent transparent; }
+  to { opacity: 0; scale: var(--dropdown-closing-scale); --dropdown-scrollbar-color: transparent transparent; }
+}
 @keyframes modal-in { from { opacity: 0; scale: var(--modal-scale); } }
 @keyframes modal-out { to { opacity: 0; scale: var(--modal-scale); } }
 @keyframes scrim-in { from { opacity: 0; } }
@@ -413,6 +424,7 @@ main { position: relative; display: flex; flex-direction: column; min-width: 0; 
 .hist-restore { margin-top: 14px; display: grid; gap: 6px; justify-items: start; }
 
 /* ---- backups ---- */
+.bak-dialog { max-height: min(680px, calc(100dvh - 32px)); margin: auto; }
 .bak { padding: 16px 18px 14px; display: grid; gap: 10px; overflow-y: auto; min-height: 0; }
 .foot-btn.icon-only { padding: 4px 6px; }
 .bak-actions { display: flex; flex-wrap: wrap; gap: 8px; }

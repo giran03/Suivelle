@@ -133,6 +133,8 @@ function block(n: JSONContent, opts: Options): string {
         return `[${title}](<${target.source.replace(/</g, "%3C").replace(/>/g, "%3E")}>)${data.caption ? `\n\n${data.caption}` : ""}`;
       } catch { return data.caption; }
     }
+    case "calendar": return "Calendar (interactive view; preserved in workspace archives)";
+    case "calendarEvent": return `Event: ${n.attrs?.schedule?.start??""} → ${n.attrs?.schedule?.end??""}`;
     case "databaseView":
       return "";
     case "image":

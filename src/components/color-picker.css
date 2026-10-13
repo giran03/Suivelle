@@ -8,7 +8,7 @@
 .color-preview small { display: block; margin-top: 2px; font-size: .75rem; }
 .color-preview strong { font-size: .875rem; font-variant-numeric: tabular-nums; }
 .color-plane { position: relative; height: 152px; border-radius: var(--r-md); background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), var(--picker-hue); touch-action: none; cursor: crosshair; }
-.color-plane-thumb { position: absolute; width: 14px; height: 14px; border: 2px solid #fff; outline: 1px solid #1f2937; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.color-plane-thumb { position: absolute; width: 14px; height: 14px; border: 2px solid #fff; outline: 1px solid var(--focus-ring); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
 .color-slider { display: grid; gap: 5px; font-size: .75rem; color: var(--text-secondary); }
 .color-slider input[type="range"] { width: 100%; min-width: 0; padding: 0; height: 16px; accent-color: var(--accent-ui); }
 .color-picker input.color-hue { appearance: none; background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border: 0; border-radius: 8px; }
@@ -27,4 +27,4 @@
 .color-swatches > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .color-swatches > p { font-size: .75rem; }
 .color-swatch { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--text-primary) 25%, transparent); }
-.color-swatch[aria-pressed="true"] { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.color-swatch[aria-pressed="true"] { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

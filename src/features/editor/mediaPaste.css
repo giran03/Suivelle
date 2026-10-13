@@ -1,0 +1,7 @@
+.palette.media-paste-dialog { width: min(480px, calc(100vw - 32px)); padding: 24px; margin: auto; }
+.media-paste-dialog:focus { outline: none; }
+.media-paste-dialog h2 { margin: 0; font-size: 1.125rem; }
+.media-paste-dialog p { font-size: .875rem; line-height: 1.5; color: var(--muted); margin: 12px 0; }
+.media-paste-url { padding: 12px; border-radius: 8px; background: var(--surface-hover); font-size: .8125rem; overflow-wrap: anywhere; max-height: 120px; overflow-y: auto; }
+.media-paste-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.media-paste-dialog p.error { color: var(--danger); }

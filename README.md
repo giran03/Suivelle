@@ -62,6 +62,19 @@ Keep separate workspaces for personal notes, creative projects, and daily tasks,
 
 Suivelle keeps your workspace on your computer and works offline, with no account required. Page history and local backups help you return to earlier work. Import existing notes, including Notion exports, and export pages or whole workspaces when you need them elsewhere.
 
+## Personal project
+
+Suivelle is a personal app I built for my own use and share with others.
+Development, updates, and support happen as time allows.
+
+The app is provided “as is,” without warranties, under the MIT License.
+Use it at your own risk and keep independent backups of important data.
+
+## License
+
+Suivelle is licensed under the [MIT License](LICENSE).
+Third-party dependencies and assets remain subject to their respective licenses.
+
 ---
 
 <p align="center"><strong>Your ideas. Your rhythm. Your workspace.</strong><br><sub>Suivelle</sub></p>

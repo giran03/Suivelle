@@ -27,8 +27,9 @@
 .doc blockquote { margin: 4px 0; padding: 3px 0 3px 16px; border-left: 1px solid var(--muted); font-style: italic; line-height: 1.5; }
 .doc .is-empty:not(.node-callout)::before,
 .doc .node-callout.is-empty .callout-body::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--muted); opacity: 0.75; }
-.doc .ProseMirror-selectednode { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--block-radius, var(--r-sm)); }
-.doc .media-image.ProseMirror-selectednode { outline: none; }
+.doc .ProseMirror-selectednode { outline: none; border-radius: var(--block-radius, var(--r-sm)); }
+.doc .media.ProseMirror-selectednode,
+.doc .ProseMirror-selectednode:has(> .media) { outline: none; }
 .doc .block-range-selected { background-color: var(--accent-soft); border-radius: var(--block-radius, var(--r-sm)); }
 .block-selection-marquee { position: fixed; z-index: 40; border: 1px solid var(--accent-ui); background: color-mix(in srgb, var(--accent-ui) 8%, transparent); pointer-events: none; }
 .is-selecting-blocks, .is-selecting-blocks * { user-select: none; cursor: crosshair; }
@@ -116,6 +117,7 @@
 .tbl-grip:focus-visible, .tbl-add:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .tbl-add { position: fixed; display: grid; place-items: center; width: 14px; height: 14px; padding: 0; border-radius: var(--r-sm); color: var(--text-secondary); pointer-events: auto; transition: background var(--t-fast) ease-out, color var(--t-fast) ease-out; }
 .tbl-add:hover { background: var(--select); color: var(--accent-ui); }
+.tbl-info { width: 20px; height: 20px; }
 
 /* equation */
 .equation { margin: 6px 0; }

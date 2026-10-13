@@ -6,6 +6,15 @@ import { useThemes } from "../features/settings/themes";
 
 const KEYS = Object.keys(CHOICES) as ChoiceKey[];
 
+/** Store committed colors rather than a settings preview, for the dependency-free startup splash. */
+export function rememberStartupAppearance(choices: Choices, config: ThemeConfig): void {
+  const variables = { ...varsFor({ ...choices, accent: config.accent ?? choices.accent }), ...themeVariables(config, choices) };
+  const roles = ["background", "text-primary", "surface-1", "border", "accent-ui", "accent"];
+  const palette = Object.fromEntries(COLOR_ROLES.filter(([role]) => roles.includes(role)).map(([role, , , light, dark]) => [`--${role}`, variables[`--${role}`] ?? `light-dark(${light}, ${dark})`]));
+  try { localStorage.setItem("suivelle.startup-appearance", JSON.stringify({ version: 1, variables: palette })); }
+  catch { /* Appearance still works when browser storage is unavailable. */ }
+}
+
 /** Zooms the whole webview, so layout, menus and pointer positions all stay in one coordinate space. */
 async function setZoom(percent: number): Promise<void> {
   if ("__TAURI_INTERNALS__" in window) {
@@ -36,12 +45,17 @@ export function applyAppearance(choices: Choices, config?: ThemeConfig): void {
 export function useAppearance(): void {
   const choices = usePreferences((s) => s);
   const config = useThemes((s) => s.preview ?? s.config);
+  const committedConfig = useThemes((s) => s.config);
   useEffect(() => {
     if ("__TAURI_INTERNALS__" in window) {
       void ipc.windowSetCorners(choices.windowCorners).catch((error) => console.warn("Could not apply window corners", error));
     }
   }, [choices.windowCorners]);
   const signature = KEYS.map((k) => choices[k]).join("|");
+  useEffect(() => {
+    rememberStartupAppearance(choices, committedConfig);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, committedConfig]);
   useEffect(() => {
     applyAppearance(choices, config);
     // eslint-disable-next-line react-hooks/exhaustive-deps

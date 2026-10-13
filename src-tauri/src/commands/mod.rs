@@ -1,8 +1,10 @@
 //! Commands: IPC entry points that mutate state. Thin wrappers over services.
 
+pub mod calendar;
 pub mod content;
 pub mod image;
 pub mod maintenance;
+pub mod remote;
 pub mod worker;
 use worker::blocking;
 

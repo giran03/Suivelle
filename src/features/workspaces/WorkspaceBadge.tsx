@@ -4,6 +4,7 @@ import { BrandMark } from "../../components/BrandMark";
 import type { Workspace } from "../../types";
 import { workspaceColor, workspaceOptions, WORKSPACE_SYMBOLS } from "./model";
 import { PageGlyph } from "../pages/PageGlyph";
+import "./workspaces.css";
 export function WorkspaceBadge({ workspace, imageSrc }: { imageSrc?: string; workspace: Pick<Workspace, "icon" | "settingsJson"> | null }) {
   const icon = workspace?.icon;
   const symbol = icon?.startsWith("symbol:") ? icon.slice(7) : null;

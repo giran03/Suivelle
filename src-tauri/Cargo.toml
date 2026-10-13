@@ -15,6 +15,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+chrono-tz = "0.10"
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 dirs = "6"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
@@ -30,6 +31,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

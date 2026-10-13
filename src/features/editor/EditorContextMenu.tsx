@@ -12,6 +12,7 @@ import { copyPlainText, pastePlainText } from "./plainText";
 import { imageItems } from "./imageActions";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
 import { selectedBlockItems } from "./blockSelectionActions";
+import { openEditorLink } from "./extensions/linkNavigation";
 
 export function EditorContextMenu({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -67,7 +68,8 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
       const target = event.target instanceof Element ? event.target : null;
       const link = target?.closest<HTMLAnchorElement>("a[href]");
       if (link) {
-        items.push({ label: "Copy link address", separated: true, onSelect: () => void copyText(link.href) });
+        items.push({ label: "Open link", separated: true, onSelect: () => void openEditorLink(link.getAttribute("href")!) });
+        items.push({ label: "Copy link address", onSelect: () => void copyText(link.href) });
         if (editor.isEditable) items.push({ label: "Remove link", onSelect: () => { restore(); editor.chain().focus().extendMarkRange("link").unsetLink().run(); } });
       }
       if (block && editor.isEditable && block.node.type.name !== "file" && MEDIA_KINDS.some((kind) => kind === block.node.type.name) && block.node.attrs.attachmentId) {

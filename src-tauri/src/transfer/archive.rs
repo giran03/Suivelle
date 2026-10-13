@@ -134,6 +134,13 @@ fn page_json(conn: &Connection, p: &crate::domain::Page) -> AppResult<Value> {
         "kind": p.kind, "position": p.position, "favorite": p.favorite, "archived": p.archived,
         "createdAt": p.created_at, "updatedAt": p.updated_at, "blocks": blocks,
     });
+    if conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM calendar_collection WHERE page_id=?1)",
+        [&p.id],
+        |r| r.get::<_, bool>(0),
+    )? {
+        v["calendarCollection"] = json!(true);
+    }
     if p.kind == "dashboard" {
         if let Ok(d) = dashboards::get(conn, &p.id) {
             v["dashboard"] = serde_json::to_value(&d.layout).unwrap_or(Value::Null);
@@ -935,6 +942,15 @@ fn apply_in(
                 "page",
                 p.get("favorite").and_then(Value::as_bool).unwrap_or(false),
             )?;
+            if p.get("calendarCollection")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                tx.execute(
+                    "INSERT INTO calendar_collection(page_id,workspace_id) VALUES(?1,?2)",
+                    params![made.id, workspace_id],
+                )?;
+            }
             id_map.insert(old, made.id);
             st.pages += 1;
         }

@@ -150,6 +150,12 @@ export function blocksToDoc(rows: BlockRow[]): JSONContent {
         case "embed":
           out.push({ type: "embed", attrs: { ...attrs, ...embedData(data) } });
           break;
+        case "calendar":
+          out.push({type:"calendar",attrs:{...attrs,config:data}});
+          break;
+        case "calendar_event":
+          out.push({type:"calendarEvent",attrs:{...attrs,schedule:data}});
+          break;
         case "table_of_contents":
           out.push({ type: "tableOfContents", attrs });
           break;
@@ -294,6 +300,12 @@ function collect(n: JSONContent, out: Desc[]): void {
       break;
     case "embed":
       out.push({ id: idOf(n), type: "embed", data: { ...embedData(n.attrs ?? {}) }, children: [] });
+      break;
+    case "calendar":
+      out.push({id:idOf(n),type:"calendar",data:n.attrs?.config ?? {},children:[]});
+      break;
+    case "calendarEvent":
+      out.push({id:idOf(n),type:"calendar_event",data:n.attrs?.schedule ?? {},children:[]});
       break;
     case "tableOfContents":
       out.push({ id: idOf(n), type: "table_of_contents", data: {}, children: [] });

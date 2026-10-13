@@ -238,7 +238,7 @@ export function BackupsDialog() {
   return (
     <dialog
       ref={ref}
-      className="palette tpl-dialog"
+      className="palette tpl-dialog bak-dialog"
       aria-label="Backups"
       onClose={() => useBackupsDialog.getState().hide()}
       onMouseDown={(e) => {

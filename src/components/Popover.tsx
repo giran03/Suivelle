@@ -50,7 +50,8 @@ export function Popover({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
+    // Entrance scale affects the visual rect; placement needs the final layout size.
+    const width = el.offsetWidth, height = el.offsetHeight;
     const below = anchor.bottom + 4;
     const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
     const flip = below + height > window.innerHeight - 8;

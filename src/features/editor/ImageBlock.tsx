@@ -1,3 +1,4 @@
+import { openExternalLink } from "../../lib/links";
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
@@ -84,7 +85,7 @@ export function ImageBlock({
       } else {
         const href = normalizeHref(p.link);
         if (!href) throw Error("This link cannot be opened.");
-        await ipc.imageOpenLink(href);
+        await openExternalLink(href);
       }
       return;
     }
@@ -301,6 +302,8 @@ export function ImageBlock({
         {!broken && (
           <div
             className="image-toolbar"
+            // Suppress the media wrapper's filename tooltip between controls.
+            title=""
             role="toolbar"
             aria-label="Image controls"
             onMouseDown={(e) => e.stopPropagation()}

@@ -2,6 +2,70 @@ use super::blocks::*;
 use super::markdown::{self, Ctx};
 
 #[test]
+fn calendar_archive_remaps_collections_and_block_links() {
+    let (mut conn, ws, store) = workspace();
+    let collection =
+        crate::calendar::create_collection(&mut conn, &ws, "Personal calendar").unwrap();
+    let linked = services::page::create(
+        &mut conn,
+        PageCreate {
+            workspace_id: ws.clone(),
+            parent_page_id: None,
+            title: Some("Linked brief".into()),
+            icon: None,
+        },
+    )
+    .unwrap();
+    services::block::apply_batch(
+        &mut conn,
+        crate::domain::BlockBatch {
+            page_id: linked.id.clone(),
+            upserts: flatten(&[Blk::with_inline(
+                "paragraph",
+                vec![plain("Prepare the launch")],
+            )]),
+            delete_ids: vec![],
+        },
+    )
+    .unwrap();
+    let target = repo::block::list(&conn, &linked.id).unwrap()[0].id.clone();
+    let data:crate::calendar::Schedule=serde_json::from_value(serde_json::json!({"calendarId":collection.id,"start":"2026-10-13","end":"2026-10-14","allDay":true,"timezone":"Asia/Manila","recurrence":null,"exceptions":[],"links":[{"pageId":linked.id,"blockId":target,"label":"Prepare the launch"}],"reminders":[],"location":"","completed":false,"busy":true})).unwrap();
+    crate::calendar::save(
+        &mut conn,
+        crate::calendar::Save {
+            workspace_id: ws.clone(),
+            page_id: None,
+            revision: None,
+            title: "Planning session".into(),
+            data,
+            split_date: None,
+        },
+    )
+    .unwrap();
+    conn.execute(
+        "DELETE FROM block WHERE page_id=?1 AND type='calendar'",
+        [&collection.id],
+    )
+    .unwrap();
+    let path = store.join("calendar.zip");
+    archive::export_workspace(&conn, &store, &ws, &path).unwrap();
+    let (mut dest, dest_ws, dest_store) = workspace();
+    let staged = import::stage_archive(&path).unwrap();
+    import::apply(&mut dest, &dest_store, &dest_ws, &staged, &HashMap::new()).unwrap();
+    let snapshot = crate::calendar::snapshot(&dest, &dest_ws, "2026-10-13", "2026-10-13").unwrap();
+    assert_eq!(snapshot.collections.len(), 1);
+    assert_eq!(snapshot.events.len(), 1);
+    assert_eq!(snapshot.occurrences.len(), 1);
+    let e = &snapshot.events[0];
+    assert_ne!(e.data.calendar_id, collection.id);
+    assert_ne!(e.data.links[0].page_id, linked.id);
+    let b = repo::block::get(&dest, e.data.links[0].block_id.as_ref().unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(b.page_id, e.data.links[0].page_id);
+}
+
+#[test]
 fn web_embed_roundtrips_html_and_archive_with_portable_markdown() {
     let data = serde_json::json!({"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title":"Video <reference>", "caption":"Research notes", "width":75, "height":400, "align":"center", "mode":"embed"});
     let block = Blk {

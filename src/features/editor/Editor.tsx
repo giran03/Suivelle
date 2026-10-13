@@ -16,8 +16,6 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { SlashMenu } from "./SlashMenu";
 import { TableToolbar } from "./TableToolbar";
 import { useBlockSync } from "./useBlockSync";
-import { pageLinkTarget } from "../../lib/legacy";
-import { usePeek } from "../peek/store";
 
 /**
  * The page body: one TipTap document whose blocks are saved as individual rows. A `peek` editor
@@ -34,18 +32,6 @@ export function Editor({ pageId, peek = false }: { pageId: string; peek?: boolea
         "aria-label": "Page content",
         "aria-multiline": "true",
         spellcheck: "true",
-      },
-      handleDOMEvents: {
-        // A link to another page (from "Copy link to this page") opens it, like a mention.
-        click: (_view, event) => {
-          const a = (event.target as HTMLElement | null)?.closest?.("a[href]");
-          const id = pageLinkTarget(a?.getAttribute("href") ?? "");
-          if (!id) return false;
-          event.preventDefault();
-          if (event.shiftKey) usePeek.getState().show(id);
-          else void useWorkspace.getState().openPage(id);
-          return true;
-        },
       },
     },
   });

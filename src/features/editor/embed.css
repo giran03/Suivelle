@@ -1,7 +1,7 @@
 .web-embed { position: relative; max-width: 100%; min-width: min(240px, 100%); margin-block: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--surface-1); }
 .web-embed[data-align="center"] { margin-inline: auto; }
 .web-embed[data-align="right"] { margin-left: auto; }
-.web-embed.is-selected { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.web-embed.is-selected { outline: none; }
 .embed-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 0; }
 .embed-head > strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .875rem; }
 .embed-head > svg { flex: none; color: var(--text-muted); }

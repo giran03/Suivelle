@@ -301,7 +301,9 @@ impl Blk {
             "tab_panel" => json!({ "label": self.label }),
             "callout" => json!({ "content": content(), "tone": self.tone }),
             "divider" => json!({}),
-            "embed" => self.embed.clone().unwrap_or_else(|| json!({})),
+            "embed" | "calendar" | "calendar_event" => {
+                self.embed.clone().unwrap_or_else(|| json!({}))
+            }
             "synced_block" | "database_view" => json!({ "pageId": self.target }),
             "code" => json!({ "language": self.language, "text": self.text }),
             "equation" => json!({ "latex": self.latex }),
@@ -372,6 +374,9 @@ impl Blk {
             .unwrap_or("")
             .to_string();
         if kind == "embed" && crate::domain::embed::validate(&data).is_ok() {
+            b.embed = Some(data.clone());
+        }
+        if matches!(kind, "calendar" | "calendar_event") {
             b.embed = Some(data.clone());
         }
         if matches!(kind, "synced_block" | "database_view") {

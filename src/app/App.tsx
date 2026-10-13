@@ -8,6 +8,8 @@ import { READ_ONLY, READ_ONLY_COMMANDS } from "../lib/access";
 import { safeModeReason } from "../lib/safeMode";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useWorkspaceDialog } from "../features/workspaces/store";
+import { useMediaPaste } from "../features/editor/mediaPaste";
+import { useCalendarComposer } from "../features/calendar/store";
 import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
 import { usePeek } from "../features/peek/store";
@@ -59,6 +61,8 @@ const Editor = lazy(() => import("../features/editor/Editor").then((m) => ({ def
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
+const MediaPasteDialog = lazy(() => import("../features/editor/MediaPasteDialog"));
+const CalendarComposer = lazy(() => import("../features/calendar/CalendarComposer").then((m) => ({ default: m.CalendarComposer })));
 const PeekPanel = lazy(() => import("../features/peek/PeekPanel").then((m) => ({ default: m.PeekPanel })));
 const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
@@ -262,6 +266,8 @@ export function App() {
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
   const WorkspaceDialogOpen = useWorkspaceDialog((s) => s.open);
+  const MediaPasteDialogOpen = useMediaPaste((s) => s.requests.length > 0);
+  const CalendarComposerOpen = useCalendarComposer((s) => s.request !== null);
   const outlineOpen = useOutline((s) => s.open);
   const exploreOpen = useExplore((s) => !!s.panel);
   const peekOpen = usePeek((s) => !!s.pageId);
@@ -424,6 +430,7 @@ export function App() {
       </main>
       <AppContextMenu />
       <Palette />
+      <OnDemand open={CalendarComposerOpen}><CalendarComposer /></OnDemand>
       <OnDemand open={TemplateGalleryOpen}><TemplateGallery /></OnDemand>
       <OnDemand open={BackupsDialogOpen}><BackupsDialog /></OnDemand>
       <PageTransferDialog />
@@ -435,6 +442,7 @@ export function App() {
       <QuickCapture />
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
+    <OnDemand open={MediaPasteDialogOpen}><MediaPasteDialog /></OnDemand>
     <OnDemand open={outlineOpen}><OutlinePanel /></OnDemand>
     <OnDemand open={exploreOpen}><ExploreDialog /></OnDemand>
     <OnDemand open={peekOpen}><PeekPanel /></OnDemand>

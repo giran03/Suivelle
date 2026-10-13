@@ -9,6 +9,7 @@ import { replaceBlock } from "../commands";
 import { jsonToMarkdown, looksLikeMarkdown } from "../markdown";
 import { registerFlusher } from "../flushRegistry";
 import { plainPaste } from "../plainText";
+import { pasteMediaUrl } from "../mediaPaste";
 
 const MAX_BYTES = 256 * 1024 * 1024;
 /** Copying "an image" from a web page puts just an <img> tag next to the file; the file wins. */
@@ -138,6 +139,10 @@ export const Intake = Extension.create({
             if (files.length && (!html || IMAGE_ONLY_HTML.test(html))) {
               event.preventDefault();
               void importFiles(editor, files);
+              return true;
+            }
+            if (!files.length && !plainPaste.active && !editor.isActive("codeBlock") && !editor.isActive("equation") && pasteMediaUrl(editor, data.getData("text/plain"))) {
+              event.preventDefault();
               return true;
             }
             if (!files.length && !html) {

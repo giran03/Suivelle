@@ -8,7 +8,7 @@ import { useThemes } from "../settings/themes";
 import { sanitizeTheme } from "../settings/theme";
 
 export function CaptureWindow() {
-  const [context, setContext] = useState<CaptureContext>({ page: null, ready: false, theme: "system" });
+  const [context, setContext] = useState<CaptureContext>({ page: null, ready: false, theme: usePreferences.getState().theme ?? "system" });
   const [error, setError] = useState<string | null>(null);
   useAppearance();
   const close = () => void getCurrentWebviewWindow().close().catch(() => setError("Could not close the capture window."));

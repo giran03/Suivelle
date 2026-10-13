@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Suivelle — 15s intro</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Suivelle Sans";
+        src: url("assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 100 900;
+      }
+      :root {
+        --night-canvas: #0c1329;
+        --night-sidebar: #0a1022;
+        --night-surface: #131c3a;
+        --night-floating: #172243;
+        --sapphire: #3b5ba9;
+        --sapphire-wash: #15224a;
+        --starlight-ink: #a9c4ff;
+        --comet: #7fa4f0;
+        --starlight-white: #cfe0ff;
+        --text: #e8edf8;
+        --dim: #a4afc6;
+        --hair: rgba(169, 196, 255, 0.12);
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--night-canvas);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--night-canvas);
+        font-family: "Suivelle Sans", sans-serif;
+        color: var(--text);
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* ground */
+      #ground {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 70% 60% at 50% 62%, rgba(59, 91, 169, 0.32), rgba(12, 19, 41, 0) 70%),
+          radial-gradient(ellipse 40% 35% at 82% 12%, rgba(127, 164, 240, 0.1), rgba(12, 19, 41, 0) 70%),
+          var(--night-canvas);
+      }
+      #stars {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+      }
+
+      /* hook */
+      #hook {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 44px;
+      }
+      #hook-mark {
+        width: 168px;
+        height: 168px;
+        display: block;
+      }
+      #hook-line {
+        font-size: 92px;
+        font-weight: 650;
+        letter-spacing: -0.025em;
+        line-height: 1.08;
+        text-align: center;
+      }
+      #hook-line .row {
+        display: block;
+      }
+      #hook-line .w {
+        display: inline-block;
+      }
+      #hook-line .accent {
+        color: var(--starlight-ink);
+      }
+
+      /* app window */
+      #stage {
+        position: absolute;
+        left: 280px;
+        top: 228px;
+        width: 1360px;
+        height: 765px;
+        opacity: 0;
+      }
+      #window {
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        overflow: hidden;
+        background: var(--night-sidebar);
+        border: 1px solid rgba(169, 196, 255, 0.2);
+        box-shadow:
+          0 40px 120px rgba(2, 5, 15, 0.7),
+          0 0 0 1px rgba(2, 5, 15, 0.6);
+      }
+      #window video {
+        position: absolute;
+        left: -81px;
+        top: 0;
+        width: 1522px;
+        height: 857px;
+        right: auto;
+        bottom: auto;
+        object-fit: cover;
+      }
+      #window-sheen {
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        pointer-events: none;
+        background: linear-gradient(180deg, rgba(207, 224, 255, 0.06), rgba(207, 224, 255, 0) 30%);
+      }
+
+      /* kicker lines above the window */
+      .kicker {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 64px;
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .eyebrow {
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--starlight-ink);
+      }
+      .kline {
+        font-size: 68px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+      }
+
+      /* end card */
+      #end {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #end-lockup {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+      }
+      #end-tile {
+        width: 176px;
+        height: 176px;
+        display: block;
+      }
+      #end-word {
+        font-size: 150px;
+        font-weight: 650;
+        letter-spacing: -0.035em;
+        line-height: 1;
+      }
+      #end-tag {
+        margin-top: 46px;
+        font-size: 44px;
+        font-weight: 450;
+        color: var(--dim);
+        letter-spacing: -0.005em;
+      }
+      #end-chips {
+        margin-top: 56px;
+        display: flex;
+        gap: 18px;
+      }
+      .chip {
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--starlight-ink);
+        padding: 14px 26px;
+        border-radius: 999px;
+        background: var(--sapphire-wash);
+        border: 1px solid var(--hair);
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-kbh8" id="root" data-composition-id="main" data-start="0" data-duration="15" data-width="1920" data-height="1080">
+      <!-- ground: night canvas, sapphire glow, drifting constellation -->
+      <div data-hf-id="hf-endj" id="bg" class="clip" data-start="0" data-duration="15" data-track-index="0">
+        <div data-hf-id="hf-7hg0" id="ground"></div>
+        <svg data-hf-id="hf-jd15" id="stars" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+          <g data-hf-id="hf-2zlz" id="const-a" stroke="rgba(169,196,255,0.16)" stroke-width="1.5" fill="none">
+            <polyline data-hf-id="hf-q002" points="150,820 300,700 260,540 420,430" />
+            <polyline data-hf-id="hf-0aa1" points="1500,190 1640,300 1790,240 1720,420" />
+          </g>
+          <g data-hf-id="hf-1e2y" id="const-dots" fill="#cfe0ff">
+            <circle data-hf-id="hf-n19i" cx="150" cy="820" r="3.5" opacity="0.55" />
+            <circle data-hf-id="hf-w0qw" cx="300" cy="700" r="4.5" opacity="0.7" />
+            <circle data-hf-id="hf-jf65" cx="260" cy="540" r="3" opacity="0.5" />
+            <circle data-hf-id="hf-78ak" cx="420" cy="430" r="5" opacity="0.8" />
+            <circle data-hf-id="hf-0nz0" cx="1500" cy="190" r="4" opacity="0.6" />
+            <circle data-hf-id="hf-a4zv" cx="1640" cy="300" r="5" opacity="0.8" />
+            <circle data-hf-id="hf-7g63" cx="1790" cy="240" r="3" opacity="0.5" />
+            <circle data-hf-id="hf-54ek" cx="1720" cy="420" r="3.5" opacity="0.6" />
+            <circle data-hf-id="hf-o2su" cx="980" cy="90" r="2" opacity="0.35" />
+            <circle data-hf-id="hf-1c8s" cx="620" cy="160" r="2.5" opacity="0.4" />
+            <circle data-hf-id="hf-p275" cx="1280" cy="980" r="2.5" opacity="0.4" />
+            <circle data-hf-id="hf-ezuu" cx="1840" cy="760" r="2" opacity="0.35" />
+            <circle data-hf-id="hf-9kti" cx="80" cy="260" r="2" opacity="0.35" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Frame 1: hook -->
+      <section data-hf-id="hf-6lyn" id="hook" class="clip" data-start="0" data-duration="2.7" data-track-index="1">
+        <svg data-hf-id="hf-u708" id="hook-mark" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+          <g data-hf-id="hf-z3s3" transform="translate(48 48) scale(1.08) translate(-55 -47)">
+            <path data-hf-id="hf-rfpp" id="hook-s" d="M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30" fill="none" stroke="#7FA4F0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+            <g data-hf-id="hf-b4jx" id="hook-star-wrap" transform="translate(70 28)">
+              <path data-hf-id="hf-edql" id="hook-star" d="M0 -15C1.6 -4.5 4.5 -1.6 15 0C4.5 1.6 1.6 4.5 0 15C-1.6 4.5 -4.5 1.6 -15 0C-4.5 -1.6 -1.6 -4.5 0 -15Z" fill="#CFE0FF" />
+            </g>
+          </g>
+        </svg>
+        <h1 data-hf-id="hf-cli9" id="hook-line">
+          <span data-hf-id="hf-yofr" class="row"><span data-hf-id="hf-oysi" class="w">Make</span> <span data-hf-id="hf-ky2m" class="w">space</span> <span data-hf-id="hf-eyfb" class="w">for</span> <span data-hf-id="hf-9o0j" class="w">the</span> <span data-hf-id="hf-35et" class="w">work</span></span>
+          <span data-hf-id="hf-dquv" class="row"><span data-hf-id="hf-ad5f" class="w accent">that</span> <span data-hf-id="hf-je3e" class="w accent">matters.</span></span>
+        </h1>
+      </section>
+
+      <!-- Frames 2–5: the real app, in one floating window -->
+      <div data-hf-id="hf-1rt5" id="stage">
+        <div data-hf-id="hf-sqh1" id="window">
+          <video data-hf-id="hf-opvk" id="v1" class="clip" data-layout-allow-overflow="" src="assets/clips/01-home.mp4" muted playsinline data-start="2.3" data-duration="2.7" data-track-index="2"></video>
+          <video data-hf-id="hf-zc3f" id="v2" class="clip" data-layout-allow-overflow="" src="assets/clips/02-board.mp4" muted playsinline data-start="4.8" data-duration="2.7" data-track-index="3"></video>
+          <video data-hf-id="hf-rek8" id="v3" class="clip" data-layout-allow-overflow="" src="assets/clips/03-search.mp4" muted playsinline data-start="7.3" data-duration="2.7" data-track-index="2"></video>
+          <video data-hf-id="hf-8vjj" id="v4" class="clip" data-layout-allow-overflow="" src="assets/clips/04-pulse.mp4" muted playsinline data-start="9.8" data-duration="2.7" data-track-index="3"></video>
+          <div data-hf-id="hf-lcq1" id="window-sheen"></div>
+        </div>
+      </div>
+
+      <div data-hf-id="hf-26a3" id="k1" class="clip kicker" data-start="2.4" data-duration="2.55" data-track-index="4">
+        <div data-hf-id="hf-0pdn" class="eyebrow">Pages</div>
+        <div data-hf-id="hf-wvw1" class="kline">Write freely.</div>
+      </div>
+      <div data-hf-id="hf-33vl" id="k2" class="clip kicker" data-start="4.9" data-duration="2.55" data-track-index="4">
+        <div data-hf-id="hf-fwoo" class="eyebrow">Boards &amp; views</div>
+        <div data-hf-id="hf-2axj" class="kline">Bring plans into focus.</div>
+      </div>
+      <div data-hf-id="hf-6kta" id="k3" class="clip kicker" data-start="7.4" data-duration="2.55" data-track-index="4">
+        <div data-hf-id="hf-174l" class="eyebrow">Search</div>
+        <div data-hf-id="hf-r3bc" class="kline">Find anything, instantly.</div>
+      </div>
+      <div data-hf-id="hf-fifz" id="k4" class="clip kicker" data-start="9.9" data-duration="2.45" data-track-index="4">
+        <div data-hf-id="hf-idey" class="eyebrow">Local first</div>
+        <div data-hf-id="hf-eh5a" class="kline">Keep your work close.</div>
+      </div>
+
+      <audio data-hf-id="hf-tdo0" id="music" src="assets/bgm/track.wav" data-start="0" data-duration="15" data-track-index="6" data-volume="0.8"></audio>
+
+      <!-- Frame 6: end card -->
+      <section data-hf-id="hf-55jd" id="end" class="clip" data-start="12.2" data-duration="2.8" data-track-index="5">
+        <div data-hf-id="hf-u2tv" id="end-lockup">
+          <svg data-hf-id="hf-99yb" id="end-tile" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+            <rect data-hf-id="hf-4d75" width="96" height="96" rx="22" fill="#0B1226" stroke="rgba(169,196,255,0.22)" stroke-width="1" />
+            <g data-hf-id="hf-l90j" transform="translate(48 48) scale(1.08) translate(-55 -47)">
+              <path data-hf-id="hf-xoux" id="end-s" d="M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30" fill="none" stroke="#7FA4F0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+              <path data-hf-id="hf-yhw3" d="M70 13C71.6 23.5 74.5 26.4 85 28C74.5 29.6 71.6 32.5 70 43C68.4 32.5 65.5 29.6 55 28C65.5 26.4 68.4 23.5 70 13Z" fill="#CFE0FF" />
+            </g>
+          </svg>
+          <div data-hf-id="hf-vxr8" id="end-word">Suivelle</div>
+        </div>
+        <div data-hf-id="hf-lg1v" id="end-tag">Make space for the work that matters.</div>
+        <div data-hf-id="hf-rmde" id="end-chips">
+          <div data-hf-id="hf-nyln" class="chip">Local first</div>
+          <div data-hf-id="hf-egai" class="chip">Offline ready</div>
+          <div data-hf-id="hf-egb0" class="chip">Made for focus</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const E = "power3.out";
+
+      // ground: slow constellation drift for the whole piece
+      tl.fromTo("#stars", { x: 0, y: 0, scale: 1 }, { x: -40, y: -18, scale: 1.04, duration: 15, ease: "none", transformOrigin: "50% 50%" }, 0);
+      tl.fromTo("#const-a", { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "power1.out" }, 0.1);
+
+      // ---- Frame 1: hook (0 – 2.7)
+      const sLen = 70;
+      tl.fromTo("#hook-s", { strokeDasharray: sLen, strokeDashoffset: sLen }, { strokeDashoffset: 0, duration: 0.8, ease: "power2.inOut" }, 0.15);
+      tl.fromTo("#hook-star", { scale: 0, rotation: -90, transformOrigin: "50% 50%" }, { scale: 1, rotation: 0, duration: 0.6, ease: "back.out(2.2)" }, 0.75);
+      tl.fromTo("#hook-line .w", { y: 40, opacity: 0, filter: "blur(10px)" }, { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.6, ease: E, stagger: 0.07 }, 0.7);
+      tl.to("#hook-mark, #hook-line", { y: -60, opacity: 0, filter: "blur(8px)", duration: 0.45, ease: "power2.in", stagger: 0.04 }, 2.2);
+
+      // ---- window enters, drifts, exits (2.3 – 12.5)
+      tl.fromTo("#stage", { y: 140, scale: 0.92, opacity: 0, transformOrigin: "50% 100%" }, { y: 0, scale: 1, opacity: 1, duration: 0.8, ease: "expo.out" }, 2.3);
+      tl.to("#stage", { scale: 1.035, duration: 8.9, ease: "none" }, 3.1);
+      tl.to("#stage", { y: 60, scale: 0.9, opacity: 0, filter: "blur(10px)", duration: 0.5, ease: "power2.in" }, 12.0);
+
+      // crossfades between the real-app clips
+      [["#v2", 4.8], ["#v3", 7.3], ["#v4", 9.8]].forEach(([sel, t]) => {
+        tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power1.out" }, t);
+      });
+
+      // kicker swaps
+      [["#k1", 2.45, 4.75], ["#k2", 4.95, 7.25], ["#k3", 7.45, 9.75], ["#k4", 9.95, 11.95]].forEach(([k, tin, tout]) => {
+        tl.fromTo(`${k} .eyebrow`, { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: E }, tin);
+        tl.fromTo(`${k} .kline`, { y: 28, opacity: 0, filter: "blur(10px)" }, { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.55, ease: E }, tin + 0.06);
+        tl.to(`${k} .eyebrow, ${k} .kline`, { y: -22, opacity: 0, filter: "blur(8px)", duration: 0.25, ease: "power2.in" }, tout - 0.05);
+      });
+
+      // ---- Frame 6: end card (12.2 – 15)
+      tl.fromTo("#end-tile", { scale: 0.6, opacity: 0, rotation: -8, transformOrigin: "50% 50%" }, { scale: 1, opacity: 1, rotation: 0, duration: 0.7, ease: "back.out(1.6)" }, 12.35);
+      tl.fromTo("#end-s", { strokeDasharray: sLen, strokeDashoffset: sLen }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, 12.4);
+      tl.fromTo("#end-word", { x: -30, opacity: 0, filter: "blur(10px)" }, { x: 0, opacity: 1, filter: "blur(0px)", duration: 0.7, ease: E }, 12.55);
+      tl.fromTo("#end-tag", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: E }, 12.95);
+      tl.fromTo("#end-chips .chip", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: E, stagger: 0.1 }, 13.3);
+      tl.fromTo("#end-lockup", { scale: 1 }, { scale: 1.03, duration: 2.6, ease: "none", transformOrigin: "50% 50%" }, 12.4);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

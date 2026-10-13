@@ -12,6 +12,7 @@ import { Behaviors, InsertBlockAbove } from "./behaviors";
 import { Callout } from "./callout";
 import { Column, Columns } from "./columns";
 import { DatabaseViewBlock } from "./databaseView";
+import { CalendarNodeBlock,CalendarEventBlock } from "./calendar";
 import { SyncedBlock } from "./syncedBlock";
 import { TableOfContents } from "./tableOfContents";
 import { CodeBlock } from "./codeBlock";
@@ -21,6 +22,7 @@ import { FindExtension } from "./find";
 import { Intake } from "./intake";
 import { PageMention } from "./mention";
 import { EmbedBlock } from "./embed";
+import { LinkNavigation } from "./linkNavigation";
 import { MediaNodes } from "./media";
 import { Quote } from "./quote";
 import { Slash } from "./slash";
@@ -40,6 +42,7 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
     }),
     TextStyle,
     ToneMark,
+    LinkNavigation,
     RebindableShortcuts,
     BlockId,
     BlockSelection,
@@ -55,6 +58,8 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
     Columns,
     Column,
     DatabaseViewBlock,
+    CalendarNodeBlock,
+    CalendarEventBlock,
     TableOfContents,
     ...(options.nested ? [] : [SyncedBlock]),
     ...MediaNodes,

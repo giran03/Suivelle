@@ -186,6 +186,7 @@ export const BLOCK_KINDS: BlockKind[] = [
     apply: (e) => replaceBlock(e, { type: "databaseView", attrs: { pageId: null, viewId: null, height: null } }),
   },
   { id: "embed", title: "Embed", description: "YouTube, Google Maps, and website links", group: "Media", keywords: "embed youtube maps iframe website link pdf", icon: "open", turnInto: false, apply: (e) => replaceBlock(e, { type: "embed" }) },
+  { id: "calendar", title: "Calendar", description: "Plan events, database dates and linked blocks", group: "Advanced", keywords: "calendar schedule event planner day week month agenda", icon: "calendar", turnInto: false, apply: (e) => replaceBlock(e, { type: "calendar" }) },
   media("image", "Image", "Upload a picture", "image", "image picture photo png jpg"),
   media("audio", "Audio", "Upload a sound file", "audio", "audio sound music mp3"),
   media("video", "Video", "Upload a video", "video", "video movie clip mp4"),

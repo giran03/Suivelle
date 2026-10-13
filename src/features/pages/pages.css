@@ -130,6 +130,8 @@ body.resizing { cursor: col-resize; user-select: none; }
 
 /* ---- shortcut sheet ---- */
 .palette.shortcuts { width: min(780px, calc(100vw - 32px)); }
+.palette.shortcuts:focus { outline: none; }
+.shortcuts :is(.shortcuts-head h2, .shortcuts-head .btn, .shortcuts-body h3, .sc-row dt) { -webkit-user-select: none; user-select: none; }
 .shortcuts-head { display: flex; align-items: center; justify-content: space-between; padding: calc(14px * var(--density)) calc(16px * var(--density)) calc(8px * var(--density)); }
 .shortcuts-head h2 { font-size: 1rem; font-weight: 600; }
 .shortcuts-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 calc(16px * var(--density)) calc(16px * var(--density)); columns: 2 300px; column-gap: 32px; }

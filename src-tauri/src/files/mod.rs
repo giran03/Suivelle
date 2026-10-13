@@ -5,6 +5,7 @@
 
 pub mod manage;
 pub mod protocol;
+pub mod remote;
 pub mod thumb;
 
 use crate::domain::{new_id, now, validate_id, Attachment};

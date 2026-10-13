@@ -1,5 +1,6 @@
 import type { GlobalConfig, GlobalState } from "../features/shortcuts/native";
 import { invoke } from "@tauri-apps/api/core";
+import type { CalendarEvent, CalendarOccurrence, CalendarSchedule } from "../features/calendar/model";
 import type {
   AppError,
   Attachment,
@@ -87,6 +88,19 @@ async function track<T>(pending: Promise<T>): Promise<T> {
 }
 
 export const ipc = {
+  calendarSnapshot: (workspaceId:string,from:string,to:string,calendarIds?:string[]) => call<{collections:Page[];events:CalendarEvent[];occurrences:CalendarOccurrence[];truncated:boolean;invalid:number}>("calendar_snapshot",{workspaceId,from,to,calendarIds}),
+  calendarCreate: (workspaceId:string,title:string) => call<Page>("calendar_create",{workspaceId,title}),
+  calendarImport: (workspaceId:string,events:{title:string;data:CalendarSchedule}[]) => call<CalendarEvent[]>("calendar_import",{workspaceId,events:events.map(event=>({...event,workspaceId}))}),
+  calendarSave: async (input:{workspaceId:string;pageId?:string;revision?:number;title:string;data:CalendarSchedule;splitDate?:string;templateId?:string}) => {
+    const {flushAllEditors}=await import("../features/editor/flushRegistry");
+    await flushAllEditors(true);
+    const {templateId,...payload}=input;
+    const saved=await call<CalendarEvent>("calendar_save",{input:payload,templateId});
+    window.dispatchEvent(new CustomEvent("calendar-event-saved",{detail:saved.pageId}));
+    return saved;
+  },
+  mediaUrlInfo: (url: string) => call<{ kind: "image" | "audio" | "video" | "pdf"; name: string; mime: string; size: number | null } | null>("media_url_info", { url }),
+  attachmentImportUrl: (workspaceId: string, url: string) => call<Attachment>("attachment_import_url", { workspaceId, url }),
   exportPagePreview: (pageId: string, format: "markdown" | "html") => call<{source:string;html:string;notices:string[];assets:Record<string,{hash:string;crop?:import("../features/editor/imageModel").Crop}>}>("export_page_preview", { pageId, format }),
   imageInfo: (id: string) => call<{width:number;height:number;animated:boolean}>("image_info", { id }),
   imageSaveCrop: (id: string, crop: import("../features/editor/imageModel").Crop) => call<boolean>("image_save_crop", { id, crop }),

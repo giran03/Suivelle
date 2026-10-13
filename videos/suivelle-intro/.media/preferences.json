@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "preferences": {
+    "destination": {
+      "value": "youtube",
+      "confirmed_in": [
+        "suivelle-intro"
+      ],
+      "updated_at": "2026-10-12T17:28:37.718Z"
+    },
+    "aspect": {
+      "value": "1920x1080",
+      "confirmed_in": [
+        "suivelle-intro"
+      ],
+      "updated_at": "2026-10-12T17:28:37.970Z"
+    },
+    "language": {
+      "value": "en",
+      "confirmed_in": [
+        "suivelle-intro"
+      ],
+      "updated_at": "2026-10-12T17:28:38.213Z"
+    },
+    "flow": {
+      "value": "automation",
+      "confirmed_in": [
+        "suivelle-intro"
+      ],
+      "updated_at": "2026-10-12T17:28:38.496Z"
+    },
+    "storyboard": {
+      "value": "no",
+      "confirmed_in": [
+        "suivelle-intro"
+      ],
+      "updated_at": "2026-10-12T17:28:38.780Z"
+    }
+  },
+  "sightings": {}
+}

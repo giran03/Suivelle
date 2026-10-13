@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Minimal capability for the main window. App commands are domain-level only; no fs/shell/sql plugins are enabled.",
   "windows": ["main"],
-  "permissions": ["core:event:default", "core:webview:allow-set-webview-zoom", "core:window:allow-set-icon", "core:image:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-internal-toggle-maximize", "core:window:allow-start-dragging", "core:window:allow-is-maximized", "core:window:allow-is-focused"]
+  "permissions": ["core:event:default", "core:webview:allow-set-webview-zoom", "core:window:allow-set-icon", "core:image:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-internal-toggle-maximize", "core:window:allow-start-dragging", "core:window:allow-is-maximized", "core:window:allow-is-focused", "core:tray:allow-get-by-id", "core:tray:allow-set-icon", "core:resources:allow-close"]
 }

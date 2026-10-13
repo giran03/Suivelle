@@ -8,6 +8,8 @@ import { deleteBlockAt, duplicateBlock, enclosingColumns, moveBlock, selectBlock
 import { canSync, syncBlock } from "./synced";
 import { editorDom } from "./editorDom";
 import { blockDragKey, blockDragPlugin, type BlockHit } from "./blockDrag";
+import { useCalendarComposer } from "../calendar/store";
+import { useWorkspace } from "../../stores/workspace";
 
 interface Hovered {
   node: PMNode;
@@ -22,6 +24,7 @@ export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
     // A block inside a column also offers removing the whole columns block.
     const columns = at.node.type.name === "columns" ? null : enclosingColumns(editor, at.pos);
     return [
+      { label: "Schedule this block…", disabled: !editor.isEditable || !at.node.attrs.blockId || ["calendar","calendarEvent"].includes(at.node.type.name), onSelect: () => { const page=useWorkspace.getState().selectedPage; if(page)useCalendarComposer.getState().show({link:{pageId:page.id,blockId:at.node.attrs.blockId,label:at.node.textContent.slice(0,200)||page.title}}); } },
       { label: "Duplicate", shortcut: "duplicate-block", onSelect: on(() => duplicateBlock(editor)) },
       { label: "Move up", shortcut: "move-block-up", onSelect: on(() => moveBlock(editor, -1)) },
       { label: "Move down", shortcut: "move-block-down", onSelect: on(() => moveBlock(editor, 1)) },

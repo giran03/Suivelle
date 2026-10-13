@@ -1141,6 +1141,16 @@ fn render_block(b: &Blk, ctx: &Ctx, number: usize) -> Option<String> {
             lines.extend(rows.iter().skip(1).map(line));
             lines.join("\n")
         }
+        "calendar" => "Calendar (interactive view; preserved in workspace archives)".into(),
+        "calendar_event" => {
+            let data = b.embed.as_ref()?;
+            format!(
+                "Event: {} → {} ({})",
+                data["start"].as_str().unwrap_or(""),
+                data["end"].as_str().unwrap_or(""),
+                data["timezone"].as_str().unwrap_or("")
+            )
+        }
         "embed" => {
             let data = b.embed.as_ref()?;
             let url = data["url"].as_str().unwrap_or("");

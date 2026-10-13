@@ -1,5 +1,8 @@
 pub mod automation;
 pub mod backup;
+pub mod calendar;
+#[cfg(test)]
+mod calendar_tests;
 pub mod commands;
 pub mod dashboards;
 pub mod database;
@@ -182,7 +185,10 @@ fn spawn_automation(app: tauri::AppHandle) {
                         Ok(_) => {}
                         Err(e) => tracing::warn!(error = %e, "automation scheduler failed"),
                     }
-                    match reminders::fire_due(&conn, now) {
+                    match reminders::fire_due(&conn, now).and_then(|mut due| {
+                        due.extend(calendar::fire_due(&conn)?);
+                        Ok(due)
+                    }) {
                         Ok(due) => {
                             for r in due {
                                 let title = if r.page_title.trim().is_empty() {
@@ -350,6 +356,8 @@ pub fn run() {
             commands::block_update,
             commands::block_apply_batch,
             commands::attachment_import,
+            commands::remote::media_url_info,
+            commands::remote::attachment_import_url,
             commands::attachment_save_as,
             commands::content::attachment_import_bytes,
             commands::content::page_duplicate,
@@ -372,6 +380,10 @@ pub fn run() {
             commands::backup_mirror_choose,
             commands::backup_mirror_clear,
             commands::reminder_create,
+            commands::calendar::calendar_snapshot,
+            commands::calendar::calendar_create,
+            commands::calendar::calendar_save,
+            commands::calendar::calendar_import,
             commands::reminder_delete,
             queries::reminder_list,
             queries::tag_list,

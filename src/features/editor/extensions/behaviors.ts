@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { duplicateBlock, insertBlockAbove, moveBlock, selectEnclosingBlock } from "../commands";
+import { duplicateBlock, insertRowOrBlockAbove, insertTableAfter, moveBlock, selectEnclosingBlock } from "../commands";
 import { BlockRangeSelection } from "../blockSelection";
 import { duplicateSelectedBlocks, moveSelectedBlocks } from "../blockSelectionActions";
 
@@ -37,6 +37,9 @@ export const InsertBlockAbove = Extension.create({
   name: "insertBlockAbove",
   priority: 1000,
   addKeyboardShortcuts() {
-    return { "Mod-Enter": ({ editor }) => insertBlockAbove(editor) };
+    return {
+      "Mod-Enter": ({ editor }) => insertRowOrBlockAbove(editor),
+      "Mod-Shift-Enter": ({ editor }) => insertTableAfter(editor, "column"),
+    };
   },
 });

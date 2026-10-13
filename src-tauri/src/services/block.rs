@@ -28,6 +28,7 @@ pub fn create(conn: &mut Connection, input: BlockCreate) -> AppResult<Block> {
     let data_json = input.data_json.unwrap_or_else(|| "{}".into());
     validate_json_object(&data_json, "block data", MAX_BLOCK_DATA_BYTES)?;
     crate::domain::embed::validate_block(&input.block_type, &data_json)?;
+    crate::calendar::validate_block(&input.block_type, &data_json)?;
 
     let tx = conn.transaction()?;
     require_live_page(&tx, &input.page_id)?;
@@ -96,6 +97,7 @@ pub fn update(conn: &mut Connection, input: BlockUpdate) -> AppResult<Block> {
     }
     block.updated_at = now();
     crate::domain::embed::validate_block(&block.block_type, &block.data_json)?;
+    crate::calendar::validate_block(&block.block_type, &block.data_json)?;
     repo::block::update(&tx, &block)?;
     index_block(&tx, &block.page_id, &block)?;
     block.revision += 1;
@@ -120,6 +122,7 @@ pub fn apply_batch(conn: &mut Connection, input: BlockBatch) -> AppResult<()> {
         validate_block_type(&u.block_type)?;
         validate_json_object(&u.data_json, "block data", MAX_BLOCK_DATA_BYTES)?;
         crate::domain::embed::validate_block(&u.block_type, &u.data_json)?;
+        crate::calendar::validate_block(&u.block_type, &u.data_json)?;
         validate_position(u.position)?;
         if !(1..=BLOCK_SCHEMA_VERSION).contains(&u.schema_version) {
             return Err(AppError::Validation(

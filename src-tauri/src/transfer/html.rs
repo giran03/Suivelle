@@ -1147,6 +1147,8 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                     out.push_str("</tbody></table>");
                 }
             }
+            "calendar" => out.push_str("<p>Calendar (interactive view; preserved in workspace archives)</p>"),
+            "calendar_event" => {if let Some(data)=&b.embed {out.push_str(&format!("<p>Event: {} → {} ({})</p>",esc(data["start"].as_str().unwrap_or("")),esc(data["end"].as_str().unwrap_or("")),esc(data["timezone"].as_str().unwrap_or(""))));}},
             "embed" => {
                 if let Some(data) = &b.embed {
                     let url = data["url"].as_str().unwrap_or("");

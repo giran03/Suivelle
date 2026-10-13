@@ -1,0 +1,42 @@
+.date-range-field { min-width: 0; }
+.date-range-label { display: block; margin-bottom: 6px; }
+.date-range-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: var(--ctl-h-lg); padding: 8px 10px; text-align: start; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); }
+.date-range-trigger:hover { border-color: var(--border-strong); }
+.date-range-trigger[aria-expanded="true"] { border-color: var(--accent-ui); }
+.date-range-trigger > svg { color: var(--text-secondary); }
+.date-range-value { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-variant-numeric: tabular-nums; font-size: .875rem; }
+.date-range-value > svg { color: var(--text-muted); }
+.popover.date-range-picker { width: min(344px, calc(100vw - 16px)); overflow-y: auto; padding: 16px; }
+.popover.date-range-picker, .popover.date-range-picker :where(*) { user-select: none; }
+.popover.date-range-picker :is(textarea, [contenteditable="true"]) { user-select: text; }
+.date-range-endpoints { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.date-range-endpoint { min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); }
+.date-range-endpoint[data-active] { border-color: var(--accent-ui); }
+.date-range-endpoint label { display: block; font-size: .75rem; font-weight: 600; color: var(--text-secondary); }
+.popover.date-range-picker .date-range-endpoint input { display: block; width: 100%; min-width: 0; min-height: 26px; margin-top: 4px; padding: 0; border: 0; border-radius: var(--r-xs); background: none; font-size: .8125rem; color: var(--fg); }
+.date-range-endpoint input::-webkit-calendar-picker-indicator { display: none; }
+.date-range-head > div { flex: 1; }
+.date-range-heading { padding: 4px; border-radius: var(--r-sm); font-weight: 600; font-size: .875rem; }
+.date-range-heading:hover { background: var(--surface-hover); color: var(--accent-ui); }
+.date-range-grid [role="row"] { gap: 0; }
+.date-range-cell { position: relative; display: grid; place-items: center; }
+.date-range-cell[data-range]::before { content: ""; position: absolute; inset: 4px 0; background: color-mix(in srgb, var(--accent-ui) 20%, var(--surface-2)); pointer-events: none; }
+.date-range-cell[data-from]::before { inset-inline-start: 50%; }
+.date-range-cell[data-through]::before { inset-inline-end: 50%; }
+.date-range-cell[data-from][data-through]::before { display: none; }
+.date-range-cell .date-picker-day { position: relative; width: calc(100% - 8px); margin-block: 4px; }
+.date-range-cell .date-picker-day[aria-selected="true"] { background: transparent; color: var(--fg); }
+.date-range-cell .date-picker-day[data-endpoint] { background: var(--accent); color: var(--on-accent); }
+.date-range-cell .date-picker-day:hover:not([data-endpoint]) { background: var(--surface-hover); }
+.date-range-periods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-block: 16px; }
+.date-range-period { min-height: 40px; border-radius: 999px; font-size: .875rem; }
+.date-range-period:hover { background: var(--surface-hover); }
+.date-range-period[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.date-range-hint { margin-top: 10px; font-size: .75rem; color: var(--text-secondary); }
+.date-range-hint.field-error { color: var(--danger); }
+.date-range-footer { justify-content: flex-end; margin-top: 12px; }
+@media (forced-colors: active) {
+  .date-range-cell .date-picker-day[aria-selected="true"], .date-range-period[aria-pressed="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
+  .date-range-cell .date-picker-day[data-endpoint] { background: Highlight; color: HighlightText; forced-color-adjust: none; }
+  .date-range-endpoint[data-active] { border-color: Highlight; }
+}

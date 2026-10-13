@@ -38,6 +38,29 @@ async function click(label: string) {
   await act(async () => button!.click());
 }
 
+it("selects the first preset and offers Apply as soon as the palette mode changes", async () => {
+  await click("Light");
+  expect(host.querySelector('[aria-label="light color presets"] [aria-checked="true"]')?.textContent).toBe("Paper");
+  expect([...host.querySelectorAll("button")].some(b => b.textContent === "Apply")).toBe(true);
+  expect(usePreferences.getState().theme).toBe("dark");
+  expect(useThemes.getState().config).toEqual(emptyTheme());
+  await click("Apply");
+  await click("Dark");
+  expect(host.querySelector('[aria-label="dark color presets"] [aria-checked="true"]')?.textContent).toBe("Midnight");
+  await click("Apply");
+  expect(useThemes.getState().config.palettes.dark).toEqual(PALETTE_PRESETS.dark[0].colors);
+});
+
+it("offers Apply after switching back to an already saved default palette", async () => {
+  await click("Light"); await click("Apply");
+  await click("Dark"); await click("Apply");
+  await act(async () => usePreferences.getState().setTheme("light"));
+  await click("Light");
+  expect([...host.querySelectorAll("button")].some(b => b.textContent === "Apply")).toBe(true);
+  await click("Apply");
+  expect([...host.querySelectorAll("button")].some(b => b.textContent === "Apply")).toBe(false);
+});
+
 it("applies a light preset with light mode and a dark preset with dark mode", async () => {
   await click("Light"); await click("Paper");
   expect(usePreferences.getState().theme).toBe("dark");

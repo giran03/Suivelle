@@ -1,0 +1,109 @@
+.timezone-field {
+  min-width: 0;
+}
+.timezone-field-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--field);
+  color: var(--fg);
+  text-align: start;
+  font: inherit;
+}
+.timezone-field-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timezone-field-trigger > svg {
+  rotate: 90deg;
+}
+.timezone-field-trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.timezone-field-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.popover.timezone-picker {
+  position: fixed;
+  margin: 0;
+  right: auto;
+  bottom: auto;
+  width: min(340px, calc(100vw - 16px));
+  min-width: 0;
+  max-height: calc(100dvh - 16px);
+  padding: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--menu-shadow);
+  animation: dropdown-out var(--dropdown-close-dur) var(--ease-smooth-out)
+    forwards;
+  transition:
+    display var(--dropdown-close-dur) allow-discrete,
+    overlay var(--dropdown-close-dur) allow-discrete;
+}
+.timezone-picker:popover-open {
+  animation: dropdown-in var(--dropdown-open-dur) var(--ease-smooth-out);
+}
+.timezone-picker > input {
+  width: 100%;
+}
+.timezone-system {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  margin-block: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: start;
+}
+.timezone-system > span:last-child {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.timezone-system:hover {
+  background: var(--surface-hover);
+}
+.timezone-options {
+  max-height: min(256px, calc(100dvh - 160px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.timezone-options > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  text-align: start;
+  font-size: 0.8125rem;
+}
+.timezone-options > button > span {
+  overflow-wrap: anywhere;
+}
+.timezone-options > button[data-active] {
+  background: var(--surface-hover);
+}
+.timezone-options > button[aria-selected="true"] {
+  color: var(--accent-ui);
+  font-weight: 600;
+}
+.timezone-empty {
+  padding: 12px 8px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}

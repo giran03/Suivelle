@@ -1,10 +1,32 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
+import { addColumnAfter, addRowAfter, isInTable, selectedRect, TableMap } from "@tiptap/pm/tables";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { ID_TYPES } from "./extensions/blockId";
 
 const LIST_ITEMS = new Set(["listItem", "taskItem"]);
+
+/** Insert beside the active cell and move the caret into the new row or column. */
+export function insertTableAfter(editor: Editor, axis: "row" | "column"): boolean {
+  if (!editor.isEditable || !isInTable(editor.state)) return false;
+  const rect = selectedRect(editor.state);
+  const row = axis === "row" ? rect.bottom : rect.top;
+  const col = axis === "column" ? rect.right : rect.left;
+  const command = axis === "row" ? addRowAfter : addColumnAfter;
+  return command(editor.state, (tr) => {
+    const table = tr.doc.nodeAt(rect.tableStart - 1)!;
+    const map = TableMap.get(table);
+    const cell = map.map[row * map.width + col];
+    tr.setSelection(TextSelection.near(tr.doc.resolve(rect.tableStart + cell + 1)));
+    tr.setStoredMarks([]);
+    editor.view.dispatch(closeHistory(tr).scrollIntoView());
+  });
+}
+
+export function insertRowOrBlockAbove(editor: Editor): boolean {
+  return isInTable(editor.state) ? insertTableAfter(editor, "row") : insertBlockAbove(editor);
+}
 
 export interface BlockRef {
   node: PMNode;

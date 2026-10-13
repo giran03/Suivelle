@@ -1,0 +1,203 @@
+{
+  "typography": [
+    {
+      "role": "heading",
+      "fontFamily": "Segoe UI Variable Text",
+      "fontSize": "24px",
+      "fontWeight": "650",
+      "lineHeight": "30px",
+      "letterSpacing": "normal",
+      "color": "#E8EDF8",
+      "sampleText": "This week"
+    },
+    {
+      "role": "body",
+      "fontFamily": "Segoe UI Variable Text",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "lineHeight": "24px",
+      "letterSpacing": "normal",
+      "color": "#E8EDF8",
+      "sampleText": "Hollow Orbit is a small studio building a game about swingin"
+    },
+    {
+      "role": "label",
+      "fontFamily": "Segoe UI Variable Text",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "lineHeight": "21.75px",
+      "letterSpacing": "normal",
+      "color": "#6FB1E8",
+      "sampleText": ""
+    },
+    {
+      "role": "code",
+      "fontFamily": "ui-monospace",
+      "fontSize": "14px",
+      "fontWeight": "400",
+      "lineHeight": "21.7px",
+      "letterSpacing": "normal",
+      "color": "#E8EDF8",
+      "sampleText": "const tension = clamp(stretch / rest, 0, 1.4); rope.stiffnes"
+    },
+    {
+      "role": "heading-2",
+      "fontFamily": "Segoe UI Variable Text",
+      "fontSize": "12px",
+      "fontWeight": "600",
+      "lineHeight": "17.4px",
+      "letterSpacing": "0.24px",
+      "color": "#94A0BB",
+      "sampleText": "Favorites"
+    }
+  ],
+  "spacing": {
+    "observed": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      56
+    ],
+    "baseUnit": 4
+  },
+  "radius": [
+    "4px",
+    "6px",
+    "8px"
+  ],
+  "shadows": [],
+  "buttons": [
+    {
+      "label": "Hollow Orbit",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#E8EDF8",
+      "padding": "4px",
+      "borderRadius": "8px",
+      "border": "0px none rgb(232, 237, 248)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "40px"
+    },
+    {
+      "label": "button",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#94A0BB",
+      "padding": "0px",
+      "borderRadius": "6px",
+      "border": "0px none rgb(148, 160, 187)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "28px"
+    },
+    {
+      "label": "SearchCtrl+K",
+      "background": "#0B1127",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#94A0BB",
+      "padding": "0px 8px 0px 10px",
+      "borderRadius": "8px",
+      "border": "1px solid rgba(169, 196, 255, 0.07)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "34px"
+    },
+    {
+      "label": "Trash",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#A4AFC6",
+      "padding": "0px 8px",
+      "borderRadius": "8px",
+      "border": "0px none rgb(164, 175, 198)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "34px"
+    },
+    {
+      "label": "button",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#A4AFC6",
+      "padding": "0px",
+      "borderRadius": "12px",
+      "border": "0px none rgb(164, 175, 198)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "72px"
+    },
+    {
+      "label": "button",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#A9C4FF",
+      "padding": "0px",
+      "borderRadius": "6px",
+      "border": "0px none rgb(169, 196, 255)",
+      "boxShadow": "none",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "height": "24px"
+    }
+  ],
+  "cards": [
+    {
+      "label": "card",
+      "background": "transparent",
+      "backgroundImage": "",
+      "backdropFilter": "",
+      "color": "#E8EDF8",
+      "padding": "0px",
+      "borderRadius": "0px",
+      "border": "0px none rgb(232, 237, 248)",
+      "boxShadow": "none",
+      "fontSize": "15px",
+      "fontWeight": "400",
+      "height": "270px"
+    }
+  ],
+  "nav": {
+    "label": "navigation",
+    "background": "transparent",
+    "backgroundImage": "",
+    "backdropFilter": "",
+    "color": "#E8EDF8",
+    "padding": "4px 0px 8px",
+    "borderRadius": "0px",
+    "border": "0px none rgb(232, 237, 248)",
+    "boxShadow": "none",
+    "fontSize": "15px",
+    "fontWeight": "400",
+    "height": "876.641px"
+  },
+  "chips": [],
+  "statCells": [],
+  "tabs": [],
+  "backgrounds": [
+    {
+      "value": "linear-gradient(120deg, rgb(43, 35, 88) 0%, rgb(90, 69, 184) 100%)",
+      "area": 329600
+    }
+  ],
+  "glass": []
+}

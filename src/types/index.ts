@@ -59,6 +59,8 @@ export type BlockType =
   | "columns"
   | "column"
   | "database_view"
+  | "calendar"
+  | "calendar_event"
   | "table_of_contents"
   | "synced_block"
   | "image"

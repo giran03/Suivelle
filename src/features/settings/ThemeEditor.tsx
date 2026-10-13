@@ -41,6 +41,11 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
   const warnings = contrastWarnings(colors);
   const customAccent = config.palettes.light.accent !== undefined || config.palettes.dark.accent !== undefined;
   const selectedPreset = PALETTE_PRESETS[mode].findIndex((preset) => COLOR_ROLES.every(([role]) => config.palettes[mode][role] === preset.colors[role]));
+  const selectMode = (next: PaletteMode) => {
+    if (next === mode) return;
+    setMode(next);
+    onChange({ ...config, palettes: { ...config.palettes, [next]: { ...PALETTE_PRESETS[next][0].colors } } }, next);
+  };
   const setColor = (role: ColorRole, color: string | null) => {
     const palette = { ...config.palettes[mode] };
     if (color) palette[role] = color; else delete palette[role];
@@ -66,7 +71,7 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
     </div>
     <div className="theme-toolbar">
       <div><h3>Custom colors</h3><p className="set-hint">Saved on this device. Edit each palette independently.</p></div>
-      <div className="seg" role="radiogroup" aria-label="Palette to edit" onKeyDown={radioKeys}>{(["light", "dark"] as const).map((id) => <button key={id} role="radio" tabIndex={mode === id ? 0 : -1} aria-checked={mode === id} className={mode === id ? "on" : ""} onClick={() => setMode(id)}><Icon name={id === "light" ? "sun" : "moon"} />{id === "light" ? "Light" : "Dark"}</button>)}</div>
+      <div className="seg" role="radiogroup" aria-label="Palette to edit" onKeyDown={radioKeys}>{(["light", "dark"] as const).map((id) => <button key={id} role="radio" tabIndex={mode === id ? 0 : -1} aria-checked={mode === id} className={mode === id ? "on" : ""} onClick={() => selectMode(id)}><Icon name={id === "light" ? "sun" : "moon"} />{id === "light" ? "Light" : "Dark"}</button>)}</div>
     </div>
     <div className="theme-palette-presets" role="radiogroup" aria-label={`${mode} color presets`} onKeyDown={radioKeys}>
       {PALETTE_PRESETS[mode].map((preset, i) => {

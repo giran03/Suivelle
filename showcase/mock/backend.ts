@@ -185,6 +185,7 @@ function touchPage(id: string) {
 }
 
 const READ_COMMANDS = new Set([
+  "calendar_snapshot",
   "workspace_list", "workspace_get", "workspace_stats", "page_list_children", "page_list_favorites",
   "page_list_trash", "page_list_recent", "page_get", "page_ancestors", "page_titles", "page_backlinks",
   "block_list", "history_list", "search_workspace", "database_get", "database_list", "query_records",
@@ -223,6 +224,7 @@ export async function handle(cmd: string, a: any): Promise<unknown> {
 
 function dispatch(cmd: string, a: any): unknown {
   switch (cmd) {
+    case "calendar_snapshot": return {collections:[],events:[],occurrences:[],truncated:false,invalid:0};
     case "workspace_list": return db.workspaces;
     case "workspace_get": return db.workspaces[0];
     case "workspace_stats": return { pages: db.pages.length, records: db.records.length, databases: 1, dashboards: 1, trashed: 0 };

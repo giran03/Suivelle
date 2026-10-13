@@ -30,7 +30,7 @@ body.file-drag .editor { border-radius: var(--r-md); outline: 2px dashed color-m
 
 /* ---- database view block ---- */
 .dbv { position: relative; margin: 8px 0; border: 1px solid var(--border-subtle); border-radius: var(--r-xl); background: var(--surface-1); overflow: hidden; }
-.dbv.is-selected { outline: 2px solid color-mix(in srgb, var(--focus-ring) 60%, transparent); outline-offset: 1px; }
+.dbv.is-selected { outline: none; }
 .dbv-head { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 4px 8px 4px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); }
 .dbv-title { max-width: 50%; padding: 2px 6px; border-radius: var(--r-sm); overflow: hidden; color: var(--fg); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .dbv-title:hover { background: var(--surface-hover); }
@@ -55,7 +55,7 @@ body.file-drag .editor { border-radius: var(--r-md); outline: 2px dashed color-m
 
 /* ---- synced block ---- */
 .synced { margin: 8px 0; border: 1px solid color-mix(in srgb, var(--accent-ui) 28%, var(--border-subtle)); border-radius: var(--r-xl); background: color-mix(in srgb, var(--accent-ui) 4%, transparent); }
-.synced.is-selected { outline: 2px solid color-mix(in srgb, var(--focus-ring) 60%, transparent); outline-offset: 1px; }
+.synced.is-selected { outline: none; }
 .synced-head { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 3px 8px 3px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--accent-ui); }
 .synced-tag { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
 .synced-name { max-width: 55%; padding: 2px 6px; border-radius: var(--r-sm); overflow: hidden; color: var(--text-secondary); font-size: 0.8125rem; text-overflow: ellipsis; white-space: nowrap; }

@@ -4,6 +4,8 @@ import type { Editor } from "@tiptap/core";
 import { CellSelection } from "@tiptap/pm/tables";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
+import { effective, format } from "../shortcuts/bindings";
+import { useShortcuts } from "../shortcuts/store";
 
 interface Span { start: number; size: number }
 interface Layout {
@@ -71,6 +73,7 @@ function measure(editor: Editor): Layout | null {
  * inside it; clicking one selects that column or row and opens its menu. The two "+" ends append a column or row.
  */
 export function TableToolbar({ editor }: { editor: Editor }) {
+  const overrides = useShortcuts((s) => s.overrides);
   const [layout, setLayout] = useState<Layout | null>(() => measure(editor));
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
 
@@ -150,9 +153,18 @@ export function TableToolbar({ editor }: { editor: Editor }) {
 
   const last = layout.cols.length - 1;
   const lastRow = layout.rows.length - 1;
+  const columnAddLeft = layout.cols[last].start + layout.cols[last].size + 4;
+  const rowAddTop = layout.rows[lastRow].start + layout.rows[lastRow].size + 4;
+  const shortcut = (id: string) => effective(id, overrides).map(format).join(" or ") || "Unassigned";
+  const shortcutTip = `Insert row below: ${shortcut("insert-above")}. Insert column right: ${shortcut("table-column-right")}. The cursor moves into the new cell.`;
   return createPortal(
     <>
     <div className="tbl-controls" role="toolbar" aria-label="Table">
+      <button type="button" className="tbl-add tbl-info"
+        style={{ left: columnAddLeft - (20 - GRIP) / 2, top: rowAddTop - (20 - GRIP) / 2 }}
+        aria-label="Table shortcuts" data-tooltip={shortcutTip} onMouseDown={keep}>
+        <Icon name="note" size={14} />
+      </button>
       <button type="button" className={`tbl-grip tbl-corner${layout.whole ? " is-picked" : ""}`} style={{ left: layout.left - GRIP - 2, top: layout.top - GRIP - 2 }} aria-label="Table options" title="Select table" onMouseDown={keep} onClick={(e) => open(e, "table", 0)} />
       {layout.cols.map((c, i) => (
         <button key={`c${i}`} type="button" className={`tbl-grip tbl-col${stateOf(layout.pickedCols, i, layout.activeCol)}`} style={{ left: c.start, width: c.size, top: layout.top - GRIP - 2 }} aria-label={`Column ${i + 1}`} title="Select column" onMouseDown={keep} onClick={(e) => open(e, "col", i)} />
@@ -160,10 +172,10 @@ export function TableToolbar({ editor }: { editor: Editor }) {
       {layout.rows.map((r, i) => (
         <button key={`r${i}`} type="button" className={`tbl-grip tbl-row${stateOf(layout.pickedRows, i, layout.activeRow)}`} style={{ top: r.start, height: r.size, left: layout.left - GRIP - 2 }} aria-label={`Row ${i + 1}`} title="Select row" onMouseDown={keep} onClick={(e) => open(e, "row", i)} />
       ))}
-      <button type="button" className="tbl-add" style={{ left: layout.cols[last].start + layout.cols[last].size + 4, top: layout.top - GRIP - 2 }} aria-label="Add column" title="Add column" onMouseDown={keep} onClick={() => { editor.chain().focus().setTextSelection(lastCellPos(editor, "col")).addColumnAfter().run(); }}>
+      <button type="button" className="tbl-add" style={{ left: columnAddLeft, top: layout.top - GRIP - 2 }} aria-label="Add column" title="Add column" onMouseDown={keep} onClick={() => { editor.chain().focus().setTextSelection(lastCellPos(editor, "col")).addColumnAfter().run(); }}>
         <Icon name="plus" size={12} />
       </button>
-      <button type="button" className="tbl-add" style={{ left: layout.left - GRIP - 2, top: layout.rows[lastRow].start + layout.rows[lastRow].size + 4 }} aria-label="Add row" title="Add row" onMouseDown={keep} onClick={() => { editor.chain().focus().setTextSelection(lastCellPos(editor, "row")).addRowAfter().run(); }}>
+      <button type="button" className="tbl-add" style={{ left: layout.left - GRIP - 2, top: rowAddTop }} aria-label="Add row" title="Add row" onMouseDown={keep} onClick={() => { editor.chain().focus().setTextSelection(lastCellPos(editor, "row")).addRowAfter().run(); }}>
         <Icon name="plus" size={12} />
       </button>
     </div>

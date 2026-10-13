@@ -60,6 +60,29 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
     return chain.current;
   }, [editor, pageId]);
 
+  // Schedule edits write through a backend transaction. Reload their page after flushing,
+  // so a later note edit cannot overwrite the saved schedule with stale node attributes.
+  useEffect(() => {
+    if(!editor)return;
+    let alive=true;
+    const onSaved=(event:Event)=>{
+      if((event as CustomEvent<string>).detail!==pageId)return;
+      void ipc.blockList(pageId).then(blocks=>{
+        if(!alive||editor.isDestroyed)return;
+        const rows=blocks.map(rowFromBlock);
+        const schedules=new Map(rows.filter(row=>row.type==="calendar_event").map(row=>[row.id,row]));
+        const tr=editor.state.tr;
+        editor.state.doc.descendants((node,pos)=>{
+          const row=schedules.get(node.attrs.blockId);
+          if(node.type.name==="calendarEvent"&&row){saved.current.set(row.id,row);tr.setNodeMarkup(pos,undefined,{...node.attrs,schedule:JSON.parse(row.dataJson)});}
+        });
+        if(tr.docChanged)editor.view.dispatch(tr);
+      }).catch(e=>setLoadError(toAppError(e).message));
+    };
+    window.addEventListener("calendar-event-saved",onSaved);
+    return()=>{alive=false;window.removeEventListener("calendar-event-saved",onSaved);};
+  },[editor,pageId]);
+
   // Load the page's blocks.
   useEffect(() => {
     if (!editor) return;

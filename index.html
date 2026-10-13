@@ -8,16 +8,19 @@
     <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
     <title>Suivelle</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script src="/startup-theme.js"></script>
     <style>
-      /* Shown until the app mounts. It follows the system theme; the app takes over with its own. */
+      /* Saved colors are restored before first paint; the live appearance settings take over on mount. */
       :root { color-scheme: light dark; }
-      body { margin: 0; background: light-dark(#f7f6f2, #0c1329); }
-      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: light-dark(#151b2e, #e8edf8); }
+      :root[data-theme="light"] { color-scheme: light; }
+      :root[data-theme="dark"] { color-scheme: dark; }
+      body { margin: 0; background: var(--background, light-dark(#f7f6f2, #0c1329)); }
+      .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: var(--text-primary, light-dark(#151b2e, #e8edf8)); }
       .splash svg { width: 64px; height: 64px; }
       .splash b { font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; }
-      .splash .tile { fill: light-dark(#f6f5f1, #0b1226); stroke: light-dark(#c9d1e0, transparent); stroke-width: 2; }
-      .splash .s { fill: none; stroke: light-dark(#16275a, #7fa4f0); }
-      .splash .k { fill: light-dark(#3b5ba9, #cfe0ff); }
+      .splash .tile { fill: var(--surface-1, light-dark(#f6f5f1, #0b1226)); stroke: var(--border, light-dark(#c9d1e0, transparent)); stroke-width: 2; }
+      .splash .s { fill: none; stroke: var(--accent-ui, light-dark(#16275a, #7fa4f0)); }
+      .splash .k { fill: var(--accent, light-dark(#3b5ba9, #cfe0ff)); }
     </style>
   </head>
   <body>

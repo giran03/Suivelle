@@ -1,7 +1,7 @@
 import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import { registerScope } from "../../shortcuts/runtime";
-import { duplicateBlock, insertBlockAbove, moveBlock } from "../commands";
+import { duplicateBlock, insertRowOrBlockAbove, insertTableAfter, moveBlock } from "../commands";
 import { BlockRangeSelection } from "../blockSelection";
 import { duplicateSelectedBlocks, moveSelectedBlocks } from "../blockSelectionActions";
 import { copyPlainText, pastePlainText } from "../plainText";
@@ -19,7 +19,8 @@ export const RebindableShortcuts = Extension.create({
         underline: run(() => editor.commands.toggleUnderline()), strike: run(() => editor.commands.toggleStrike()),
         "inline-code": run(() => editor.commands.toggleCode()), undo: run(() => editor.commands.undo()), redo: run(() => editor.commands.redo()),
         "copy-plain": () => copyPlainText(editor), "paste-plain": run(() => pastePlainText(editor)),
-        "insert-above": run(() => insertBlockAbove(editor)),
+        "insert-above": run(() => insertRowOrBlockAbove(editor)),
+        "table-column-right": run(() => insertTableAfter(editor, "column")),
         "duplicate-block": run(() => editor.state.selection instanceof BlockRangeSelection ? duplicateSelectedBlocks(editor) : duplicateBlock(editor)),
         "move-block-up": run(() => editor.state.selection instanceof BlockRangeSelection ? moveSelectedBlocks(editor, -1) : moveBlock(editor, -1)),
         "move-block-down": run(() => editor.state.selection instanceof BlockRangeSelection ? moveSelectedBlocks(editor, 1) : moveBlock(editor, 1)),

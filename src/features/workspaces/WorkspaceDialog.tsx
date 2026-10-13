@@ -16,7 +16,6 @@ import { Popover, anchorOf, type Anchor } from "../../components/Popover";
 import { ColorPicker } from "../../components/ColorPicker";
 import { rememberColor, rgbToHex } from "../../lib/color";
 import { radioKeys } from "../settings/radioKeys";
-import "./workspaces.css";
 
 type Mode = WorkspaceDialogMode;
 
