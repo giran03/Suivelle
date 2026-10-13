@@ -17,9 +17,14 @@ import { SlashMenu } from "./SlashMenu";
 import { TableToolbar } from "./TableToolbar";
 import { useBlockSync } from "./useBlockSync";
 import { pageLinkTarget } from "../../lib/legacy";
+import { usePeek } from "../peek/store";
 
-/** The page body: one TipTap document whose blocks are saved as individual rows. */
-export function Editor({ pageId }: { pageId: string }) {
+/**
+ * The page body: one TipTap document whose blocks are saved as individual rows. A `peek` editor
+ * sits beside the main one: it saves the same way but leaves the app-wide tools (find, outline,
+ * the save indicator, scroll memory) to the main page.
+ */
+export function Editor({ pageId, peek = false }: { pageId: string; peek?: boolean }) {
   const editor = useEditor({
     extensions: buildExtensions(),
     editable: false,
@@ -37,7 +42,8 @@ export function Editor({ pageId }: { pageId: string }) {
           const id = pageLinkTarget(a?.getAttribute("href") ?? "");
           if (!id) return false;
           event.preventDefault();
-          void useWorkspace.getState().openPage(id);
+          if (event.shiftKey) usePeek.getState().show(id);
+          else void useWorkspace.getState().openPage(id);
           return true;
         },
       },
@@ -48,22 +54,22 @@ export function Editor({ pageId }: { pageId: string }) {
 
   // Find in page and the outline reach this editor through the registry, once its content is in.
   useEffect(() => {
-    if (!editor || !ready) return;
+    if (!editor || !ready || peek) return;
     useActiveEditor.getState().set(editor);
     return () => {
       if (useActiveEditor.getState().editor === editor) useActiveEditor.getState().set(null);
     };
-  }, [editor, ready]);
+  }, [editor, ready, peek]);
 
   // The topbar shows "Saving…", "Saved" or a retry; this editor is the source of truth for it.
   useEffect(() => {
-    useSaveStatus.getState().report(state, saveError, () => void retry());
-  }, [state, saveError, retry]);
-  useEffect(() => () => useSaveStatus.getState().clear(), []);
+    if (!peek) useSaveStatus.getState().report(state, saveError, () => void retry());
+  }, [state, saveError, retry, peek]);
+  useEffect(() => () => { if (!peek) useSaveStatus.getState().clear(); }, [peek]);
 
   // Reopen the page where it was left, and keep remembering as it scrolls.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || peek) return;
     const scroller = document.querySelector<HTMLElement>(".main-scroll");
     if (!scroller) return;
     if (!useWorkspace.getState().focusTarget) {
@@ -80,11 +86,11 @@ export function Editor({ pageId }: { pageId: string }) {
       window.clearTimeout(timer);
       scroller.removeEventListener("scroll", onScroll);
     };
-  }, [ready, pageId]);
+  }, [ready, pageId, peek]);
 
   // Search results and backlinks point at a block: scroll to it and flash it once.
   useEffect(() => {
-    if (!editor || !ready || !focusTarget || focusTarget.pageId !== pageId) return;
+    if (!editor || !ready || peek || !focusTarget || focusTarget.pageId !== pageId) return;
     const focusBlockId = focusTarget.blockId;
     let pos = -1;
     editor.state.doc.descendants((node, p) => {
@@ -103,7 +109,7 @@ export function Editor({ pageId }: { pageId: string }) {
     window.setTimeout(() => {
       if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(blockFlashKey, null));
     }, 1700);
-  }, [editor, ready, focusTarget, pageId]);
+  }, [editor, ready, focusTarget, pageId, peek]);
 
   return (
     <div

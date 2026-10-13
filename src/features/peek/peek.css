@@ -1,0 +1,6 @@
+.peek-panel { position: fixed; z-index: 25; top: 34px; right: 0; bottom: 0; width: min(46vw, 640px); min-width: 340px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--background, var(--surface-1)); box-shadow: var(--menu-shadow); }
+.peek-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.peek-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.peek-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px 40px; }
+.peek-body .editor { max-width: none; }
+.app-frame:has(.peek-panel) .outline-panel { right: calc(min(46vw, 640px) + 16px); }

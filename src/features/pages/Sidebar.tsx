@@ -1,4 +1,5 @@
 import { key } from "../shortcuts/bindings";
+import { usePeek } from "../peek/store";
 import {
   DndContext,
   DragOverlay,
@@ -316,6 +317,7 @@ export function Sidebar() {
     return [
       { label: "Open", shortcut: [key("Enter")], onSelect: () => void useWorkspace.getState().openPage(page.id) },
       { label: "Open in new tab", shortcut: "page-new-tab", onSelect: () => void openInNewTab(page.id) },
+      ...((page.kind === "page" || page.kind === "record") && page.id !== useWorkspace.getState().selectedPageId ? [{ label: "Open beside", onSelect: () => usePeek.getState().show(page.id) }] : []),
       { label: "Cut", separated: true, disabled: page.kind === "record", onSelect: () => cutPages([page]) },
       { label: "Copy", shortcut: "page-copy", disabled: page.kind !== "page", onSelect: () => copyPages([page]) },
       { label: "Paste inside", shortcut: "page-paste", disabled: !canPasteInto(held, page), onSelect: () => void pastePages(page) },

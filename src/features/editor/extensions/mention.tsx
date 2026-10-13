@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from "@tiptap/core";
+import { usePeek } from "../../peek/store";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { exitSuggestion } from "@tiptap/suggestion";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
@@ -65,10 +66,13 @@ function MentionView({ node }: NodeViewProps) {
       className={`mention${state}`}
       role="link"
       aria-disabled={!follow}
-      title={deleted ? "This page is in the trash" : missing ? "This page no longer exists" : "Open page"}
-      onClick={() => {
-        // A click follows the link; the caret is placed beside the chip with the arrow keys.
-        if (follow) void useWorkspace.getState().openPage(pageId);
+      title={deleted ? "This page is in the trash" : missing ? "This page no longer exists" : "Open page (Shift+click to open beside)"}
+      onClick={(e: React.MouseEvent) => {
+        // A click follows the link (Shift+click opens it beside this page); the caret is placed
+        // beside the chip with the arrow keys.
+        if (!follow) return;
+        if (e.shiftKey) usePeek.getState().show(pageId);
+        else void useWorkspace.getState().openPage(pageId);
       }}
     >
       <Icon name="page" size={14} />
