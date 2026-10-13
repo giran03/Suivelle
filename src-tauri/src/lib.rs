@@ -126,6 +126,7 @@ fn spawn_automation(app: tauri::AppHandle) {
         let mut sink = commands::notifier(&app);
         std::thread::sleep(std::time::Duration::from_secs(6));
         let mut first = true;
+        let mut ticks = 0u32;
         loop {
             {
                 let db = app.state::<database::Db>();
@@ -146,6 +147,12 @@ fn spawn_automation(app: tauri::AppHandle) {
                         Ok(n) if n > 0 => tracing::info!(runs = n, "automations started"),
                         Ok(_) => {}
                         Err(e) => tracing::warn!(error = %e, "automation scheduler failed"),
+                    }
+                    // Hourly, fold the write-ahead log back in so a long session does not keep
+                    // the -wal file at its peak size until exit.
+                    ticks = (ticks + 1) % 120;
+                    if ticks == 0 {
+                        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
                     }
                 }
             }
