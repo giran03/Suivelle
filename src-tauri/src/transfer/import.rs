@@ -1,23 +1,26 @@
-//! Importing files and folders: Markdown, text, HTML, CSV and Suivelle archives.
+//! Importing files and folders: Markdown, text, HTML, CSV, PDF, zips of those, Notion exports and
+//! Suivelle archives.
 //!
 //! Importing has two steps. `stage_*` reads and parses everything and keeps the result in memory
 //! (nothing is written to the workspace and the frontend never sees a path); `apply` then creates
-//! it all in one transaction under one new page, so a failure changes nothing and the result can
-//! be trashed in one go.
+//! it all in one transaction, under one new page, an existing page or a new workspace, so a failure
+//! changes nothing and the result can be trashed in one go.
 
 use super::archive::{self, Archive};
 use super::blocks::*;
 use super::csvio::{self, ColumnPlan};
-use super::{html, insert_page, markdown};
+use super::unzip::{self, TempDir};
+use super::{html, insert_page, markdown, notion};
 use crate::databases::service::{self as dbs};
-use crate::databases::{DatabaseCreate, PropertyCreate, RecordCreate};
+use crate::databases::{DatabaseCreate, PropertyCreate, RecordCreate, SetValue};
 use crate::domain::{new_id, BlockBatch};
 use crate::errors::{AppError, AppResult};
 use crate::files::{self, MAX_ATTACHMENT_BYTES};
+use crate::search::text::INTERNAL_PAGE_LINK;
 use rusqlite::Connection;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 pub const MAX_FILES: usize = 2_000;
@@ -30,7 +33,7 @@ fn bad<T>(msg: impl Into<String>) -> AppResult<T> {
     Err(AppError::Validation(msg.into()))
 }
 
-enum Source {
+pub(crate) enum Source {
     Doc {
         blocks: Vec<Blk>,
         page_id: String,
@@ -39,23 +42,67 @@ enum Source {
         csv: csvio::Csv,
         plan: Vec<ColumnPlan>,
     },
+    /// A database from a Notion export: typed columns, rows with their own pages, and relations.
+    Database(Box<notion::DbModel>),
+    /// A PDF, kept whole on a page of its own.
+    Pdf {
+        page_id: String,
+        key: String,
+        name: String,
+    },
     Folder,
 }
 
-struct Node {
-    index: usize,
-    title: String,
-    source: Source,
-    children: Vec<Node>,
+pub(crate) struct Node {
+    pub index: usize,
+    pub title: String,
+    pub source: Source,
+    pub children: Vec<Node>,
+    /// An emoji, or an asset key for an image icon.
+    pub icon: Option<String>,
+    /// An asset key for the cover picture.
+    pub cover: Option<String>,
+}
+
+impl Node {
+    pub fn new(index: usize, title: String, source: Source) -> Node {
+        Node {
+            index,
+            title,
+            source,
+            children: vec![],
+            icon: None,
+            cover: None,
+        }
+    }
+}
+
+/// Where an import came from, when it is more than loose files.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Origin {
+    /// "notion".
+    pub kind: String,
+    /// "markdown", "html", "pdf" or "mixed".
+    pub format: String,
+    /// "folders" (subpages in folders) or "flat".
+    pub layout: String,
+    /// The export looks like a whole workspace rather than one page and its subpages.
+    pub workspace: bool,
+    /// A name for a new workspace made from it.
+    pub name: String,
 }
 
 pub struct Staged {
     pub id: String,
-    nodes: Vec<Node>,
+    pub(crate) nodes: Vec<Node>,
     archive: Option<(PathBuf, archive::Info)>,
-    assets: HashMap<String, u64>,
+    pub(crate) assets: HashMap<String, u64>,
     pub warnings: Vec<String>,
-    bytes: u64,
+    pub(crate) bytes: u64,
+    pub(crate) origin: Option<Origin>,
+    /// Where a zip was unpacked; removed with the session.
+    pub(crate) temp: Option<TempDir>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,43 +130,91 @@ pub struct Preview {
     pub bytes: u64,
     pub warnings: Vec<String>,
     pub archive: Option<archive::Info>,
+    pub origin: Option<Origin>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportResult {
-    /// The page that holds everything that was imported.
+    /// The page that holds everything that was imported (or, in a new workspace, its first page).
     pub page_id: String,
     pub pages: usize,
     pub databases: usize,
     pub records: usize,
     pub attachments: usize,
     pub warnings: Vec<String>,
+    /// The workspace that was created, when the import made one.
+    pub workspace: Option<crate::domain::Workspace>,
+}
+
+/// Where the imported pages go.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Target {
+    /// Under a new "Imported …" page at the top of the workspace.
+    #[default]
+    Container,
+    /// Under an existing page.
+    #[serde(rename_all = "camelCase")]
+    Page { page_id: String },
+    /// At the top of a new workspace.
+    Workspace { name: String },
 }
 
 // ---------------------------------------------------------------------------------------------
 // staging
 // ---------------------------------------------------------------------------------------------
 
-struct Ctx {
-    root: PathBuf,
-    counter: usize,
-    bytes: u64,
-    assets: HashMap<String, u64>,
-    warnings: Vec<String>,
+pub(crate) struct Ctx {
+    pub root: PathBuf,
+    pub counter: usize,
+    pub bytes: u64,
+    pub assets: HashMap<String, u64>,
+    pub warnings: Vec<String>,
     /// canonical file path -> the page it will become
-    pages: HashMap<PathBuf, String>,
+    pub pages: HashMap<PathBuf, String>,
 }
 
 impl Ctx {
-    fn warn(&mut self, m: String) {
-        if self.warnings.len() < 50 {
+    pub fn new(root: PathBuf) -> Ctx {
+        Ctx {
+            root,
+            counter: 0,
+            bytes: 0,
+            assets: HashMap::new(),
+            warnings: vec![],
+            pages: HashMap::new(),
+        }
+    }
+
+    pub fn warn(&mut self, m: String) {
+        if self.warnings.len() < 50 && !self.warnings.contains(&m) {
             self.warnings.push(m);
         }
     }
+
+    pub fn next(&mut self) -> usize {
+        self.counter += 1;
+        self.counter
+    }
+
+    /// Counts a file the import will store; `None` when it does not fit the limits.
+    pub fn add_asset(&mut self, path: &Path) -> Option<String> {
+        let size = std::fs::metadata(path).map(|m| m.len()).ok()?;
+        let key = path.to_string_lossy().into_owned();
+        if self.assets.contains_key(&key) {
+            return Some(key);
+        }
+        if size > MAX_ATTACHMENT_BYTES || self.bytes + size > MAX_TOTAL_BYTES {
+            return None;
+        }
+        self.bytes += size;
+        self.assets.insert(key.clone(), size);
+        Some(key)
+    }
 }
 
-fn kind_of(path: &Path) -> Option<&'static str> {
+pub(crate) fn kind_of(path: &Path) -> Option<&'static str> {
     match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
         "md" | "markdown" | "mdown" => Some("markdown"),
         "txt" | "text" => Some("text"),
@@ -130,7 +225,12 @@ fn kind_of(path: &Path) -> Option<&'static str> {
     }
 }
 
-fn read_limited(path: &Path, ctx: &mut Ctx) -> AppResult<Vec<u8>> {
+pub(crate) fn is_pdf(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+}
+
+pub(crate) fn read_limited(path: &Path, ctx: &mut Ctx) -> AppResult<Vec<u8>> {
     let len = std::fs::metadata(path)?.len();
     if len > MAX_DOC_BYTES {
         return bad(format!("{} is larger than 50 MB", display(path)));
@@ -142,14 +242,14 @@ fn read_limited(path: &Path, ctx: &mut Ctx) -> AppResult<Vec<u8>> {
     Ok(std::fs::read(path)?)
 }
 
-fn display(p: &Path) -> String {
+pub(crate) fn display(p: &Path) -> String {
     p.file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("a file")
         .to_string()
 }
 
-fn stem(p: &Path) -> String {
+pub(crate) fn stem(p: &Path) -> String {
     p.file_stem()
         .and_then(|n| n.to_str())
         .unwrap_or("Untitled")
@@ -162,7 +262,7 @@ fn text_blocks(text: &str) -> Vec<Blk> {
         .replace("\r\n", "\n")
         .replace('\r', "\n");
     text.split("\n\n")
-        .map(str::trim_matches_newlines)
+        .map(|c| c.trim_matches('\n'))
         .filter(|c| !c.trim().is_empty())
         .map(|chunk| {
             let mut inline = Vec::new();
@@ -177,41 +277,11 @@ fn text_blocks(text: &str) -> Vec<Blk> {
         .collect()
 }
 
-trait TrimNewlines {
-    fn trim_matches_newlines(&self) -> &str;
-}
-impl TrimNewlines for str {
-    fn trim_matches_newlines(&self) -> &str {
-        self.trim_matches('\n')
-    }
-}
-
-fn lossy(bytes: &[u8]) -> String {
+pub(crate) fn lossy(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let Some(v) = s
-                .get(i + 1..i + 3)
-                .and_then(|h| u8::from_str_radix(h, 16).ok())
-            {
-                out.push(v);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(b[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-fn is_external(href: &str) -> bool {
+pub(crate) fn is_external(href: &str) -> bool {
     let l = href.trim().to_ascii_lowercase();
     crate::legacy::page_target(&l).is_some()
         || ["http://", "https://", "mailto:", "suivelle://", "tel:"]
@@ -220,27 +290,77 @@ fn is_external(href: &str) -> bool {
 }
 
 /// A path named by a document, if it points at an existing file inside the import's root.
-fn local_file(href: &str, doc_dir: &Path, root: &Path) -> Option<PathBuf> {
+pub(crate) fn local_file(href: &str, doc_dir: &Path, root: &Path) -> Option<PathBuf> {
     if href.is_empty() || is_external(href) || href.starts_with('#') || href.contains("://") {
         return None;
     }
-    let clean = percent_decode(href.split(['#', '?']).next().unwrap_or(""));
+    let clean = notion::names::percent_decode(href.split(['#', '?']).next().unwrap_or(""));
     let joined = doc_dir.join(clean.replace('\\', "/"));
     let canon = joined.canonicalize().ok()?;
     (canon.starts_with(root) && canon.is_file()).then_some(canon)
 }
 
-fn mime_of(path: &Path) -> &'static str {
-    files::mime_for(&display(path))
+/// What a link or image in a document points at.
+pub(crate) enum Found {
+    /// A page (or database) the import creates, by the id it will have.
+    Page(String),
+    /// A file the import stores, by its asset key.
+    Asset {
+        key: String,
+        name: String,
+    },
+    Nothing,
+}
+
+/// Looks up what documents point at. Folder imports resolve paths on disk; Notion imports
+/// resolve the ids in Notion's file names first.
+pub(crate) trait Resolve {
+    /// `media` is `Some(is_image)` when the link stands alone and could become a media block,
+    /// `None` for a link in running text (which can only lead to a page).
+    fn find(&mut self, href: &str, media: Option<bool>) -> Found;
+    fn warn(&mut self, m: String);
+}
+
+struct FsResolver<'a> {
+    dir: PathBuf,
+    ctx: &'a mut Ctx,
+}
+
+impl Resolve for FsResolver<'_> {
+    fn find(&mut self, href: &str, media: Option<bool>) -> Found {
+        let Some(path) = local_file(href, &self.dir, &self.ctx.root) else {
+            return Found::Nothing;
+        };
+        if let Some(is_image) = media {
+            let is_doc = kind_of(&path).is_some_and(|k| k != "archive") && !is_image;
+            if !is_doc {
+                return match self.ctx.add_asset(&path) {
+                    Some(key) => Found::Asset {
+                        key,
+                        name: display(&path),
+                    },
+                    None => Found::Nothing,
+                };
+            }
+        }
+        match self.ctx.pages.get(&path) {
+            Some(id) => Found::Page(id.clone()),
+            None => Found::Nothing,
+        }
+    }
+
+    fn warn(&mut self, m: String) {
+        self.ctx.warn(m);
+    }
 }
 
 /// Turns standalone images and links to local files into media blocks, and rewrites or drops the
 /// remaining relative links.
-fn resolve(blocks: &mut [Blk], doc_dir: &Path, ctx: &mut Ctx) {
+pub(crate) fn resolve(blocks: &mut [Blk], r: &mut dyn Resolve) {
     let mut external_images = 0usize;
-    resolve_in(blocks, doc_dir, ctx, &mut external_images);
+    resolve_in(blocks, r, &mut external_images);
     if external_images > 0 {
-        ctx.warn(format!(
+        r.warn(format!(
             "{external_images} image{} on the web {} kept as links (nothing is downloaded)",
             if external_images == 1 { "" } else { "s" },
             if external_images == 1 { "was" } else { "were" }
@@ -248,7 +368,7 @@ fn resolve(blocks: &mut [Blk], doc_dir: &Path, ctx: &mut Ctx) {
     }
 }
 
-fn resolve_in(blocks: &mut [Blk], doc_dir: &Path, ctx: &mut Ctx, external_images: &mut usize) {
+fn resolve_in(blocks: &mut [Blk], r: &mut dyn Resolve, external_images: &mut usize) {
     for b in blocks.iter_mut() {
         if b.kind == "paragraph" {
             let meaningful: Vec<&Inline> = b
@@ -268,75 +388,62 @@ fn resolve_in(blocks: &mut [Blk], doc_dir: &Path, ctx: &mut Ctx, external_images
                 _ => None,
             };
             if let Some((src, name, is_image)) = single {
-                if let Some(path) = local_file(&src, doc_dir, &ctx.root) {
-                    let is_doc = kind_of(&path).is_some_and(|k| k != "archive") && !is_image;
-                    if !is_doc {
-                        let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                        let key = path.to_string_lossy().into_owned();
-                        if size <= MAX_ATTACHMENT_BYTES
-                            && (ctx.assets.contains_key(&key)
-                                || ctx.bytes + size <= MAX_TOTAL_BYTES)
-                        {
-                            if ctx.assets.insert(key.clone(), size).is_none() {
-                                ctx.bytes += size;
+                if is_external(&src) {
+                    if is_image {
+                        *external_images += 1;
+                    }
+                } else if let Found::Asset { key, name: file } = r.find(&src, Some(is_image)) {
+                    let name = if name.trim().is_empty() || is_image {
+                        file
+                    } else {
+                        name
+                    };
+                    b.kind = media_kind(files::mime_for(&name)).into();
+                    if b.kind == "file" && name.to_ascii_lowercase().ends_with(".pdf") {
+                        b.kind = "pdf".into();
+                    }
+                    b.inline.clear();
+                    let mut presentation = b
+                        .media
+                        .as_ref()
+                        .map(|m| m.presentation.clone())
+                        .unwrap_or(Value::Null);
+                    if let Some(href) = presentation
+                        .get("link")
+                        .and_then(Value::as_str)
+                        .map(String::from)
+                    {
+                        if !is_external(&href) {
+                            if let Found::Page(id) = r.find(&href, None) {
+                                presentation["link"] = json!(format!("{INTERNAL_PAGE_LINK}{id}"));
+                            } else if let Some(p) = presentation.as_object_mut() {
+                                p.remove("link");
                             }
-                            let name = if name.trim().is_empty() || is_image {
-                                display(&path)
-                            } else {
-                                name
-                            };
-                            b.kind = media_kind(mime_of(&path)).into();
-                            b.inline.clear();
-                            let mut presentation = b
-                                .media
-                                .as_ref()
-                                .map(|m| m.presentation.clone())
-                                .unwrap_or(serde_json::Value::Null);
-                            if let Some(href) = presentation
-                                .get("link")
-                                .and_then(serde_json::Value::as_str)
-                                .map(String::from)
-                            {
-                                if !is_external(&href) {
-                                    if let Some(id) = local_file(&href, doc_dir, &ctx.root)
-                                        .and_then(|p| ctx.pages.get(&p))
-                                    {
-                                        presentation["link"] = serde_json::json!(format!(
-                                            "{}{id}",
-                                            crate::search::text::INTERNAL_PAGE_LINK
-                                        ));
-                                    } else if let Some(p) = presentation.as_object_mut() {
-                                        p.remove("link");
-                                    }
-                                }
-                            }
-                            b.media = Some(Media {
-                                src: Some(key),
-                                name,
-                                attachment: None,
-                                presentation,
-                            });
-                            continue;
                         }
                     }
-                } else if is_image && is_external(&src) {
-                    *external_images += 1;
+                    b.media = Some(Media {
+                        src: Some(key),
+                        name,
+                        attachment: None,
+                        presentation,
+                    });
+                    continue;
                 }
             }
         }
-        sanitize_inline(&mut b.inline, doc_dir, ctx);
+        sanitize_inline(&mut b.inline, r);
         if let Some(t) = &mut b.table {
             for row in t.iter_mut() {
                 for cell in row.iter_mut() {
-                    sanitize_inline(cell, doc_dir, ctx);
+                    sanitize_inline(cell, r);
                 }
             }
         }
-        resolve_in(&mut b.children, doc_dir, ctx, external_images);
+        resolve_in(&mut b.children, r, external_images);
     }
 }
 
-fn sanitize_inline(items: &mut [Inline], doc_dir: &Path, ctx: &Ctx) {
+fn sanitize_inline(items: &mut [Inline], r: &mut dyn Resolve) {
     for it in items.iter_mut() {
         match it {
             Inline::Text { marks, .. } => {
@@ -345,13 +452,8 @@ fn sanitize_inline(items: &mut [Inline], doc_dir: &Path, ctx: &Ctx) {
                     match m {
                         Mark::Link(h) if is_external(&h) => marks.push(Mark::Link(h)),
                         Mark::Link(h) => {
-                            if let Some(path) = local_file(&h, doc_dir, &ctx.root) {
-                                if let Some(id) = ctx.pages.get(&path) {
-                                    marks.push(Mark::Link(format!(
-                                        "{}{id}",
-                                        crate::search::text::INTERNAL_PAGE_LINK
-                                    )));
-                                }
+                            if let Found::Page(id) = r.find(&h, None) {
+                                marks.push(Mark::Link(format!("{INTERNAL_PAGE_LINK}{id}")));
                             }
                         }
                         other => marks.push(other),
@@ -385,15 +487,14 @@ fn doc_node(path: &Path, kind: &str, ctx: &mut Ctx) -> AppResult<Node> {
     };
     let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let page_id = ctx.pages.get(&canon).cloned().unwrap_or_else(new_id);
-    ctx.counter += 1;
-    Ok(Node {
-        index: ctx.counter,
-        title: title
+    let index = ctx.next();
+    Ok(Node::new(
+        index,
+        title
             .filter(|t| !t.trim().is_empty())
             .unwrap_or_else(|| stem(path)),
-        source: Source::Doc { blocks, page_id },
-        children: vec![],
-    })
+        Source::Doc { blocks, page_id },
+    ))
 }
 
 fn csv_node(path: &Path, ctx: &mut Ctx) -> AppResult<Node> {
@@ -401,13 +502,26 @@ fn csv_node(path: &Path, ctx: &mut Ctx) -> AppResult<Node> {
     let csv =
         csvio::read(&bytes).map_err(|e| AppError::Validation(format!("{}: {e}", display(path))))?;
     let plan = csvio::plan(&csv);
-    ctx.counter += 1;
-    Ok(Node {
-        index: ctx.counter,
-        title: stem(path),
-        source: Source::Csv { csv, plan },
-        children: vec![],
-    })
+    let index = ctx.next();
+    Ok(Node::new(index, stem(path), Source::Csv { csv, plan }))
+}
+
+/// A PDF on a page of its own, or `None` (with a warning) when it is too large to store.
+pub(crate) fn pdf_node(path: &Path, title: String, ctx: &mut Ctx) -> Option<Node> {
+    let Some(key) = ctx.add_asset(path) else {
+        ctx.warn(format!("“{}” is too large to import", display(path)));
+        return None;
+    };
+    let index = ctx.next();
+    Some(Node::new(
+        index,
+        title,
+        Source::Pdf {
+            page_id: new_id(),
+            key,
+            name: display(path),
+        },
+    ))
 }
 
 fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>, ctx: &mut Ctx) {
@@ -465,20 +579,37 @@ fn merge_same_names(nodes: &mut Vec<Node>) {
     }
 }
 
-fn staged(
-    id: String,
-    nodes: Vec<Node>,
-    ctx: Ctx,
-    archive: Option<(PathBuf, archive::Info)>,
-) -> Staged {
+pub(crate) fn staged(nodes: Vec<Node>, ctx: Ctx, origin: Option<Origin>) -> Staged {
     Staged {
-        id,
+        id: new_id(),
         nodes,
-        archive,
+        archive: None,
         assets: ctx.assets,
         warnings: ctx.warnings,
         bytes: ctx.bytes,
+        origin,
+        temp: None,
     }
+}
+
+/// Places `node` under the folder nodes named by `dirs`, creating them as needed.
+pub(crate) fn place(top: &mut Vec<Node>, dirs: &[String], node: Node, ctx: &mut Ctx) {
+    let mut level = top;
+    for d in dirs {
+        let pos = match level
+            .iter()
+            .position(|n| matches!(n.source, Source::Folder) && n.title == *d)
+        {
+            Some(p) => p,
+            None => {
+                let index = ctx.next();
+                level.push(Node::new(index, d.clone(), Source::Folder));
+                level.len() - 1
+            }
+        };
+        level = &mut level[pos].children;
+    }
+    level.push(node);
 }
 
 fn collect(files: Vec<(PathBuf, Vec<String>)>, root: PathBuf) -> AppResult<Staged> {
@@ -488,23 +619,21 @@ fn collect(files: Vec<(PathBuf, Vec<String>)>, root: PathBuf) -> AppResult<Stage
         ));
     }
     let root = root.canonicalize()?;
-    let mut ctx = Ctx {
-        root: root.clone(),
-        counter: 0,
-        bytes: 0,
-        assets: HashMap::new(),
-        warnings: vec![],
-        pages: HashMap::new(),
-    };
+    let mut ctx = Ctx::new(root.clone());
     let supported: Vec<(PathBuf, Vec<String>, &'static str)> = files
-        .into_iter()
-        .filter_map(|(p, dirs)| match kind_of(&p) {
+        .iter()
+        .filter_map(|(p, dirs)| match kind_of(p) {
             Some("archive") | None => None,
-            Some(k) => Some((p.canonicalize().unwrap_or(p), dirs, k)),
+            Some(k) => Some((p.canonicalize().unwrap_or(p.clone()), dirs.clone(), k)),
         })
         .collect();
-    if supported.is_empty() {
-        return bad("there is nothing to import here: use Markdown, text, HTML or CSV files");
+    let pdfs: Vec<(PathBuf, Vec<String>)> = files
+        .iter()
+        .filter(|(p, _)| is_pdf(p))
+        .map(|(p, dirs)| (p.canonicalize().unwrap_or(p.clone()), dirs.clone()))
+        .collect();
+    if supported.is_empty() && pdfs.is_empty() {
+        return bad("there is nothing to import here: use Markdown, text, HTML, CSV or PDF files");
     }
     for (p, _, k) in &supported {
         if *k != "csv" {
@@ -518,27 +647,7 @@ fn collect(files: Vec<(PathBuf, Vec<String>)>, root: PathBuf) -> AppResult<Stage
         } else {
             doc_node(path, kind, &mut ctx)?
         };
-        let mut level = &mut top;
-        for d in dirs {
-            let pos = match level
-                .iter()
-                .position(|n| matches!(n.source, Source::Folder) && n.title == *d)
-            {
-                Some(p) => p,
-                None => {
-                    ctx.counter += 1;
-                    level.push(Node {
-                        index: ctx.counter,
-                        title: d.clone(),
-                        source: Source::Folder,
-                        children: vec![],
-                    });
-                    level.len() - 1
-                }
-            };
-            level = &mut level[pos].children;
-        }
-        level.push(node);
+        place(&mut top, dirs, node, &mut ctx);
     }
     merge_same_names(&mut top);
     // Resolve media and links now that every page has its id.
@@ -552,14 +661,29 @@ fn collect(files: Vec<(PathBuf, Vec<String>)>, root: PathBuf) -> AppResult<Stage
             if let Source::Doc { blocks, page_id } = &mut n.source {
                 if let Some(p) = page_paths.get(page_id.as_str()) {
                     let dir = p.parent().unwrap_or(&ctx.root).to_path_buf();
-                    resolve(blocks, &dir, ctx);
+                    resolve(blocks, &mut FsResolver { dir, ctx });
                 }
             }
             visit_ids(&mut n.children, ctx, page_paths);
         }
     }
     visit_ids(&mut top, &mut ctx, &page_paths);
-    Ok(staged(new_id(), top, ctx, None))
+    // A PDF that no document shows becomes a page of its own.
+    for (path, dirs) in pdfs {
+        if ctx.assets.contains_key(&*path.to_string_lossy()) {
+            continue;
+        }
+        let (title, id) = notion::names::split_id(&stem(&path));
+        let title = if id.is_some() && !title.is_empty() {
+            title
+        } else {
+            stem(&path)
+        };
+        if let Some(node) = pdf_node(&path, title, &mut ctx) {
+            place(&mut top, &dirs, node, &mut ctx);
+        }
+    }
+    Ok(staged(top, ctx, None))
 }
 
 /// Stages files picked one by one.
@@ -569,9 +693,9 @@ pub fn stage_files(paths: Vec<PathBuf>) -> AppResult<Staged> {
     }
     if paths.iter().any(|p| kind_of(p) == Some("archive")) {
         if paths.len() > 1 {
-            return bad("import a Suivelle archive on its own");
+            return bad("import a zip file on its own");
         }
-        return stage_archive(&paths[0]);
+        return stage_zip(&paths[0]);
     }
     let root = paths[0].parent().map(Path::to_path_buf).unwrap_or_default();
     let mut files = Vec::new();
@@ -579,10 +703,13 @@ pub fn stage_files(paths: Vec<PathBuf>) -> AppResult<Staged> {
         if !p.is_file() {
             return bad(format!("{} is not a file", display(&p)));
         }
-        files.push((p, vec![]));
+        files.push(p);
+    }
+    if let Some(s) = notion::stage_files(&files)? {
+        return Ok(s);
     }
     // Files picked from different folders can each use their own neighbours as assets.
-    collect_multi(files, root)
+    collect_multi(files.into_iter().map(|p| (p, vec![])).collect(), root)
 }
 
 fn collect_multi(files: Vec<(PathBuf, Vec<String>)>, root: PathBuf) -> AppResult<Staged> {
@@ -612,19 +739,15 @@ pub fn stage_folder(dir: PathBuf) -> AppResult<Staged> {
         return bad("that is not a folder");
     }
     let root = dir.canonicalize()?;
-    let mut scratch = Ctx {
-        root: root.clone(),
-        counter: 0,
-        bytes: 0,
-        assets: HashMap::new(),
-        warnings: vec![],
-        pages: HashMap::new(),
-    };
+    if let Some(s) = notion::stage_folder(&root)? {
+        return Ok(s);
+    }
+    let mut scratch = Ctx::new(root.clone());
     let mut all = Vec::new();
     walk(&root, 0, &mut all, &mut scratch);
     let files: Vec<(PathBuf, Vec<String>)> = all
         .into_iter()
-        .filter(|p| matches!(kind_of(p), Some(k) if k != "archive"))
+        .filter(|p| matches!(kind_of(p), Some(k) if k != "archive") || is_pdf(p))
         .map(|p| {
             let rel = p.strip_prefix(&root).unwrap_or(&p);
             let dirs: Vec<String> = rel
@@ -643,23 +766,32 @@ pub fn stage_folder(dir: PathBuf) -> AppResult<Staged> {
     Ok(s)
 }
 
+/// Stages a zip: a Suivelle archive as itself, anything else (a Notion export, a zip of notes)
+/// by unpacking it and staging the folder.
+pub fn stage_zip(path: &Path) -> AppResult<Staged> {
+    if unzip::is_suivelle_archive(path) {
+        return stage_archive(path);
+    }
+    let (dir, left_out) = unzip::extract(path)?;
+    let mut s = stage_folder(dir.path().to_path_buf())?;
+    s.warnings.splice(0..0, left_out);
+    if let Some(o) = &mut s.origin {
+        if o.name.trim().is_empty() {
+            o.name = stem(path);
+        }
+    }
+    s.temp = Some(dir);
+    Ok(s)
+}
+
 pub fn stage_archive(path: &Path) -> AppResult<Staged> {
     let mut a = Archive::open(path)?;
     let info = a.info()?;
-    let ctx = Ctx {
-        root: PathBuf::new(),
-        counter: 0,
-        bytes: std::fs::metadata(path)?.len(),
-        assets: HashMap::new(),
-        warnings: vec![],
-        pages: HashMap::new(),
-    };
-    Ok(staged(
-        new_id(),
-        vec![],
-        ctx,
-        Some((path.to_path_buf(), info)),
-    ))
+    let mut ctx = Ctx::new(PathBuf::new());
+    ctx.bytes = std::fs::metadata(path)?.len();
+    let mut s = staged(vec![], ctx, None);
+    s.archive = Some((path.to_path_buf(), info));
+    Ok(s)
 }
 
 pub fn stage_workspace_archive(path: &Path) -> AppResult<Staged> {
@@ -685,6 +817,16 @@ pub fn apply_workspace(
 // preview
 // ---------------------------------------------------------------------------------------------
 
+fn rows_text(rows: usize, cols: usize) -> String {
+    format!(
+        "{} row{}, {} column{}",
+        rows,
+        if rows == 1 { "" } else { "s" },
+        cols,
+        if cols == 1 { "" } else { "s" }
+    )
+}
+
 fn flatten_entries(
     nodes: &[Node],
     depth: usize,
@@ -692,47 +834,51 @@ fn flatten_entries(
     totals: &mut (usize, usize, usize),
 ) {
     for n in nodes {
+        let entry = |kind: &str, detail: String| Entry {
+            index: n.index,
+            name: n.title.clone(),
+            kind: kind.into(),
+            depth,
+            detail,
+            columns: None,
+            truncated: false,
+        };
         match &n.source {
-            Source::Folder => out.push(Entry {
-                index: n.index,
-                name: n.title.clone(),
-                kind: "folder".into(),
-                depth,
-                detail: "Folder".into(),
-                columns: None,
-                truncated: false,
-            }),
+            Source::Folder => out.push(entry("folder", "Folder".into())),
             Source::Doc { blocks, .. } => {
                 totals.0 += 1;
                 let mut count = 0;
                 visit(blocks, &mut |_| count += 1);
-                out.push(Entry {
-                    index: n.index,
-                    name: n.title.clone(),
-                    kind: "page".into(),
-                    depth,
-                    detail: format!("{count} block{}", if count == 1 { "" } else { "s" }),
-                    columns: None,
-                    truncated: false,
-                });
+                out.push(entry(
+                    "page",
+                    format!("{count} block{}", if count == 1 { "" } else { "s" }),
+                ));
+            }
+            Source::Pdf { .. } => {
+                totals.0 += 1;
+                out.push(entry("page", "PDF".into()));
             }
             Source::Csv { csv, plan } => {
                 totals.1 += 1;
                 totals.2 += csv.rows.len();
                 out.push(Entry {
-                    index: n.index,
-                    name: n.title.clone(),
-                    kind: "database".into(),
-                    depth,
-                    detail: format!(
-                        "{} row{}, {} column{}",
-                        csv.rows.len(),
-                        if csv.rows.len() == 1 { "" } else { "s" },
-                        csv.headers.len(),
-                        if csv.headers.len() == 1 { "" } else { "s" }
-                    ),
                     columns: Some(plan.clone()),
                     truncated: csv.truncated,
+                    ..entry("database", rows_text(csv.rows.len(), csv.headers.len()))
+                });
+            }
+            Source::Database(db) => {
+                totals.1 += 1;
+                totals.2 += db.rows.len();
+                let bodies = db.rows.iter().filter(|r| !r.body.is_empty()).count();
+                let mut detail = rows_text(db.rows.len(), db.plan.len());
+                if bodies > 0 {
+                    detail.push_str(&format!(", {bodies} with page content"));
+                }
+                out.push(Entry {
+                    columns: Some(db.plan.clone()),
+                    truncated: db.truncated,
+                    ..entry("database", detail)
                 });
             }
         }
@@ -771,6 +917,7 @@ pub fn preview(s: &Staged) -> Preview {
         bytes: s.bytes,
         warnings,
         archive: s.archive.as_ref().map(|(_, i)| i.clone()),
+        origin: s.origin.clone(),
     }
 }
 
@@ -780,102 +927,128 @@ pub fn preview(s: &Staged) -> Preview {
 
 const TONES: [&str; 6] = ["gray", "violet", "blue", "green", "orange", "red"];
 
+/// A relation column waiting for every database to exist.
+struct RelJob<'a> {
+    database: String,
+    name: String,
+    target: String,
+    /// (row placeholder, related row placeholders)
+    links: &'a [(String, Vec<String>)],
+}
+
 struct Run<'a> {
     tx: &'a Connection,
     ws: &'a str,
     stored: HashMap<String, (String, u64)>,
     overrides: &'a HashMap<usize, Vec<String>>,
     result: ImportResult,
+    /// The id a page was planned with → the id it was created with (databases and records get
+    /// theirs from the database service).
+    ids: HashMap<String, String>,
+    /// planned database page id → database id
+    databases: HashMap<String, String>,
+    /// planned row page id → record id
+    records: HashMap<String, String>,
+    /// Page contents, written last so every link can point at its final page.
+    bodies: Vec<(String, Vec<Blk>)>,
+    relations: Vec<RelJob<'a>>,
 }
 
-impl Run<'_> {
+impl<'a> Run<'a> {
     fn warn(&mut self, m: String) {
-        if self.result.warnings.len() < 50 {
+        if self.result.warnings.len() < 80 && !self.result.warnings.contains(&m) {
             self.result.warnings.push(m);
         }
     }
 
-    fn doc(&mut self, parent: &str, n: &Node, blocks: &[Blk], page_id: &str) -> AppResult<String> {
+    /// Stores an imported file as an attachment of the workspace.
+    fn attach(&mut self, key: &str, name: &str) -> Option<Value> {
+        let (hash, size) = self.stored.get(key)?.clone();
+        let mime = files::mime_for(name);
+        let a = files::insert_attachment_in(self.tx, self.ws, &hash, name, mime, size).ok()?;
+        self.result.attachments += 1;
+        Some(
+            json!({ "id": a.id, "hash": a.hash, "name": a.original_name, "mime": a.mime_type, "size": a.size }),
+        )
+    }
+
+    /// Sets a page's icon and cover from an import.
+    fn appearance(
+        &mut self,
+        page_id: &str,
+        icon: Option<&String>,
+        cover: Option<&String>,
+    ) -> AppResult<()> {
+        if icon.is_none() && cover.is_none() {
+            return Ok(());
+        }
+        let Some(mut page) = crate::repositories::page::get(self.tx, page_id)? else {
+            return Ok(());
+        };
+        let image = |run: &mut Self, key: &str| {
+            let name = Path::new(key)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            run.attach(key, &name).and_then(|a| {
+                a.get("hash")
+                    .and_then(Value::as_str)
+                    .map(|h| format!("image:{h}"))
+            })
+        };
+        if let Some(i) = icon {
+            page.icon = if self.stored.contains_key(i) {
+                image(self, i)
+            } else if i.chars().count() <= 16 && !i.chars().any(char::is_control) {
+                Some(i.clone())
+            } else {
+                None
+            };
+        }
+        if let Some(c) = cover {
+            page.cover = image(self, c);
+        }
+        crate::repositories::page::update(self.tx, &page)?;
+        Ok(())
+    }
+
+    fn page(&mut self, parent: Option<&str>, n: &Node, id: &str) -> AppResult<String> {
         let page = insert_page(
             self.tx,
-            Some(page_id.to_string()),
+            Some(id.to_string()),
             self.ws,
-            Some(parent),
+            parent,
             &n.title,
             None,
             "page",
             false,
         )?;
-        let mut blocks = blocks.to_vec();
-        let mut missing = Vec::new();
-        visit_mut(&mut blocks, &mut |b| {
-            if !is_media(&b.kind) {
-                return;
-            }
-            let Some(m) = b.media.as_mut() else { return };
-            let key = m.src.clone().unwrap_or_default();
-            match self.stored.get(&key) {
-                Some((hash, size)) => {
-                    let mime = files::mime_for(&m.name);
-                    match files::insert_attachment_in(self.tx, self.ws, hash, &m.name, mime, *size)
-                    {
-                        Ok(a) => {
-                            m.attachment = Some(
-                                json!({ "id": a.id, "hash": a.hash, "name": a.original_name, "mime": a.mime_type, "size": a.size }),
-                            );
-                            self.result.attachments += 1;
-                        }
-                        Err(_) => missing.push(m.name.clone()),
-                    }
-                }
-                None => missing.push(m.name.clone()),
-            }
-            if m.attachment.is_none() {
-                b.kind = "paragraph".into();
-                b.inline = vec![plain(format!("[{}]", m.name))];
-            }
-        });
-        for name in missing {
-            self.warn(format!(
-                "The file “{name}” could not be stored and was left as text"
-            ));
-        }
-        let mut upserts = flatten_blocks(&mut blocks);
-        for u in upserts.iter_mut() {
-            if u.data_json.len() > crate::domain::MAX_BLOCK_DATA_BYTES {
-                u.data_json = json!({ "content": [{ "type": "text", "text": "(this block was too large to import)" }] }).to_string();
-                u.block_type = "paragraph".into();
-            }
-        }
-        for chunk in upserts.chunks(4000) {
-            crate::services::block::apply_batch_in(
-                self.tx,
-                &BlockBatch {
-                    page_id: page.id.clone(),
-                    upserts: chunk.iter().map(clone_upsert).collect(),
-                    delete_ids: vec![],
-                },
-            )?;
-        }
+        self.ids.insert(id.to_string(), page.id.clone());
+        self.appearance(&page.id, n.icon.as_ref(), n.cover.as_ref())?;
         self.result.pages += 1;
         Ok(page.id)
     }
 
-    fn csv(
+    /// Creates a database and its records; returns its page id and the records, in row order.
+    fn database(
         &mut self,
-        parent: &str,
+        parent: Option<&str>,
         n: &Node,
-        csv: &csvio::Csv,
         plan: &[ColumnPlan],
-    ) -> AppResult<String> {
+        rows: &[&[String]],
+        colors: Option<&HashMap<(usize, String), String>>,
+    ) -> AppResult<(
+        crate::databases::DatabaseDetail,
+        Vec<crate::databases::RecordRow>,
+    )> {
         let made = dbs::create_database_empty_in(
             self.tx,
             DatabaseCreate {
                 workspace_id: self.ws.into(),
-                parent_page_id: Some(parent.into()),
+                parent_page_id: parent.map(String::from),
                 title: Some(n.title.chars().take(500).collect()),
             },
-            &plan[0].name,
+            plan.first().map(|c| c.name.as_str()).unwrap_or("Name"),
         )?;
         let chosen: Vec<String> = self
             .overrides
@@ -886,14 +1059,17 @@ impl Run<'_> {
         let mut cols: Vec<(usize, String, String, HashMap<String, String>)> = Vec::new();
         for (c, p) in plan.iter().enumerate().skip(1) {
             let mut kind = chosen.get(c).cloned().unwrap_or_else(|| p.kind.clone());
-            if !csvio::KINDS.contains(&kind.as_str()) || kind == "skip" {
-                continue;
+            if kind == "skip" || kind == "relation" {
+                continue; // relations are added once every database exists
+            }
+            if !csvio::KINDS.contains(&kind.as_str()) && kind != "status" {
+                kind = "text".into();
             }
             let mut options: HashMap<String, String> = HashMap::new();
             let mut config = None;
-            if kind == "select" || kind == "multi_select" {
+            if matches!(kind.as_str(), "select" | "multi_select" | "status") {
                 let mut names: Vec<String> = Vec::new();
-                for r in &csv.rows {
+                for r in rows {
                     let cell = r[c].trim();
                     let parts: Vec<&str> = if kind == "multi_select" {
                         cell.split(',').map(str::trim).collect()
@@ -902,7 +1078,10 @@ impl Run<'_> {
                     };
                     for part in parts.into_iter().filter(|s| !s.is_empty()) {
                         let part: String = part.chars().take(60).collect();
-                        if !names.contains(&part) {
+                        if !names
+                            .iter()
+                            .any(|n| n.to_lowercase() == part.to_lowercase())
+                        {
                             names.push(part);
                         }
                     }
@@ -916,8 +1095,16 @@ impl Run<'_> {
                         .enumerate()
                         .map(|(i, name)| {
                             let id = new_id();
-                            options.insert(name.clone(), id.clone());
-                            json!({ "id": id, "name": name, "color": TONES[i % TONES.len()] })
+                            options.insert(name.to_lowercase(), id.clone());
+                            let color = colors
+                                .and_then(|m| m.get(&(c, name.clone())))
+                                .cloned()
+                                .unwrap_or_else(|| TONES[i % TONES.len()].to_string());
+                            let mut o = json!({ "id": id, "name": name, "color": color });
+                            if kind == "status" {
+                                o["group"] = json!(notion::names::status_group(name));
+                            }
+                            o
                         })
                         .collect();
                     config = Some(json!({ "options": list }));
@@ -937,27 +1124,33 @@ impl Run<'_> {
             }
         }
         let mut skipped = 0usize;
-        for row in &csv.rows {
+        let mut made_rows = Vec::with_capacity(rows.len());
+        for row in rows {
             let mut values = Map::new();
             for (c, kind, pid, options) in &cols {
                 let cell = row[*c].as_str();
+                let key = |s: &str| s.trim().chars().take(60).collect::<String>().to_lowercase();
                 let v = match kind.as_str() {
-                    "select" => options
-                        .get(cell.trim().chars().take(60).collect::<String>().as_str())
-                        .map(|id| json!(id)),
+                    "select" | "status" => options.get(&key(cell)).map(|id| json!(id)),
                     "multi_select" => {
                         let ids: Vec<Value> = cell
                             .split(',')
                             .map(str::trim)
                             .filter(|s| !s.is_empty())
-                            .filter_map(|s| {
-                                options
-                                    .get(&s.chars().take(60).collect::<String>())
-                                    .map(|id| json!(id))
-                            })
+                            .filter_map(|s| options.get(&key(s)).map(|id| json!(id)))
                             .collect();
                         (!ids.is_empty()).then_some(Value::Array(ids))
                     }
+                    "date" => {
+                        notion::names::date_value(cell).or_else(|| csvio::cell_value("date", cell))
+                    }
+                    "number" => notion::names::number(cell).map(|n| json!(n)),
+                    "text" => (!cell.trim().is_empty()).then(|| {
+                        json!(cell
+                            .chars()
+                            .take(crate::databases::values::MAX_TEXT)
+                            .collect::<String>())
+                    }),
                     k => csvio::cell_value(k, cell),
                 };
                 match v {
@@ -971,7 +1164,7 @@ impl Run<'_> {
                 }
             }
             let title: String = row[0].trim().chars().take(500).collect();
-            let made_row = dbs::create_record_in(
+            let made_row = match dbs::create_record_in(
                 self.tx,
                 RecordCreate {
                     database_id: made.database.id.clone(),
@@ -979,19 +1172,22 @@ impl Run<'_> {
                     values: values.clone(),
                     template_id: None,
                 },
-            );
-            if made_row.is_err() {
-                skipped += values.len();
-                dbs::create_record_in(
-                    self.tx,
-                    RecordCreate {
-                        database_id: made.database.id.clone(),
-                        title: Some(title),
-                        values: Map::new(),
-                        template_id: None,
-                    },
-                )?;
-            }
+            ) {
+                Ok(r) => r,
+                Err(_) => {
+                    skipped += values.len();
+                    dbs::create_record_in(
+                        self.tx,
+                        RecordCreate {
+                            database_id: made.database.id.clone(),
+                            title: Some(title),
+                            values: Map::new(),
+                            template_id: None,
+                        },
+                    )?
+                }
+            };
+            made_rows.push(made_row);
             self.result.records += 1;
         }
         if skipped > 0 {
@@ -1003,54 +1199,358 @@ impl Run<'_> {
             ));
         }
         self.result.databases += 1;
+        Ok((made, made_rows))
+    }
+
+    fn notion_database(
+        &mut self,
+        parent: Option<&str>,
+        n: &Node,
+        db: &'a notion::DbModel,
+    ) -> AppResult<String> {
+        let rows: Vec<&[String]> = db.rows.iter().map(|r| r.cells.as_slice()).collect();
+        let (made, records) = self.database(parent, n, &db.plan, &rows, Some(&db.colors))?;
+        self.ids.insert(db.id.clone(), made.page.id.clone());
+        self.databases
+            .insert(db.id.clone(), made.database.id.clone());
+        self.appearance(&made.page.id, n.icon.as_ref(), n.cover.as_ref())?;
+        for (row, record) in db.rows.iter().zip(records) {
+            self.ids.insert(row.id.clone(), record.page_id.clone());
+            self.records.insert(row.id.clone(), record.id.clone());
+            self.appearance(&record.page_id, row.icon.as_ref(), row.cover.as_ref())?;
+            if !row.body.is_empty() {
+                self.bodies.push((record.page_id.clone(), row.body.clone()));
+            }
+        }
+        let chosen = self.overrides.get(&n.index);
+        for (c, rel) in db.relations.iter() {
+            let kind = chosen
+                .and_then(|k| k.get(*c))
+                .map(String::as_str)
+                .unwrap_or("relation");
+            if kind == "relation" {
+                self.relations.push(RelJob {
+                    database: db.id.clone(),
+                    name: db.plan[*c].name.clone(),
+                    target: rel.target.clone(),
+                    links: &rel.links,
+                });
+            }
+        }
         Ok(made.page.id)
     }
 
-    fn node(&mut self, parent: &str, n: &Node) -> AppResult<()> {
+    fn node(&mut self, parent: Option<&str>, n: &'a Node) -> AppResult<String> {
         let id = match &n.source {
-            Source::Folder => {
-                self.result.pages += 1;
-                insert_page(
-                    self.tx,
-                    None,
-                    self.ws,
-                    Some(parent),
-                    &n.title,
-                    None,
-                    "page",
-                    false,
-                )?
-                .id
+            Source::Folder => self.page(parent, n, &new_id())?,
+            Source::Doc { blocks, page_id } => {
+                let id = self.page(parent, n, page_id)?;
+                self.bodies.push((id.clone(), blocks.clone()));
+                id
             }
-            Source::Doc { blocks, page_id } => self.doc(parent, n, blocks, page_id)?,
-            Source::Csv { csv, plan } => self.csv(parent, n, csv, plan)?,
+            Source::Pdf { page_id, key, name } => {
+                let id = self.page(parent, n, page_id)?;
+                let mut b = Blk::new("pdf");
+                b.media = Some(Media {
+                    src: Some(key.clone()),
+                    name: name.clone(),
+                    attachment: None,
+                    presentation: Value::Null,
+                });
+                self.bodies.push((id.clone(), vec![b]));
+                id
+            }
+            Source::Csv { csv, plan } => {
+                let rows: Vec<&[String]> = csv.rows.iter().map(Vec::as_slice).collect();
+                self.database(parent, n, plan, &rows, None)?.0.page.id
+            }
+            Source::Database(db) => self.notion_database(parent, n, db)?,
         };
-        if matches!(n.source, Source::Csv { .. }) && !n.children.is_empty() {
+        let holder = if matches!(n.source, Source::Csv { .. } | Source::Database(_)) {
             // A database cannot hold pages; anything that was nested under it goes beside it.
-            for c in &n.children {
-                self.node(parent, c)?;
-            }
-            return Ok(());
-        }
+            parent.map(String::from)
+        } else {
+            Some(id.clone())
+        };
         for c in &n.children {
-            self.node(&id, c)?;
+            self.node(holder.as_deref(), c)?;
+        }
+        Ok(id)
+    }
+
+    /// Adds the relation columns, pairing a column with its mirror in the other database into one
+    /// two-way relation.
+    fn relations(&mut self) -> AppResult<()> {
+        let jobs = std::mem::take(&mut self.relations);
+        let pairs = |j: &RelJob| -> HashSet<(String, String)> {
+            j.links
+                .iter()
+                .flat_map(|(row, to)| to.iter().map(move |t| (row.clone(), t.clone())))
+                .collect()
+        };
+        let mut used = vec![false; jobs.len()];
+        for i in 0..jobs.len() {
+            if used[i] {
+                continue;
+            }
+            used[i] = true;
+            let job = &jobs[i];
+            let (Some(db), Some(target)) = (
+                self.databases.get(&job.database).cloned(),
+                self.databases.get(&job.target).cloned(),
+            ) else {
+                self.warn(format!(
+                    "The relation “{}” points to a database that is not in this import; it was imported as text",
+                    job.name
+                ));
+                self.relation_as_text(job)?;
+                continue;
+            };
+            let mine = pairs(job);
+            let mirror = (0..jobs.len()).find(|k| {
+                !used[*k]
+                    && jobs[*k].database == job.target
+                    && jobs[*k].target == job.database
+                    && job.database != job.target
+                    && pairs(&jobs[*k])
+                        .into_iter()
+                        .map(|(a, b)| (b, a))
+                        .collect::<HashSet<_>>()
+                        == mine
+            });
+            if let Some(k) = mirror {
+                used[k] = true;
+            }
+            let prop = match dbs::add_property_in(
+                self.tx,
+                PropertyCreate {
+                    database_id: db,
+                    name: job.name.clone(),
+                    property_type: "relation".into(),
+                    config: Some(json!({
+                        "targetDatabaseId": target,
+                        "twoWay": mirror.is_some(),
+                        "reverseName": mirror.map(|k| jobs[k].name.clone()),
+                    })),
+                },
+            ) {
+                Ok(p) => p,
+                Err(e) => {
+                    self.warn(format!("The relation “{}” was skipped: {e}", job.name));
+                    continue;
+                }
+            };
+            let mut lost = 0usize;
+            for (row, to) in job.links {
+                let Some(record) = self.records.get(row).cloned() else {
+                    continue;
+                };
+                let mut ids: Vec<String> = Vec::new();
+                for t in to {
+                    if let Some(r) = self.records.get(t).filter(|r| **r != record) {
+                        if !ids.contains(r) {
+                            ids.push(r.clone());
+                        }
+                    }
+                }
+                ids.truncate(crate::databases::MAX_RELATION_LINKS);
+                lost += to.len().saturating_sub(ids.len());
+                if ids.is_empty() {
+                    continue;
+                }
+                let n = ids.len();
+                if dbs::set_value_in(
+                    self.tx,
+                    SetValue {
+                        record_id: record,
+                        property_id: prop.id.clone(),
+                        value: json!(ids),
+                    },
+                )
+                .is_err()
+                {
+                    lost += n;
+                }
+            }
+            if lost > 0 {
+                self.warn(format!(
+                    "“{}”: {lost} link{} could not be made (the records are not in this import) and {} left out",
+                    job.name,
+                    if lost == 1 { "" } else { "s" },
+                    if lost == 1 { "was" } else { "were" }
+                ));
+            }
         }
         Ok(())
     }
-}
 
-fn flatten_blocks(blocks: &mut [Blk]) -> Vec<crate::domain::BlockUpsert> {
-    super::blocks::flatten(blocks)
-}
+    /// A relation whose database is missing keeps the titles of what it linked to.
+    fn relation_as_text(&mut self, job: &RelJob) -> AppResult<()> {
+        let Some(db) = self.databases.get(&job.database).cloned() else {
+            return Ok(());
+        };
+        let Ok(prop) = dbs::add_property_in(
+            self.tx,
+            PropertyCreate {
+                database_id: db,
+                name: job.name.clone(),
+                property_type: "text".into(),
+                config: None,
+            },
+        ) else {
+            return Ok(());
+        };
+        for (row, to) in job.links {
+            let Some(record) = self.records.get(row).cloned() else {
+                continue;
+            };
+            let titles: Vec<String> = to
+                .iter()
+                .filter_map(|t| self.ids.get(t))
+                .filter_map(|p| crate::repositories::page::get(self.tx, p).ok().flatten())
+                .map(|p| p.title)
+                .collect();
+            if !titles.is_empty() {
+                let text: String = titles
+                    .join(", ")
+                    .chars()
+                    .take(crate::databases::values::MAX_TEXT)
+                    .collect();
+                let _ = dbs::set_value_in(
+                    self.tx,
+                    SetValue {
+                        record_id: record,
+                        property_id: prop.id.clone(),
+                        value: json!(text),
+                    },
+                );
+            }
+        }
+        Ok(())
+    }
 
-fn clone_upsert(u: &crate::domain::BlockUpsert) -> crate::domain::BlockUpsert {
-    crate::domain::BlockUpsert {
-        id: u.id.clone(),
-        parent_block_id: u.parent_block_id.clone(),
-        block_type: u.block_type.clone(),
-        position: u.position,
-        data_json: u.data_json.clone(),
-        schema_version: u.schema_version,
+    /// Points links, mentions and embeds at the pages as they were finally created.
+    fn remap(&self, blocks: &mut [Blk]) {
+        let ids = &self.ids;
+        let fix_inline = |items: &mut Vec<Inline>| {
+            for it in items.iter_mut() {
+                match it {
+                    Inline::Mention(id) => {
+                        if let Some(n) = ids.get(id.as_str()) {
+                            *id = n.clone();
+                        }
+                    }
+                    Inline::Text { marks, .. } => {
+                        for m in marks.iter_mut() {
+                            if let Mark::Link(h) = m {
+                                if let Some(n) = h
+                                    .strip_prefix(INTERNAL_PAGE_LINK)
+                                    .and_then(|id| ids.get(id))
+                                {
+                                    *h = format!("{INTERNAL_PAGE_LINK}{n}");
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        };
+        visit_mut(blocks, &mut |b| {
+            fix_inline(&mut b.inline);
+            if let Some(t) = &mut b.table {
+                for row in t.iter_mut() {
+                    for cell in row.iter_mut() {
+                        fix_inline(cell);
+                    }
+                }
+            }
+            if let Some(t) = &mut b.target {
+                if let Some(n) = ids.get(t.as_str()) {
+                    *t = n.clone();
+                }
+            }
+            if let Some(m) = &mut b.media {
+                if let Some(n) = m
+                    .presentation
+                    .get("link")
+                    .and_then(Value::as_str)
+                    .and_then(|h| h.strip_prefix(INTERNAL_PAGE_LINK))
+                    .and_then(|id| ids.get(id))
+                {
+                    m.presentation["link"] = json!(format!("{INTERNAL_PAGE_LINK}{n}"));
+                }
+            }
+        });
+        // An embedded database or synced block that points nowhere would show an error.
+        let known: HashSet<&String> = ids.values().collect();
+        visit_mut(blocks, &mut |b| {
+            if matches!(b.kind.as_str(), "database_view" | "synced_block")
+                && !b.target.as_ref().is_some_and(|t| known.contains(t))
+            {
+                b.kind = "paragraph".into();
+                if b.inline.is_empty() {
+                    b.inline = vec![plain(if b.label.is_empty() {
+                        "(embedded database)".to_string()
+                    } else {
+                        b.label.clone()
+                    })];
+                }
+            }
+        });
+    }
+
+    /// Stores the files media blocks show; a file that cannot be stored becomes its name in text.
+    fn store_media(&mut self, blocks: &mut [Blk], missing: &mut Vec<String>) {
+        for b in blocks.iter_mut() {
+            if is_media(&b.kind) {
+                if let Some(m) = b.media.as_mut() {
+                    if m.attachment.is_none() {
+                        let key = m.src.clone().unwrap_or_default();
+                        m.attachment = self.attach(&key, &m.name.clone());
+                    }
+                    if m.attachment.is_none() {
+                        let name = m.name.clone();
+                        b.kind = "paragraph".into();
+                        b.inline = vec![plain(format!("[{name}]"))];
+                        missing.push(name);
+                    }
+                }
+            }
+            self.store_media(&mut b.children, missing);
+        }
+    }
+
+    fn write_body(&mut self, page_id: &str, mut blocks: Vec<Blk>) -> AppResult<()> {
+        self.remap(&mut blocks);
+        let mut missing = Vec::new();
+        self.store_media(&mut blocks, &mut missing);
+        for name in missing {
+            self.warn(format!(
+                "The file “{name}” could not be stored and was left as text"
+            ));
+        }
+        let mut upserts = flatten(&blocks);
+        for u in upserts.iter_mut() {
+            if u.data_json.len() > crate::domain::MAX_BLOCK_DATA_BYTES {
+                u.data_json = json!({ "content": [{ "type": "text", "text": "(this block was too large to import)" }] }).to_string();
+                u.block_type = "paragraph".into();
+            }
+        }
+        let mut rest = upserts;
+        while !rest.is_empty() {
+            let tail = rest.split_off(rest.len().min(4000));
+            crate::services::block::apply_batch_in(
+                self.tx,
+                &BlockBatch {
+                    page_id: page_id.to_string(),
+                    upserts: rest,
+                    delete_ids: vec![],
+                },
+            )?;
+            rest = tail;
+        }
+        Ok(())
     }
 }
 
@@ -1062,7 +1562,15 @@ pub fn apply(
     staged: &Staged,
     overrides: &HashMap<usize, Vec<String>>,
 ) -> AppResult<ImportResult> {
-    apply_in(conn, store_root, workspace_id, staged, overrides, false)
+    apply_in(
+        conn,
+        store_root,
+        workspace_id,
+        staged,
+        overrides,
+        false,
+        &Target::Container,
+    )
 }
 
 /// UI archive imports must be complete; document imports retain their explicit column/skip choices.
@@ -1072,11 +1580,44 @@ pub fn apply_checked(
     workspace_id: &str,
     staged: &Staged,
     overrides: &HashMap<usize, Vec<String>>,
+    target: &Target,
 ) -> AppResult<ImportResult> {
-    if staged.archive.is_none() {
-        return apply(conn, store_root, workspace_id, staged, overrides);
+    apply_in(
+        conn,
+        store_root,
+        workspace_id,
+        staged,
+        overrides,
+        staged.archive.is_some(),
+        target,
+    )
+}
+
+fn unique_workspace_name(tx: &Connection, name: &str) -> AppResult<String> {
+    let trimmed = name.trim();
+    let base: String = if trimmed.is_empty() {
+        "Imported workspace"
+    } else {
+        trimmed
     }
-    apply_in(conn, store_root, workspace_id, staged, overrides, true)
+    .chars()
+    .take(175)
+    .collect();
+    let names: HashSet<String> = crate::repositories::workspace::list(tx)?
+        .into_iter()
+        .map(|w| w.name.to_lowercase())
+        .collect();
+    let mut out = base.clone();
+    let mut copy = 1;
+    while names.contains(&out.to_lowercase()) {
+        out = if copy == 1 {
+            format!("{base} (imported)")
+        } else {
+            format!("{base} (imported {copy})")
+        };
+        copy += 1;
+    }
+    Ok(out)
 }
 
 fn apply_in(
@@ -1086,8 +1627,11 @@ fn apply_in(
     staged: &Staged,
     overrides: &HashMap<usize, Vec<String>>,
     strict: bool,
+    target: &Target,
 ) -> AppResult<ImportResult> {
-    crate::domain::validate_id(workspace_id, "workspace")?;
+    if !matches!(target, Target::Workspace { .. }) {
+        crate::domain::validate_id(workspace_id, "workspace")?;
+    }
     if strict {
         if let Some((path, _)) = &staged.archive {
             Archive::open(path)?.validate()?;
@@ -1111,35 +1655,74 @@ fn apply_in(
             )),
         }
     }
-    let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
     let tx = conn.transaction()?;
-    let container = insert_page(
-        &tx,
-        None,
-        workspace_id,
-        None,
-        &format!("Imported {stamp}"),
-        None,
-        "page",
-        false,
-    )?;
+    let mut workspace = None;
+    let (ws, parent): (String, Option<String>) = match target {
+        Target::Container => {
+            let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
+            let title = match &staged.origin {
+                Some(o) if o.kind == "notion" => format!("Imported from Notion {stamp}"),
+                _ => format!("Imported {stamp}"),
+            };
+            let container =
+                insert_page(&tx, None, workspace_id, None, &title, None, "page", false)?;
+            (workspace_id.to_string(), Some(container.id))
+        }
+        Target::Page { page_id } => {
+            crate::domain::validate_id(page_id, "page")?;
+            let page = crate::repositories::page::get(&tx, page_id)?
+                .filter(|p| p.deleted_at.is_none() && p.workspace_id == workspace_id)
+                .ok_or_else(|| AppError::NotFound("page".into()))?;
+            if page.kind != "page" {
+                return bad("choose a page to import into (not a database or a record)");
+            }
+            (workspace_id.to_string(), Some(page.id))
+        }
+        Target::Workspace { name } => {
+            if staged.archive.is_some() {
+                return bad("import a Suivelle archive as a workspace from the workspace import");
+            }
+            let name = unique_workspace_name(&tx, name)?;
+            crate::domain::validate_name(&name)?;
+            let w = crate::services::workspace::create_in(
+                &tx,
+                crate::domain::WorkspaceCreate {
+                    name,
+                    icon: None,
+                    settings_json: None,
+                },
+            )?;
+            let id = w.id.clone();
+            workspace = Some(w);
+            (id, None)
+        }
+    };
     let mut run = Run {
         tx: &tx,
-        ws: workspace_id,
+        ws: &ws,
         stored,
         overrides,
         result: ImportResult {
-            page_id: container.id.clone(),
+            page_id: parent.clone().unwrap_or_default(),
             pages: 0,
             databases: 0,
             records: 0,
             attachments: 0,
             warnings: staged.warnings.iter().cloned().chain(early).collect(),
+            workspace: None,
         },
+        ids: HashMap::new(),
+        databases: HashMap::new(),
+        records: HashMap::new(),
+        bodies: Vec::new(),
+        relations: Vec::new(),
     };
     if let Some((path, _)) = &staged.archive {
+        let Some(parent) = &parent else {
+            return bad("choose where to import the archive");
+        };
         let mut a = Archive::open(path)?;
-        let st = archive::apply(&tx, store_root, workspace_id, &container.id, &mut a)?;
+        let st = archive::apply(&tx, store_root, &ws, parent, &mut a)?;
         run.result.pages = st.pages + st.dashboards;
         run.result.databases = st.databases;
         run.result.records = st.records;
@@ -1147,15 +1730,25 @@ fn apply_in(
         run.result.warnings.extend(st.warnings);
     } else {
         for n in &staged.nodes {
-            run.node(&container.id, n)?;
+            let id = run.node(parent.as_deref(), n)?;
+            if run.result.page_id.is_empty() {
+                run.result.page_id = id;
+            }
+        }
+        run.relations()?;
+        for (page, blocks) in std::mem::take(&mut run.bodies) {
+            run.write_body(&page, blocks)?;
         }
     }
-    let result = run.result;
+    let mut result = run.result;
     if strict && !result.warnings.is_empty() {
         return bad(format!(
             "The archive could not be imported completely: {}",
             result.warnings.join("; ")
         ));
+    }
+    if let Some(w) = workspace {
+        result.workspace = crate::repositories::workspace::get(&tx, &w.id)?;
     }
     tx.commit()?;
     Ok(result)

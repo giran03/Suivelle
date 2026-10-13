@@ -250,7 +250,7 @@ A two-column shell: a sidebar of `clamp(204px, 22vw, 272px)` (user-resizable) an
 
 All spacing derives from one multiplier, `--density`: 0.72 compact, 1 normal, 1.35 relaxed. List-row padding is 2, 6 and 11px; buttons are 24, 32 and 43px high; sidebar rows measure about 26, 34 and 43px; the topbar is 40, 52 and 60px; page gutters are 40, 56 and 76px. Menus, the palette, Settings, Files, Import and export, workspace dialogs and the bottom-left Trash to Settings group all follow it. Interface size (90 to 150%) zooms the whole webview on top of that.
 
-Below 900px the topbar search loses its shortcut hint; below 640px the sidebar fixes at 168px and search collapses to an icon. Focus mode (Ctrl+Shift+\) hides the sidebar and fades the topbar until the pointer or keyboard returns to it.
+The desktop sidebar collapses into a 56–76px icon rail (scaled by spacing density), preserving the workspace badge, search, page icons and utility actions with named tooltips. Collapse and expand arrows use the shared icon-swap animation and motion preferences; expanded width and collapse state are saved. The separate toolbar sidebar button fully hides or shows navigation, preserving its previous expanded or rail state and saving visibility. At 760px and below, full-width navigation and content take turns, preserving the desktop preference. The topbar adapts to its available content width, with search reduced to an icon and controls wrapping into two rows below 640px. Focus mode (Ctrl+Shift+\) hides the sidebar and fades the topbar until the pointer or keyboard returns to it.
 
 Settings uses a viewport-bounded dialog (980px maximum width, 760px maximum height), a fixed header/footer and a 208px navigation column beside an independently scrolling panel. Navigation becomes horizontally scrolling tabs when the dialog or viewport is 700px wide or less; setting rows stack and controls can wrap. Below 440px, the miniature theme preview stacks its sidebar above the document. Flat rows and subtle dividers organize controls without enclosing each section in a card. The settings shell uses fixed readable padding while existing density-sensitive controls retain their preferences.
 
@@ -399,3 +399,16 @@ No card around the document. Blocks sit on the canvas with spacing from the page
 ### Emoji selection
 
 Page and workspace icon pickers share the offline Unicode Emoji 17.0 catalog: 3,944 fully-qualified sequences in the nine standard categories. Search matches readable names, subgroups and emoji sequences; native category selection narrows results. Eighty buttons render per page, with named, selected and disabled states. The catalog loads only when an emoji picker opens. Filters, selected washes, fields and corners use existing semantic tokens. Multi-codepoint families, skin tones and flags are stored intact. Emoji glyph appearance follows the device's installed emoji fonts. Unicode data attribution and license live beside the bundled catalog.
+
+### Background color opacity
+
+Theme background roles and selection background support optional hex alpha (#RGBA or #RRGGBBAA). Their color picker provides a native 0–100% opacity slider and editable percentage, with a checkerboard preview. RGB/HSV edits preserve alpha; Use color updates the draft, and Apply persists it. Theme profiles and import/export retain alpha. Text, icon, button, hover and pressed colors retain opaque validation. Alpha reveals underlying app surfaces; it does not enable native desktop transparency. Derived colors and contrast estimates composite translucent backgrounds over the app background, with the webview's white canvas as the final backdrop.
+
+### Global app focus shortcut
+
+Ctrl+Alt+S brings the running main window forward, restores it when minimized, and shows it when hidden in the tray. It is enabled by default and can be disabled in Window and startup. The native shell registers it before the page loads, remembers the toggle per device, and reports registration conflicts when enabling it. Shortcut information lists it alongside quick capture (Ctrl+Alt+N). It does not launch an exited app.
+
+
+### Shortcut settings
+
+The Shortcuts and input panel uses flat action rows grouped by execution context, wrapping binding chips and named Add/Disable/Reset controls. Recording is an inline focusable field with a live input preview, manual input selectors, conflict feedback and explicit Save/Cancel controls. The input detector uses the same field treatment. Settings and the reference sheet support wrapping alternatives; a zero-minimum grid track prevents high-zoom overflow. All surfaces, borders, type and density derive from existing semantic tokens. Global enabled state, actual registration state and failures appear with the corresponding action; unavailable native functionality is identified in browser builds.

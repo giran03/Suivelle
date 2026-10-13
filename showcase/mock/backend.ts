@@ -190,7 +190,7 @@ const READ_COMMANDS = new Set([
   "block_list", "history_list", "search_workspace", "database_get", "database_list", "query_records",
   "group_counts", "chart_data", "record_previews", "record_get", "record_lookup", "record_template_list",
   "automation_list", "automation_runs", "dashboard_get", "template_list", "backup_list", "attachment_list",
-  "shell_get_behavior", "quick_capture_shortcut", "formula_preview",
+  "shell_get_behavior", "quick_capture_shortcut", "formula_preview", "export_shape",
 ]);
 
 /** Only read commands and temporary display preferences cross the showcase boundary. */
@@ -227,6 +227,25 @@ function dispatch(cmd: string, a: any): unknown {
     case "workspace_update_settings": { db.workspaces[0].settingsJson = a.input.settingsJson; return db.workspaces[0]; }
     case "workspace_update": { if (a.name) db.workspaces[0].name = a.name; return db.workspaces[0]; }
     case "page_list_children": return kids(a.parentPageId).map(withCount);
+    case "export_shape": {
+      // What the export form shows; saving stays blocked like every other write.
+      const page = db.pages.find((p) => p.id === a.pageId);
+      if (!page) throw { code: "not_found", message: "Page not found." };
+      // Records count too: a database exports a page per record.
+      const below = (id: string): typeof db.pages =>
+        db.pages.filter((p) => p.parentPageId === id && live(p)).flatMap((k) => [k, ...below(k.id)]);
+      const all = [page, ...below(page.id)];
+      const opts = a.options ?? {};
+      const files = opts.format === "pdf" || !opts.includeSubpages ? 1 : all.length;
+      return {
+        kind: page.kind === "database" ? "database" : page.kind === "record" ? "record" : "page",
+        title: page.title,
+        needsFolder: files > 1,
+        hasChildren: all.length > 1,
+        hasDatabases: all.some((p) => p.kind === "database"),
+        files,
+      };
+    }
     case "page_list_favorites": return db.pages.filter((p) => p.favorite && live(p)).map(withCount);
     case "page_list_trash": return db.pages.filter((p) => !live(p)).map(withCount);
     case "page_list_recent":

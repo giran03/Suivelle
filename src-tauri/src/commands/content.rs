@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::ipc::{InvokeBody, Request};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
 const MAX_MARKDOWN_BYTES: usize = 2 * 1024 * 1024;
 
@@ -254,19 +254,7 @@ pub fn open_quick_capture(app: &AppHandle) {
 /// program already owns the key combination.
 #[tauri::command]
 pub fn quick_capture_shortcut(app: AppHandle, enabled: bool) -> AppResult<bool> {
-    let shortcuts = app.global_shortcut();
-    let shortcut = capture_shortcut();
-    if enabled {
-        if !shortcuts.is_registered(shortcut) {
-            shortcuts
-                .register(shortcut)
-                .map_err(|_| AppError::Validation("Ctrl+Alt+N is already used by another program, so it cannot be set as the quick capture shortcut.".into()))?;
-        }
-    } else if shortcuts.is_registered(shortcut) {
-        shortcuts
-            .unregister(shortcut)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-    }
+    crate::shortcuts::set_enabled(&app, "capture", enabled)?;
     Ok(enabled)
 }
 

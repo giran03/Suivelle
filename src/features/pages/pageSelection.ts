@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { isInSubtree } from "../../lib/dnd";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
-import { openInNewTab } from "../tabs/tabs";
 
 /** The pages picked in the sidebar with Ctrl+click and Shift+click. The anchor is where a Shift range starts. */
 export interface Selection {
@@ -52,20 +51,15 @@ const rowKeys = (tree: Element | null): string[] => (tree ? [...tree.querySelect
 
 /** Handles a click on a page row. Ctrl/Cmd toggles, Shift picks a range, Alt opens in a new tab, and a plain click opens here. */
 export function clickPage(e: React.MouseEvent<HTMLElement>, id: string): void {
-  const how = e.shiftKey ? "range" : e.ctrlKey || e.metaKey ? "toggle" : null;
-  if (how) {
-    e.preventDefault();
-    const order = rowKeys(e.currentTarget.closest('[role="tree"]'));
-    usePageSelection.setState((sel) => clicked(sel, order, id, how, useWorkspace.getState().selectedPageId));
-    return;
-  }
-  if (e.altKey) {
-    e.preventDefault();
-    void openInNewTab(id);
-    return;
-  }
+  // Modified mouse actions are handled once by the input router before this plain click.
+  if (e.defaultPrevented) return;
   clearSelection();
   void useWorkspace.getState().selectPage(id);
+}
+
+export function selectPageGesture(target: Element, id: string, how: "toggle" | "range") {
+  const order = rowKeys(target.closest('[role="tree"]'));
+  usePageSelection.setState(sel => clicked(sel, order, id, how, useWorkspace.getState().selectedPageId));
 }
 
 export function pageById(id: string): Page | undefined {

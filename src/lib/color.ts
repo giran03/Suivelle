@@ -7,6 +7,25 @@ export function normalizeHex(value: unknown): `#${string}` | null {
   if (/^#[\da-f]{3}$/i.test(text)) return `#${text.slice(1).split("").map((c) => c + c).join("").toUpperCase()}`;
   return null;
 }
+/** CSS hex colors with an optional alpha channel; opaque callers stay strict. */
+export function normalizeHexAlpha(value: unknown): `#${string}` | null {
+  const opaque = normalizeHex(value);
+  if (opaque) return opaque;
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (/^#[\da-f]{8}$/i.test(text)) return text.toUpperCase() as `#${string}`;
+  if (/^#[\da-f]{4}$/i.test(text)) return `#${text.slice(1).split("").map(c => c + c).join("").toUpperCase()}`;
+  return null;
+}
+export const hexOpacity = (hex: string) => hex.length === 9 ? parseInt(hex.slice(7), 16) / 255 : 1;
+export function withOpacity(hex: string, opacity: number): `#${string}` {
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255);
+  return `${hex.slice(0, 7)}${alpha === 255 ? "" : alpha.toString(16).padStart(2, "0").toUpperCase()}` as `#${string}`;
+}
+export function compositeColor(color: string, background: string): `#${string}` {
+  const alpha = hexOpacity(color), back = hexToRgb(background);
+  return rgbToHex(hexToRgb(color).map((v, i) => v * alpha + back[i] * (1 - alpha)));
+}
 export function hexToRgb(hex: string): [number, number, number] {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 }
@@ -28,11 +47,11 @@ const RECENTS = "suivelle.recent-colors";
 export function recentColors(): `#${string}`[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(RECENTS) ?? "[]");
-    return Array.isArray(saved) ? [...new Set(saved.map(normalizeHex).filter((c): c is `#${string}` => c !== null))].slice(0, 12) : [];
+    return Array.isArray(saved) ? [...new Set(saved.map(normalizeHexAlpha).filter((c): c is `#${string}` => c !== null))].slice(0, 12) : [];
   } catch { return []; }
 }
 export function rememberColor(color: string) {
-  const hex = normalizeHex(color);
+  const hex = normalizeHexAlpha(color);
   if (!hex) return;
   try { localStorage.setItem(RECENTS, JSON.stringify([hex, ...recentColors().filter((c) => c !== hex)].slice(0, 12))); } catch { /* Optional history. */ }
 }

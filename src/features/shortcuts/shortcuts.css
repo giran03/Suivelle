@@ -1,0 +1,29 @@
+.shortcut-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(16px * var(--density)); min-inline-size: 0; }
+.shortcut-settings > * { min-inline-size: 0; }
+.shortcut-settings .btn { min-inline-size: 0; max-inline-size: 100%; block-size: auto; min-block-size: var(--ctl-h); white-space: normal; overflow-wrap: anywhere; }
+.shortcut-filters, .shortcut-manual, .shortcut-edit-actions, .shortcut-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--density)); }
+.shortcut-filters input { flex: 1 1 180px; min-inline-size: 0; }
+.shortcut-settings :is(input:not([type="checkbox"]), select) { max-inline-size: 100%; min-inline-size: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--text-primary); font: inherit; font-size: 0.875rem; }
+.shortcut-settings h4 { margin: 0 0 8px; font-size: 0.9375rem; font-weight: 600; }
+.shortcut-list > section + section { margin-block-start: calc(24px * var(--density)); }
+.shortcut-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-block: calc(10px * var(--density)); border-block-end: 1px solid var(--border-subtle); }
+.shortcut-action { flex: 1 1 180px; min-inline-size: 0; font-size: 0.875rem; }
+.shortcut-action small { display: block; margin-block-start: 4px; color: var(--text-muted); }
+.shortcut-bindings { display: flex; flex: 1 1 200px; flex-wrap: wrap; gap: 6px; min-inline-size: 0; }
+.shortcut-chip { display: inline-flex; max-inline-size: 100%; align-items: center; padding: 4px; border-radius: var(--r-md); }
+.shortcut-chip:hover:not(:disabled) { background: var(--surface-hover); }
+.shortcut-chip:disabled { opacity: 0.6; cursor: default; }
+.shortcut-recorder { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-block: 16px; border-block: 1px solid var(--border); }
+.shortcut-capture { display: flex; align-items: center; justify-content: center; min-block-size: 64px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: var(--r-md); background: var(--field); color: var(--text-primary); text-align: center; overflow-wrap: anywhere; }
+.shortcut-capture:focus-visible { border-color: var(--focus-ring); }
+.shortcut-manual > label:not(.shortcut-modifier) { display: grid; gap: 4px; flex: 1 1 140px; min-inline-size: 0; font-size: 0.8125rem; color: var(--text-secondary); }
+.shortcut-modifier { display: inline-flex; gap: 6px; align-items: center; font-size: 0.875rem; }
+.shortcut-diagnostic { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@container (max-width: 520px) { .shortcut-row { align-items: flex-start; } .shortcut-action, .shortcut-bindings { flex-basis: 100%; } }
+
+/* Reference rows also wrap when an action has several alternative inputs. */
+.shortcuts .sc-row { flex-wrap: wrap; align-items: flex-start; }
+.shortcuts .sc-row dt { flex: 1 1 160px; min-inline-size: 0; }
+.shortcuts .sc-row dd { flex: 1 1 140px; min-inline-size: 0; flex-wrap: wrap; justify-content: flex-end; }
+.shortcuts .sc-row .kbd { white-space: normal; overflow-wrap: anywhere; }
+.shortcuts .shortcuts-head { flex-wrap: wrap; gap: 8px; }

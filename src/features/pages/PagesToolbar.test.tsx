@@ -95,7 +95,7 @@ it("keeps New page one click away and exposes every existing creation action", a
   const trigger = button("More ways to create"); trigger.focus();
   await act(async () => trigger.click());
   expect(trigger.getAttribute("aria-expanded")).toBe("true");
-  expect([...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent)).toEqual(["New page", "New database", "New dashboard", "New from template…"]);
+  expect([...document.querySelectorAll('[role="menuitem"]')].map((el) => el.getAttribute("aria-label"))).toEqual(["New page", "New database", "New dashboard", "New from template…"]);
   await select("New database"); expect(database).toHaveBeenCalledWith(null);
   expect(document.activeElement).toBe(trigger);
 });

@@ -1,3 +1,4 @@
+import { RebindableShortcuts } from "./shortcuts";
 import { LEGACY_NAME } from "../../../lib/legacy";
 import type { Extensions } from "@tiptap/core";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
@@ -7,7 +8,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import { TextStyle } from "@tiptap/extension-text-style";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockId } from "./blockId";
-import { Behaviors } from "./behaviors";
+import { Behaviors, InsertBlockAbove } from "./behaviors";
 import { Callout } from "./callout";
 import { Column, Columns } from "./columns";
 import { DatabaseViewBlock } from "./databaseView";
@@ -38,10 +39,12 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
     }),
     TextStyle,
     ToneMark,
+    RebindableShortcuts,
     BlockId,
     BlockSelection,
     BlockFlash,
     Behaviors,
+    InsertBlockAbove,
     Intake,
     FindExtension,
     Quote,

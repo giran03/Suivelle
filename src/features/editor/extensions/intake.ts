@@ -8,6 +8,7 @@ import { blocksToDoc } from "../convert";
 import { replaceBlock } from "../commands";
 import { jsonToMarkdown, looksLikeMarkdown } from "../markdown";
 import { registerFlusher } from "../flushRegistry";
+import { plainPaste } from "../plainText";
 
 const MAX_BYTES = 256 * 1024 * 1024;
 /** Copying "an image" from a web page puts just an <img> tag next to the file; the file wins. */
@@ -141,7 +142,7 @@ export const Intake = Extension.create({
             }
             if (!files.length && !html) {
               const text = data.getData("text/plain");
-              if (text && looksLikeMarkdown(text) && !editor.isActive("codeBlock") && !editor.isActive("equation")) {
+              if (text && !plainPaste.active && looksLikeMarkdown(text) && !editor.isActive("codeBlock") && !editor.isActive("equation")) {
                 event.preventDefault();
                 void pasteMarkdown(editor, text);
                 return true;

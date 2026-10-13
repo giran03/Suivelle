@@ -1,3 +1,4 @@
+import { key } from "../shortcuts/bindings";
 import {
   DndContext,
   DragOverlay,
@@ -13,17 +14,18 @@ import {
 import { useBackupsDialog } from "../backup/store";
 import { READ_ONLY } from "../../lib/access";
 import { useTransferDialog } from "../transfer/store";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { copyPageLink } from "./pageMenu";
+import { IconSwap } from "../../components/Swap";
 import { Icon } from "../../components/Icon";
 import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher";
 import { workspaceOptions } from "../workspaces/model";
 import { dropZone, isInSubtree, resolveDrop, type DropZone } from "../../lib/dnd";
-import { modKey, usePalette } from "../palette/store";
+import { usePalette } from "../palette/store";
 import { ipc } from "../../lib/ipc";
 import { useSettingsDialog } from "../settings/store";
-import { useLayout } from "../../stores/layout";
+import { sidebarRail, useLayout } from "../../stores/layout";
 import { useWorkspace } from "../../stores/workspace";
 import { PageGlyph } from "./PageGlyph";
 import { Tree, TreeItem } from "./TreeItem";
@@ -36,6 +38,9 @@ import { duplicatePages, favoritePages, openInTabs, trashPages } from "./pageBat
 import { clearSelection, clickPage, pickedRoots, usePageSelection, usePicked } from "./pageSelection";
 import { usePageTransfer } from "./PageTransferDialog";
 import { PagesToolbar } from "./PagesToolbar";
+import { useShortcutScope } from "../shortcuts/runtime";
+import { copyHierarchyPages, pasteHierarchyPages } from "./pageClipboard";
+import { useShortcut } from "../shortcuts/useShortcut";
 
 interface Drop {
   id: string;
@@ -195,6 +200,17 @@ function Recents() {
 }
 
 export function Sidebar() {
+  const navigation = useRef<HTMLElement>(null);
+  useShortcutScope(navigation, "pages", {
+    "page-copy": () => { if (READ_ONLY) return false; return copyHierarchyPages(); },
+    "page-paste": () => { if (READ_ONLY) return false; return pasteHierarchyPages(); },
+  });
+  const rail = useLayout(sidebarRail);
+  const compact = useLayout((s) => s.compact);
+  const sidebarAction = compact ? "Close navigation" : rail ? "Expand sidebar" : "Collapse sidebar";
+  const settingsShortcut = useShortcut("settings");
+  const sidebarShortcut = useShortcut("sidebar");
+  const searchShortcut = useShortcut("search");
   const workspace = useWorkspace((s) => s.workspace);
   const roots = useWorkspace((s) => s.children.root);
   const favorites = useWorkspace((s) => s.favorites);
@@ -278,14 +294,14 @@ export function Sidebar() {
     const noun = n === 1 ? "page" : "pages";
     const plain = pages.every((p) => p.kind === "page");
     return [
-      { label: `Open ${n} ${noun} in new tabs`, onSelect: () => void openInTabs(pages) },
+      { label: `Open ${n} ${noun} in new tabs`, shortcut: "page-new-tab", onSelect: () => void openInTabs(pages) },
       { label: `Cut ${n} ${noun}`, separated: true, disabled: pages.some((p) => p.kind === "record"), onSelect: () => cutPages(pages) },
-      { label: `Copy ${n} ${noun}`, disabled: !plain, onSelect: () => copyPages(pages) },
-      { label: `Duplicate ${n} ${noun}`, disabled: !plain, onSelect: () => void duplicatePages(pages) },
-      { label: pages.every((p) => p.favorite) ? "Remove from favorites" : "Add to favorites", separated: true, onSelect: () => void favoritePages(pages) },
+      { label: `Copy ${n} ${noun}`, shortcut: "page-copy", disabled: !plain, onSelect: () => copyPages(pages) },
+      { label: `Duplicate ${n} ${noun}`, shortcut: "duplicate", disabled: !plain, onSelect: () => void duplicatePages(pages) },
+      { label: pages.every((p) => p.favorite) ? "Remove from favorites" : "Add to favorites", shortcut: pages.every(p => p.favorite) ? "unfavorite" : "favorite", separated: true, onSelect: () => void favoritePages(pages) },
       { label: "Move to workspace…", separated: true, disabled: !plain, onSelect: () => usePageTransfer.getState().show(pages, "move") },
       { label: "Copy to workspace…", disabled: !plain, onSelect: () => usePageTransfer.getState().show(pages, "copy") },
-      { label: `Move ${n} ${noun} to trash`, danger: true, separated: true, onSelect: () => void trashPages(pages) },
+      { label: `Move ${n} ${noun} to trash`, shortcut: "page-trash", danger: true, separated: true, onSelect: () => void trashPages(pages) },
       { label: "Clear selection", onSelect: clearSelection },
     ];
   };
@@ -298,37 +314,53 @@ export function Sidebar() {
     const nudge = useWorkspace.getState().nudgePage;
     const held = usePageClipboard.getState().held;
     return [
-      { label: "Open", onSelect: () => void useWorkspace.getState().openPage(page.id) },
-      { label: "Open in new tab", onSelect: () => void openInNewTab(page.id) },
+      { label: "Open", shortcut: [key("Enter")], onSelect: () => void useWorkspace.getState().openPage(page.id) },
+      { label: "Open in new tab", shortcut: "page-new-tab", onSelect: () => void openInNewTab(page.id) },
       { label: "Cut", separated: true, disabled: page.kind === "record", onSelect: () => cutPages([page]) },
-      { label: "Copy", disabled: page.kind !== "page", onSelect: () => copyPages([page]) },
-      { label: "Paste inside", disabled: !canPasteInto(held, page), onSelect: () => void pastePages(page) },
-      { label: "Duplicate", separated: true, disabled: page.kind !== "page", onSelect: () => void duplicatePage(page) },
-      { label: "Save as template", disabled: page.kind !== "page", onSelect: () => void saveAsTemplate(page) },
-      { label: "Copy link", onSelect: () => void copyPageLink(page.id) },
-      { label: "Add page inside", disabled: page.kind === "database" || page.kind === "dashboard", onSelect: () => void createPage(page.id) },
-      { label: page.favorite ? "Remove from favorites" : "Add to favorites", onSelect: () => void toggleFavorite(page) },
+      { label: "Copy", shortcut: "page-copy", disabled: page.kind !== "page", onSelect: () => copyPages([page]) },
+      { label: "Paste inside", shortcut: "page-paste", disabled: !canPasteInto(held, page), onSelect: () => void pastePages(page) },
+      { label: "Duplicate", shortcut: "duplicate", separated: true, disabled: page.kind !== "page", onSelect: () => void duplicatePage(page) },
+      { label: "Save as template", shortcut: "save-template", disabled: page.kind !== "page", onSelect: () => void saveAsTemplate(page) },
+      { label: "Copy link", shortcut: "copy-link", onSelect: () => void copyPageLink(page.id) },
+      { label: "Add page inside", shortcut: "new-subpage", disabled: page.kind === "database" || page.kind === "dashboard", onSelect: () => void createPage(page.id) },
+      { label: page.favorite ? "Remove from favorites" : "Add to favorites", shortcut: page.favorite ? "unfavorite" : "favorite", onSelect: () => void toggleFavorite(page) },
       { label: "Move to workspace…", separated: true, disabled: page.kind !== "page", onSelect: () => usePageTransfer.getState().show([page], "move") },
       { label: "Copy to workspace…", disabled: page.kind !== "page", onSelect: () => usePageTransfer.getState().show([page], "copy") },
       { label: "Move up", separated: true, disabled: i <= 0, onSelect: () => void nudge(page, "up") },
       { label: "Move down", disabled: i < 0 || i >= siblings.length - 1, onSelect: () => void nudge(page, "down") },
       { label: "Indent under previous page", disabled: i <= 0, onSelect: () => void nudge(page, "in") },
       { label: "Move out one level", disabled: !page.parentPageId, onSelect: () => void nudge(page, "out") },
-      { label: "Move to trash", danger: true, separated: true, onSelect: () => void useWorkspace.getState().trashPage(page) },
+      { label: "Move to trash", shortcut: "page-trash", danger: true, separated: true, onSelect: () => void useWorkspace.getState().trashPage(page) },
     ];
   };
 
   return (
-    <aside className="sidebar" data-density={workspaceOptions(workspace).sidebarDensity}>
-      <div className="ws-row"><WorkspaceSwitcher /></div>
+    <aside id="workspace-sidebar" className="sidebar" aria-label="Workspace navigation" data-density={workspaceOptions(workspace).sidebarDensity}>
+      <div className="ws-row">
+        <WorkspaceSwitcher iconOnly={rail} />
+        <button type="button" className="icon-btn sidebar-collapse" aria-label={sidebarAction} aria-controls="workspace-sidebar" aria-expanded={!rail} aria-keyshortcuts={sidebarShortcut.aria} title={`${sidebarAction}${sidebarShortcut.label ? ` (${sidebarShortcut.label})` : ""}`} onClick={() => useLayout.getState().toggleSidebar()}>
+          <IconSwap name={rail ? "expandSidebar" : "collapseSidebar"} />
+        </button>
+      </div>
 
-      <button type="button" className="side-search" onClick={() => usePalette.getState().show()} aria-label="Search pages and commands" aria-keyshortcuts="Control+K Meta+K">
+      <button type="button" className="side-search" onClick={() => usePalette.getState().show()} aria-label="Search pages and commands" title={`Search${searchShortcut.label ? ` (${searchShortcut.label})` : ""}`} aria-keyshortcuts={searchShortcut.aria}>
         <Icon name="search" />
         <span>Search</span>
-        <kbd className="kbd">{modKey} K</kbd>
+        {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
 
-      <nav className="scroll" aria-label="Pages">
+      {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
+        {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (
+          <button key={p.id} type="button" className="rail-page" title={label(p)} aria-label={label(p)} aria-current={view === "page" && selectedPageId === p.id ? "page" : undefined} onClick={e => clickPage(e, p.id)} onAuxClick={e => openFromAuxClick(e, p.id)} onContextMenu={e => { e.preventDefault(); showMenu(e.clientX, e.clientY, p); }}>
+            <PageGlyph page={p} />
+          </button>
+        ))}
+        {!READ_ONLY && <button type="button" className="rail-page" title="New page" aria-label="New page" onClick={() => void createPage(null)}><Icon name="plus" /></button>}
+      </nav> : <nav ref={navigation} tabIndex={0} className="scroll" aria-label="Pages" onMouseDown={e => { if (e.target === e.currentTarget) e.currentTarget.focus(); }} onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && (e.target as Element).matches('[role="treeitem"]')) useLayout.setState({ compactOpen: false });
+      }} onClick={(e) => {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && (e.target as Element).closest("button.title")) useLayout.setState({ compactOpen: false });
+      }}>
         {favorites.length > 0 && (
           <section>
             <h2>Favorites</h2>
@@ -412,25 +444,25 @@ export function Sidebar() {
             </DndContext>
           </Ctx.Provider>
         </section>
-      </nav>
+      </nav>}
 
       <footer>
-        <button className={`foot-btn${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
+        <button aria-label="Trash" title="Trash" className={`foot-btn${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
           <Icon name="trash" />
           <span>Trash</span>
           <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
+        <button className="foot-btn" aria-label="Backups" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
           <Icon name="restore" />
           <span>Backups</span>
           <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
+        <button className="foot-btn" aria-label="Import and export" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
           <Icon name="download" />
           <span>Import &amp; export</span>
           <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" title={`Settings (${modKey}+,)`} onClick={() => useSettingsDialog.getState().show()}>
+        <button className="foot-btn" aria-label="Settings" title={`Settings${settingsShortcut.label ? ` (${settingsShortcut.label})` : ""}`} onClick={() => useSettingsDialog.getState().show()}>
           <Icon name="gear" />
           <span>Settings</span>
           <Icon name="chevron" size={14} />

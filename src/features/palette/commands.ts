@@ -1,3 +1,5 @@
+import { ACTIONS, label } from "../shortcuts/bindings";
+import { useShortcuts } from "../shortcuts/store";
 import { useWorkspaceDialog } from "../workspaces/WorkspaceDialog";
 import { READ_ONLY, READ_ONLY_COMMANDS } from "../../lib/access";
 import { canBack, canForward } from "../../lib/history";
@@ -76,7 +78,7 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "files", title: "Manage files…", keywords: "attachments images unused storage space delete cleanup", run: () => useFilesDialog.getState().show() },
   { id: "settings", title: "Settings", keywords: "preferences options theme text size width backup", shortcut: `${modKey}+,`, run: () => useSettingsDialog.getState().show() },
   { id: "shortcuts", title: "Keyboard shortcuts", keywords: "keys hotkeys help cheatsheet reference", shortcut: `${modKey}+/`, run: () => useShortcutSheet.getState().show() },
-  { id: "sidebar", title: "Show or hide the sidebar", keywords: "toggle collapse panel navigation", shortcut: `${modKey}+\\`, run: () => useLayout.getState().toggleSidebar() },
+  { id: "sidebar", title: "Collapse or expand the sidebar", keywords: "toggle collapse panel navigation", shortcut: `${modKey}+\\`, run: () => useLayout.getState().toggleSidebar() },
   { id: "focus", title: "Focus mode", keywords: "distraction free zen write hide sidebar toolbar", shortcut: `${modKey}+Shift+\\`, run: () => useLayout.getState().toggleFocus() },
   { id: "page-icon", title: "Change page icon…", keywords: "emoji symbol picture avatar", when: hasPage, run: () => useAppearanceUi.getState().show("icon") },
   { id: "page-cover", title: "Change page cover…", keywords: "banner header image gradient picture", when: hasPage, run: () => useAppearanceUi.getState().show("cover") },
@@ -132,10 +134,14 @@ export const COMMANDS: PaletteCommand[] = [
   },
 ];
 
+for (const command of COMMANDS) {
+  if (!ACTIONS.some(a => a.id === command.id)) ACTIONS.push({ id: command.id, title: command.title, scope: "workspace", defaults: [] });
+}
+
 /** Commands that apply right now and match the query (empty query lists them all). */
 export function matchCommands(query: string): PaletteCommand[] {
   const q = query.trim().toLowerCase();
-  const available = COMMANDS.filter((c) => (!READ_ONLY || READ_ONLY_COMMANDS.has(c.id)) && (!c.when || c.when()));
+  const available = COMMANDS.map(c => ({ ...c, shortcut: label(c.id, useShortcuts.getState().overrides) || undefined })).filter((c) => (!READ_ONLY || READ_ONLY_COMMANDS.has(c.id)) && (!c.when || c.when()));
   if (!q) return available;
   const words = q.split(/\s+/);
   return available.filter((c) => {

@@ -1,3 +1,4 @@
+import { key } from "../shortcuts/bindings";
 import type { Editor } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { MenuItem } from "../../components/ContextMenu";
@@ -111,7 +112,7 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
     ...(editor.isEditable && editor.can().undo()
       ? [
           {
-            label: "Undo",
+            label: "Undo", shortcut: "undo",
             onSelect: action(() => {
               editor.commands.undo();
             }),
@@ -121,7 +122,7 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
     ...(editor.isEditable && editor.can().redo()
       ? [
           {
-            label: "Redo",
+            label: "Redo", shortcut: "redo",
             onSelect: action(() => {
               editor.commands.redo();
             }),
@@ -129,16 +130,16 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
         ]
       : []),
     {
-      label: "Copy blocks",
+      label: "Copy blocks", shortcut: [key("c", "Primary")],
       separated:
         editor.isEditable && (editor.can().undo() || editor.can().redo()),
       onSelect: () => void copy(false),
     },
     ...(editor.isEditable
       ? [
-          { label: "Cut blocks", onSelect: () => void copy(true) },
+          { label: "Cut blocks", shortcut: [key("x", "Primary")], onSelect: () => void copy(true) },
           {
-            label: "Duplicate blocks",
+            label: "Duplicate blocks", shortcut: "duplicate-block",
             separated: true,
             onSelect: action(() => {
               duplicateSelectedBlocks(editor);
@@ -147,7 +148,7 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
           ...(sameParent && $from.index() > 0
             ? [
                 {
-                  label: "Move up",
+                  label: "Move up", shortcut: "move-block-up",
                   onSelect: action(() => {
                     moveSelectedBlocks(editor, -1);
                   }),
@@ -157,7 +158,7 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
           ...(sameParent && $to.index() < $from.parent.childCount
             ? [
                 {
-                  label: "Move down",
+                  label: "Move down", shortcut: "move-block-down",
                   onSelect: action(() => {
                     moveSelectedBlocks(editor, 1);
                   }),
@@ -184,7 +185,7 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
               }))
             : []),
           {
-            label: "Delete blocks",
+            label: "Delete blocks", shortcut: [key("Delete"), key("Backspace")],
             danger: true,
             separated: true,
             onSelect: action(() => {

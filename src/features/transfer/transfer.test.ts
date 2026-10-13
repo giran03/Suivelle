@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { COLUMN_KINDS, exportWorkspaceArchive, importedWorkspaceName, plural, summarize } from "./transfer";
+import { COLUMN_KINDS, DEFAULT_EXPORT, columnKinds, defaultTarget, describeOrigin, effectiveOptions, exportWorkspaceArchive, importedWorkspaceName, plural, savesText, summarize } from "./transfer";
 import { ipc } from "../../lib/ipc";
 import { registerFlusher } from "../editor/flushRegistry";
 
@@ -38,5 +38,41 @@ describe("workspace transfer", () => {
       await expect(exportWorkspaceArchive("workspace")).rejects.toThrow("Save failed");
       expect(exporter).not.toHaveBeenCalled();
     } finally { unregister(); exporter.mockRestore(); }
+  });
+});
+
+describe("Notion transfer", () => {
+  const shape = (s: Partial<import("../../types").ExportShape> = {}): import("../../types").ExportShape => ({ kind: "page", title: "Plan", needsFolder: false, hasChildren: true, hasDatabases: false, files: 1, ...s });
+
+  it("keeps a PDF to one page and a database out of PDF", () => {
+    const pdf = effectiveOptions({ ...DEFAULT_EXPORT, format: "pdf" }, "page");
+    expect(pdf.includeSubpages).toBe(false);
+    expect(pdf.folders).toBe(false);
+    expect(effectiveOptions({ ...DEFAULT_EXPORT, format: "pdf" }, "database").format).toBe("markdown");
+    expect(effectiveOptions({ ...DEFAULT_EXPORT, includeSubpages: false }, "page").folders).toBe(false);
+    expect(effectiveOptions(DEFAULT_EXPORT, "page")).toEqual(DEFAULT_EXPORT);
+  });
+
+  it("says what an export saves", () => {
+    expect(savesText(shape({ needsFolder: true, files: 12 }), DEFAULT_EXPORT)).toBe("Saves a zip of 12 files and the files they show.");
+    expect(savesText(shape(), { ...DEFAULT_EXPORT, format: "pdf" })).toBe("Saves the page as one PDF file.");
+    expect(savesText(shape({ kind: "database" }), DEFAULT_EXPORT)).toBe("Saves the table as one CSV file.");
+    expect(savesText(shape(), { ...DEFAULT_EXPORT, format: "html" })).toBe("Saves the page as one HTML file.");
+  });
+
+  it("sends a whole Notion workspace to a workspace of its own", () => {
+    const origin = { kind: "notion" as const, format: "markdown" as const, layout: "folders" as const, workspace: true, name: "Acme" };
+    expect(defaultTarget(origin)).toBe("workspace");
+    expect(defaultTarget({ ...origin, workspace: false })).toBe("container");
+    expect(defaultTarget(null)).toBe("container");
+    expect(describeOrigin(origin)).toBe("Markdown & CSV, subpages in folders");
+    expect(describeOrigin({ ...origin, format: "html", layout: "flat" })).toBe("HTML, subpages nested by their links");
+  });
+
+  it("keeps a relation's links on offer, and the usual types", () => {
+    expect(columnKinds("relation")[0].value).toBe("relation");
+    expect(columnKinds("relation").map((k) => k.value)).toContain("text");
+    expect(columnKinds("text").map((k) => k.value)).not.toContain("relation");
+    expect(columnKinds("status")[0].value).toBe("status");
   });
 });

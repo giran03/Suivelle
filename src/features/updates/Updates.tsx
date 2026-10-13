@@ -153,8 +153,14 @@ export function UpdatesRoot() {
       <button className="icon-btn" aria-label="Dismiss update notice" onClick={() => useUpdates.setState({ notice: false })}><Icon name="close" /></button>
     </div>}
     <dialog ref={changelogRef} className="palette changelog" aria-labelledby="changelog-title" onClose={() => { if (useUpdates.getState().changelog) hideChangelog(); }} onMouseDown={(e) => { if (e.target === e.currentTarget) hideChangelog(); }}>
-      <div className="set-head"><h2 id="changelog-title">What's new in Suivelle</h2><button className="icon-btn" aria-label="Close changelog" onClick={hideChangelog}><Icon name="close" /></button></div>
-      {lastRelease.current && <div className="changelog-body"><p className="changelog-meta">Version {lastRelease.current.version}{lastRelease.current.date ? ` · ${releaseDate(lastRelease.current.date)}` : ""}</p><Notes release={lastRelease.current} /></div>}
+      <header className="changelog-head">
+        <div className="changelog-titles">
+          <h2 id="changelog-title">What's new in Suivelle</h2>
+          {lastRelease.current && <p className="changelog-meta"><span className="changelog-version">Version {lastRelease.current.version}</span>{lastRelease.current.date && <time dateTime={lastRelease.current.date}>{releaseDate(lastRelease.current.date)}</time>}</p>}
+        </div>
+        <button className="icon-btn" aria-label="Close changelog" onClick={hideChangelog}><Icon name="close" /></button>
+      </header>
+      {lastRelease.current && <div className="changelog-body"><Notes release={lastRelease.current} /></div>}
       <div className="changelog-footer"><button className="btn primary" onClick={hideChangelog}>{returnToSettings ? "Back to updates" : "Continue"}</button></div>
     </dialog>
     <dialog ref={preparingRef} className="palette update-preparing" aria-labelledby="update-preparing-title" onCancel={(e) => e.preventDefault()}>

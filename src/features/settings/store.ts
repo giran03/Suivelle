@@ -2,8 +2,8 @@ import { create } from "zustand";
 
 interface SettingsState {
   open: boolean;
-  section: "updates" | null;
-  show: (section?: "updates") => void;
+  section: "updates" | "keyboard" | null;
+  show: (section?: "updates" | "keyboard") => void;
   hide: () => void;
   closeGuard: ((after?: () => void) => void) | null;
   requestClose: (after?: () => void) => void;

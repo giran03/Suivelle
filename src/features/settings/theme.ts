@@ -1,4 +1,4 @@
-import { normalizeHex, hexToRgb, rgbToHex } from "../../lib/color";
+import { normalizeHex, normalizeHexAlpha, compositeColor, hexToRgb, rgbToHex } from "../../lib/color";
 import { varsFor, type Choices } from "../../stores/preferences";
 
 export const COLOR_ROLES = [
@@ -43,6 +43,8 @@ export const COLOR_ROLES = [
   ["tone-blue", "Blue data and text", "Advanced", "#1F66A8", "#6FB1E8"],
 ] as const;
 export type ColorRole = typeof COLOR_ROLES[number][0];
+export const supportsOpacity = (role: ColorRole) => COLOR_ROLES.some(([key, , group]) => key === role && group === "Backgrounds") || role === "accent-soft";
+export const normalizeThemeColor = (role: ColorRole, value: unknown) => supportsOpacity(role) ? normalizeHexAlpha(value) : normalizeHex(value);
 export type Palette = Partial<Record<ColorRole, string>>;
 export type PaletteMode = "light" | "dark";
 export interface ThemeConfig { accent: string | null; palettes: Record<PaletteMode, Palette> }
@@ -71,7 +73,7 @@ export function sanitizeTheme(raw: unknown, strict = false): ThemeConfig {
         if (strict) throw new Error(`Unknown color role: ${key}.`);
         continue;
       }
-      const hex = normalizeHex(value);
+      const hex = normalizeThemeColor(key as ColorRole, value);
       if (hex) out.palettes[mode][key as ColorRole] = hex;
       else if (strict) throw new Error(`Enter a valid hex color for ${key}.`);
     }
@@ -116,16 +118,17 @@ function basePalette(mode: PaletteMode, choices: Choices, accent: string | null)
 function overrides(config: ThemeConfig, mode: PaletteMode, base: Record<ColorRole, string>): Palette {
   const custom = config.palettes[mode];
   const derived: Palette = {};
+  const background = compositeColor(custom.background ?? base.background, "#FFFFFF");
   if (custom.background) {
-    const ink = readableText(custom.background);
+    const ink = readableText(background);
     derived["editor-background"] = custom.background;
     derived["toolbar-background"] = custom.background;
-    derived["surface-hover"] = mix(custom.background, ink, 0.07);
-    derived["surface-active"] = mix(custom.background, ink, 0.14);
-    derived["border-subtle"] = mix(custom.background, ink, 0.1);
-    derived.border = mix(custom.background, ink, 0.18);
-    derived["border-strong"] = mix(custom.background, ink, 0.3);
-    derived["code-bg"] = custom.field ?? mix(custom.background, ink, 0.04);
+    derived["surface-hover"] = mix(background, ink, 0.07);
+    derived["surface-active"] = mix(background, ink, 0.14);
+    derived["border-subtle"] = mix(background, ink, 0.1);
+    derived.border = mix(background, ink, 0.18);
+    derived["border-strong"] = mix(background, ink, 0.3);
+    derived["code-bg"] = custom.field ?? mix(background, ink, 0.04);
   }
   if (custom.field) derived["code-bg"] = custom.field;
   if (custom["text-muted"]) derived["hl-comment"] = custom["text-muted"];
@@ -133,15 +136,16 @@ function overrides(config: ThemeConfig, mode: PaletteMode, base: Record<ColorRol
   if (custom.warning) { derived["hl-number"] = custom.warning; derived["tone-orange"] = custom.warning; }
   if (custom.danger) derived["tone-red"] = custom.danger;
   if (custom.sidebar) {
-    derived["sidebar-text"] = readableText(custom.sidebar);
-    derived["sidebar-secondary"] = readableTint(custom.sidebar, 0.8);
-    derived["sidebar-muted"] = readableTint(custom.sidebar, 0.7);
+    const sidebar = compositeColor(custom.sidebar, background);
+    derived["sidebar-text"] = readableText(sidebar);
+    derived["sidebar-secondary"] = readableTint(sidebar, 0.8);
+    derived["sidebar-muted"] = readableTint(sidebar, 0.7);
   }
   if (custom.accent) {
     derived["on-accent"] = readableText(custom.accent);
     derived["accent-hover"] = mix(custom.accent, mode === "dark" ? "#FFFFFF" : "#000000", 0.12);
-    derived["accent-ui"] = mix(custom.accent, readableText(custom.background ?? base.background), 0.5);
-    derived["accent-soft"] = mix(custom.background ?? base.background, custom.accent, 0.18);
+    derived["accent-ui"] = mix(custom.accent, readableText(background), 0.5);
+    derived["accent-soft"] = mix(background, custom.accent, 0.18);
   }
   if (custom["accent-ui"] || derived["accent-ui"]) derived["focus-ring"] = custom["accent-ui"] ?? derived["accent-ui"];
   if (custom["accent-ui"] || derived["accent-ui"]) derived["hl-keyword"] = custom["accent-ui"] ?? derived["accent-ui"];
@@ -162,6 +166,8 @@ export function themeVariables(config: ThemeConfig, choices: Choices): Record<st
 }
 
 export function contrastWarnings(colors: Record<ColorRole, string>) {
+  const backdrop = compositeColor(colors.background, "#FFFFFF");
+  const effective = Object.fromEntries(Object.entries(colors).map(([key, color]) => [key, key === "background" ? backdrop : compositeColor(color, backdrop)])) as Record<ColorRole, string>;
   const checks: [ColorRole, ColorRole, number][] = [];
   for (const text of ["text-primary", "text-secondary", "text-muted", "accent-ui", "success", "warning", "danger"] as const) {
     for (const bg of ["background", "editor-background", "toolbar-background", "surface-1", "surface-2", "field"] as const) checks.push([text, bg, 4.5]);
@@ -169,7 +175,7 @@ export function contrastWarnings(colors: Record<ColorRole, string>) {
   checks.push(["sidebar-text", "sidebar", 4.5], ["sidebar-secondary", "sidebar", 4.5], ["sidebar-muted", "sidebar", 4.5], ["on-accent", "accent", 4.5], ["on-accent", "accent-hover", 4.5], ["text-primary", "accent-soft", 4.5], ["accent-ui", "accent-soft", 4.5]);
   for (const bg of ["background", "sidebar", "field", "surface-2"] as const) checks.push(["focus-ring", bg, 3]);
   for (const fg of ["text-primary", "hl-keyword", "hl-string", "hl-number", "hl-title", "hl-comment"] as const) checks.push([fg, "code-bg", 4.5]);
-  return checks.map(([fg, bg, minimum]) => ({ fg, bg, minimum, ratio: contrast(colors[fg], colors[bg]) })).filter((test) => test.ratio < test.minimum);
+  return checks.map(([fg, bg, minimum]) => ({ fg, bg, minimum, ratio: contrast(effective[fg], effective[bg]) })).filter((test) => test.ratio < test.minimum);
 }
 
 export function parseThemeFile(text: string): { name: string; config: ThemeConfig } {

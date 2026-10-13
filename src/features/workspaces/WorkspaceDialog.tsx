@@ -19,9 +19,9 @@ import "./workspaces.css";
 type Mode = "manage" | "create" | "delete";
 export const useWorkspaceDialog = create<{ open: boolean; mode: Mode; show: (mode?: Mode) => void; hide: () => void }>((set) => ({ open: false, mode: "manage", show: (mode = "manage") => set({ open: true, mode }), hide: () => set({ open: false }) }));
 
-function Body({ mode, onDirty, onBusy, close, cancel }: { mode: Mode; onDirty: (dirty: boolean) => void; onBusy: (busy: boolean) => void; close: () => void; cancel: () => void }) {
-  const workspace = useWorkspace((s) => s.workspace);
+function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { mode: Mode; selectedId: string | undefined; onSelect: (id: string) => void; onDirty: (dirty: boolean) => void; onBusy: (busy: boolean) => void; close: () => void; cancel: () => void }) {
   const workspaces = useWorkspace((s) => s.workspaces);
+  const workspace = workspaces.find((w) => w.id === selectedId) ?? null;
   const workspaceBusy = useWorkspace((s) => s.workspaceBusy);
   const options = workspaceOptions(workspace);
   const creating = mode === "create";
@@ -79,13 +79,13 @@ function Body({ mode, onDirty, onBusy, close, cancel }: { mode: Mode; onDirty: (
       <h3>Your workspaces</h3>
       {workspaces.length > 5 && <SearchField type="search" className="ws-search" placeholder="Find a workspace…" aria-label="Find a workspace" value={search} onChange={(e) => setSearch(e.target.value)} />}
       <ul>{workspaces.filter((w) => w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map((w) => <li key={w.id}>
-        <button type="button" className={`ws-directory-row${w.id === workspace?.id ? " current" : ""}`} disabled={locked || dirty} aria-current={w.id === workspace?.id ? "true" : undefined} onClick={() => void run(async () => { if (w.id !== workspace?.id) await useWorkspace.getState().switchWorkspace(w.id); close(); })}>
+        <button type="button" className={`ws-directory-row${w.id === workspace?.id ? " current" : ""}`} disabled={locked || dirty} aria-current={w.id === workspace?.id ? "true" : undefined} onClick={() => onSelect(w.id)}>
           <WorkspaceBadge workspace={w} /><span className="ws-directory-name">{w.name}<small>{workspaceOptions(w).description || "Local workspace"}</small></span>{w.id === workspace?.id && <Icon name="check" size={14} />}
         </button>
       </li>)}</ul>
       {workspaces.every((w) => !w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())) && <p className="picker-muted">No matching workspace.</p>}
       <button type="button" className="btn ws-new" disabled={locked || dirty} onClick={() => useWorkspaceDialog.getState().show("create")}><Icon name="plus" size={14} /> New workspace</button>
-      {dirty && <p className="picker-muted">Save your changes before switching.</p>}
+      {dirty && <p className="picker-muted">Save your changes before selecting another workspace.</p>}
     </section>}
     <form className="ws-profile" data-unsaved={dirty} onSubmit={(e) => { e.preventDefault(); if (locked || !draft.name.trim()) return; void run(async () => {
       const profile = { description: draft.description.trim(), accent: draft.accent, sidebarDensity: draft.sidebarDensity };
@@ -109,7 +109,7 @@ function Body({ mode, onDirty, onBusy, close, cancel }: { mode: Mode; onDirty: (
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}{message && <p className="ws-saved" role="status"><Icon name="check" size={14} />{message}</p>}
       <div className="ws-actions"><button className="btn primary" type="submit" disabled={locked || !draft.name.trim() || (!creating && !dirty)}>{locked ? "Saving…" : creating ? "Create workspace" : "Save changes"}</button>{creating && <button type="button" className="btn" disabled={locked} onClick={cancel}>Cancel</button>}</div>
-      {!creating && <div className="ws-danger-zone"><h3>Workspace data</h3><p className="picker-muted">Transfer a workspace as a portable archive, or permanently remove this workspace.</p><div className="ws-data-actions"><button type="button" className="btn" disabled={locked || dirty} onClick={() => { close(); useTransferDialog.getState().show("import", "workspace"); }}><Icon name="download" size={14} />Import workspace…</button><button type="button" className="btn" disabled={locked || dirty} onClick={() => { close(); useTransferDialog.getState().show("export", "workspace"); }}>Export workspace…</button><button type="button" className="btn danger" disabled={locked || dirty || workspaces.length <= 1} onClick={() => useWorkspaceDialog.getState().show("delete")}><Icon name="trash" size={14} />Delete workspace…</button></div>{workspaces.length <= 1 && <p className="picker-muted">The last workspace is protected.</p>}</div>}
+      {!creating && <div className="ws-danger-zone"><h3>Workspace data</h3><p className="picker-muted">Transfer a workspace as a portable archive, or permanently remove this workspace.</p><div className="ws-data-actions"><button type="button" className="btn" disabled={locked || dirty} onClick={() => { close(); useTransferDialog.getState().show("import", "workspace"); }}><Icon name="download" size={14} />Import workspace…</button><button type="button" className="btn" disabled={locked || dirty || !workspace} onClick={() => { close(); useTransferDialog.getState().show("export", "workspace", workspace?.id); }}>Export workspace…</button><button type="button" className="btn danger" disabled={locked || dirty || !workspace || workspaces.length <= 1} onClick={() => useWorkspaceDialog.getState().show("delete")}><Icon name="trash" size={14} />Delete workspace…</button></div>{workspaces.length <= 1 && <p className="picker-muted">The last workspace is protected.</p>}</div>}
       {pickerColor && <ColorPicker initial={pickerColor} onUse={(accent) => patch({ accent })} onClose={() => setPickerColor(null)} preview={(accent) => <WorkspaceBadge workspace={{ icon: draft.icon?.startsWith("image:") ? "symbol:star" : draft.icon, settingsJson: JSON.stringify({ accent }) }} />} />}
     </form>
   </div>;
@@ -118,18 +118,19 @@ function Body({ mode, onDirty, onBusy, close, cancel }: { mode: Mode; onDirty: (
 export function WorkspaceDialog() {
   const { open, mode } = useWorkspaceDialog();
   const workspaceId = useWorkspace((s) => s.workspace?.id);
+  const [selectedId, setSelectedId] = useState(workspaceId);
   const busy = useWorkspace((s) => s.workspaceBusy);
   const ref = useRef<HTMLDialogElement>(null);
   const [operationBusy, setOperationBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  useEffect(() => { if (!open) { setDirty(false); setDiscarding(false); } else void useWorkspace.getState().refreshWorkspaces(); }, [open]);
+  useEffect(() => { if (!open) { setDirty(false); setDiscarding(false); } else { setSelectedId(workspaceId); void useWorkspace.getState().refreshWorkspaces(); } }, [open]);
   useEffect(() => { const dialog = ref.current; if (!dialog) return; syncDialog(dialog, open); }, [open]);
   const close = () => { if (busy || operationBusy) return; if (dirty) setDiscarding(true); else useWorkspaceDialog.getState().hide(); };
   const finish = () => { useWorkspaceDialog.getState().hide(); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".ws-switcher")?.focus()); };
-  return <dialog ref={ref} className={`palette ws-dialog${mode === "create" ? " ws-create-dialog" : ""}`} aria-labelledby="ws-dialog-title" aria-busy={busy || operationBusy} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } }} onCancel={(e) => { e.preventDefault(); close(); }} onClose={() => useWorkspaceDialog.getState().hide()}>
+  return <dialog ref={ref} className={`palette ws-dialog${mode === "create" ? " ws-create-dialog" : ""}`} aria-labelledby="ws-dialog-title" aria-busy={busy || operationBusy} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } }} onCancel={(e) => { e.preventDefault(); close(); }} onClose={() => useWorkspaceDialog.getState().hide()} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
     <header className="ws-dialog-head"><h2 id="ws-dialog-title">{mode === "create" ? "New workspace" : mode === "delete" ? "Delete workspace" : "Workspace settings"}</h2><button className="icon-btn" type="button" aria-label="Close workspace settings" disabled={busy || operationBusy} onClick={close}><Icon name="close" /></button></header>
     {discarding && <div className="ws-discard" role="alert"><strong>Discard unsaved changes?</strong><span>Your saved workspace stays unchanged.</span><div><button type="button" className="btn" autoFocus onClick={() => setDiscarding(false)}>Keep editing</button><button type="button" className="btn danger" onClick={finish}>Discard changes</button></div></div>}
-    {open && <Body key={`${mode}:${workspaceId}`} mode={mode} onDirty={setDirty} onBusy={setOperationBusy} close={finish} cancel={close} />}
+    {open && <Body key={`${mode}:${selectedId}`} mode={mode} selectedId={selectedId} onSelect={setSelectedId} onDirty={setDirty} onBusy={setOperationBusy} close={finish} cancel={close} />}
   </dialog>;
 }

@@ -153,7 +153,7 @@
 /* gutter handle */
 .block-handle { position: absolute; z-index: 10; visibility: hidden; }
 .gutter { display: flex; align-items: center; padding-right: clamp(0px, calc(var(--page-pad) - var(--icon-btn-sm) * 2), 8px); }
-.gutter .icon-btn { width: var(--icon-btn-sm); height: var(--icon-btn-sm); }
+.gutter .icon-btn { width: var(--icon-btn-sm); height: calc(var(--doc-size, 1rem) * var(--doc-line, 1.5) + 2 * var(--doc-gap, 3px)); }
 .gutter .grip { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
 .gutter .grip:active { cursor: grabbing; }
 .block-drag-source { opacity: 0.4; }

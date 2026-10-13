@@ -48,3 +48,8 @@ Target: WCAG 2.1 AA for contrast and keyboard operability; keyboard use is a cor
 - Every interactive control has a name, and icon-only buttons carry `aria-label`. Dialogs are native `<dialog>` elements (focus trap, Esc, focus return).
 - Composite widgets follow their ARIA patterns: tabs (roving tab stop, arrows, Home/End), toolbars (arrow keys), the database grid (keyboard row selection with Ctrl+Space and Ctrl+A, announced through a live region).
 - `prefers-reduced-motion` turns off all transitions and animations.
+
+
+## Shortcut customization
+
+Settings > Shortcuts and input supports per-device keyboard and delivered mouse-button bindings across workspaces, modifier combinations, physical/logical keys and numpad identity, alternative bindings, conflicts, disable/reset, and input diagnostics. Commands retain their editor/tree/grid/tab/capture contexts and read-only restrictions. Native global capture/focus keyboard shortcuts persist with enabled flags and rollback on registration failure. Intrinsic typing, focus navigation, cancellation, and drag/resize behavior remain built-in. Wheel, modifier-only and advanced gesture bindings are deferred; hardware buttons hidden by a driver are not advertised as supported.

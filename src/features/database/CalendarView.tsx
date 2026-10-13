@@ -133,8 +133,8 @@ export function CalendarView({ db, view, queryVersion }: { db: Db; view: DbView;
 
   const items = (row: RecordRow, at: { x: number; y: number }): MenuItem[] => [
     { label: "Open", onSelect: () => void openPage(row.pageId) },
-    { label: "Copy link", onSelect: () => void copyPageLink(row.pageId) },
-    { label: "Duplicate", onSelect: async () => { try { await ipc.recordDuplicate(row.id); reloadAll(); } catch (error) { setError(toAppError(error).message); } } },
+    { label: "Copy link", shortcut: "copy-link", onSelect: () => void copyPageLink(row.pageId) },
+    { label: "Duplicate", shortcut: "duplicate", onSelect: async () => { try { await ipc.recordDuplicate(row.id); reloadAll(); } catch (error) { setError(toAppError(error).message); } } },
     { label: "Change date…", onSelect: () => setEditing({ row, anchor: { left: at.x, top: at.y, right: at.x, bottom: at.y + 2 } }) },
     {
       label: "Move to trash",

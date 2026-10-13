@@ -1,5 +1,6 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { ID_TYPES } from "./extensions/blockId";
 
@@ -27,6 +28,26 @@ export function currentBlock(editor: Editor): BlockRef | null {
     return { node, pos: $from.before(d), depth: d };
   }
   return null;
+}
+
+/** Insert plain text above the block, outside containers that cannot hold a paragraph (lists). */
+export function insertBlockAbove(editor: Editor): boolean {
+  if (!editor.isEditable) return false;
+  const block = currentBlock(editor);
+  if (!block) return false;
+  const { state } = editor;
+  const paragraph = state.schema.nodes.paragraph;
+  let pos = block.pos;
+  let $pos = state.doc.resolve(pos);
+  while (!$pos.parent.canReplaceWith($pos.index(), $pos.index(), paragraph)) {
+    if ($pos.depth === 0) return false;
+    pos = $pos.before();
+    $pos = state.doc.resolve(pos);
+  }
+  const tr = closeHistory(state.tr).insert(pos, paragraph.create());
+  tr.setSelection(TextSelection.create(tr.doc, pos + 1)).setStoredMarks([]);
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
 }
 
 /**

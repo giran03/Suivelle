@@ -1,7 +1,10 @@
+import { installGlobalShortcutSync } from "../features/shortcuts/native";
+import { installInputRouter } from "../features/shortcuts/runtime";
+import { COMMANDS } from "../features/palette/commands";
 import { useFilesDialog } from "../features/files/store";
 import { UpdatesRoot } from "../features/updates/Updates";
 import { isPreparing, useUpdates } from "../features/updates/store";
-import { READ_ONLY } from "../lib/access";
+import { READ_ONLY, READ_ONLY_COMMANDS } from "../lib/access";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { WorkspaceDialog } from "../features/workspaces/WorkspaceDialog";
 import { registerFlusher } from "../features/editor/flushRegistry";
@@ -19,28 +22,27 @@ import { TrashView } from "../features/pages/TrashView";
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { modKey } from "../features/palette/store";
+import { useShortcut } from "../features/shortcuts/useShortcut";
 import { useTemplateGallery } from "../features/templates/store";
 import { useTransferDialog } from "../features/transfer/store";
 import { PageCover, PageIconRow } from "../features/pages/PageHeader";
 import { SidebarResizer } from "../features/pages/SidebarResizer";
 import { installSessionPersistence } from "../features/session/persist";
 import { installFileDropGuard } from "../features/session/fileDropGuard";
-import { ShortcutSheet, useShortcutSheet } from "../features/shortcuts/ShortcutSheet";
+import { ShortcutSheet } from "../features/shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../features/settings/store";
-import { QuickCapture, useQuickCapture } from "../features/capture/QuickCapture";
+import { QuickCapture } from "../features/capture/QuickCapture";
 import { installCaptureWindowBridge } from "../features/capture/window";
-import { ipc } from "../lib/ipc";
+import { ipc, toAppError } from "../lib/ipc";
 import { useFindBar } from "../features/find/store";
 import { TabBar } from "../features/tabs/TabBar";
 import { closeTab, cycleTab, installTabs, useTabs } from "../features/tabs/tabs";
-import { useActiveEditor } from "../stores/activeEditor";
 import { installMotion } from "../features/motion/install";
 import { installTooltips } from "../features/tooltip/tooltip";
 import { useAppIcon } from "../lib/appIcon";
 import { useAppearance } from "../lib/appearance";
 import { usePreferences } from "../stores/preferences";
-import { useLayout } from "../stores/layout";
+import { sidebarHidden, sidebarRail, useLayout } from "../stores/layout";
 import { useWorkspace } from "../stores/workspace";
 import { Loading } from "../components/Loading";
 import { PageTransferDialog, usePageTransfer } from "../features/pages/PageTransferDialog";
@@ -66,11 +68,7 @@ function OnDemand({ open, children }: { open: boolean; children: React.ReactNode
 }
 
 /** True while focus is somewhere the user types, where single-key shortcuts must not fire. */
-function typingTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  if (!el) return false;
-  return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
-}
+
 
 function PageTitle() {
   const page = useWorkspace((s) => s.selectedPage);
@@ -129,6 +127,8 @@ function PageTitle() {
 }
 
 function Content() {
+  const searchBinding = useShortcut("search");
+  const newPageBinding = useShortcut("new-page");
   const view = useWorkspace((s) => s.view);
   const selectedPageId = useWorkspace((s) => s.selectedPageId);
   const kind = useWorkspace((s) => s.selectedPage?.kind ?? "page");
@@ -167,7 +167,7 @@ function Content() {
   }
   if (!ready) return null;
   return hasPages ? (
-    <p className="empty">Select a page from the sidebar, or press {modKey} K to search.</p>
+    <p className="empty">Select a page from the sidebar{searchBinding.label ? `, or press ${searchBinding.label} to search.` : "."}</p>
   ) : (
     <div className="empty-start">
       <ConstellationArt />
@@ -202,7 +202,7 @@ function Content() {
         </button>
       </div>
       <p className="empty-hint">
-        <kbd className="kbd">{modKey} N</kbd> new page <kbd className="kbd">{modKey} K</kbd> search
+        {newPageBinding.label && <><kbd className="kbd">{newPageBinding.label}</kbd> new page </>}{searchBinding.label && <><kbd className="kbd">{searchBinding.label}</kbd> search</>}
       </p>
     </div>
   );
@@ -278,7 +278,9 @@ export function App() {
       .then((un) => {
         if (cancelled) { un(); return; }
         stop = un;
-        if (usePreferences.getState().globalCapture) void ipc.quickCaptureShortcut(true).catch(() => undefined);
+        void ipc.shortcutsMigrate(usePreferences.getState().globalCapture).then(state => {
+          usePreferences.getState().setGlobalCapture(state.config.captureEnabled);
+        }).catch(() => undefined);
       })
       .catch(() => undefined); // not running inside the desktop app
     return () => {
@@ -289,14 +291,35 @@ export function App() {
   // Keep the desktop shell in step with this device's window choices, and show what is really set.
   useEffect(() => {
     void ipc
-      .shellSetBehavior(usePreferences.getState().shell)
+      .shellGetBehavior().then(shell => { usePreferences.getState().setShell(shell); })
       .catch(() => undefined); // not running inside the desktop app
   }, []);
   const sidebarWidth = useLayout((s) => s.width);
-  const collapsed = useLayout((s) => s.collapsed);
+  const collapsed = useLayout(sidebarHidden);
+  const rail = useLayout(sidebarRail);
+  const compact = useLayout((s) => s.compact);
   const focus = useLayout((s) => s.focus);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 760px)");
+    const update = () => useLayout.getState().setCompact(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    // Keep keyboard focus on a visible control when either panel is hidden.
+    const active = document.activeElement;
+    if (collapsed && active?.closest(".sidebar")) document.querySelector<HTMLButtonElement>(rail ? ".sidebar-collapse" : ".sidebar-toggle")?.focus();
+    else if (compact && !collapsed) document.querySelector<HTMLButtonElement>(".sidebar-collapse")?.focus();
+  }, [collapsed, compact, rail]);
+  useEffect(() => useWorkspace.subscribe((state, previous) => {
+    if (state.selectedPageId !== previous.selectedPageId || state.view !== previous.view) {
+      useLayout.setState({ compactOpen: false });
+    }
+  }), []);
   useAppearance();
   useEffect(() => installTooltips(), []);
+  useEffect(() => installGlobalShortcutSync(), []);
   useEffect(() => installMotion(), []);
 
   useEffect(() => {
@@ -310,54 +333,28 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       const s = useWorkspace.getState();
       if (isPreparing(useUpdates.getState().phase) || s.workspaceBusy || (document.querySelector("dialog[open]") && !usePalette.getState().open)) return;
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
-        // Capture phase: this wins over the editor and the browser, wherever focus is.
+      if (e.key === "Escape" && useLayout.getState().compact && !sidebarHidden(useLayout.getState()) && !document.querySelector("dialog[open], [data-popover]")) {
         e.preventDefault();
-        e.stopPropagation();
-        usePalette.getState().toggle();
-      } else if (e.altKey && e.key === "ArrowLeft") {
-        e.preventDefault();
-        void s.goBack();
-      } else if (e.altKey && e.key === "ArrowRight") {
-        e.preventDefault();
-        void s.goForward();
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        void s.createPage(null);
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === "Backslash") {
-        e.preventDefault();
-        useLayout.getState().toggleFocus();
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === "\\") {
-        e.preventDefault();
-        useLayout.getState().toggleSidebar();
-      } else if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === "/") {
-        e.preventDefault();
-        useShortcutSheet.getState().toggle();
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "h")) {
-        // Only on a page with text; elsewhere the key keeps its normal meaning.
-        if (useActiveEditor.getState().editor) {
-          e.preventDefault();
-          useFindBar.getState().show(e.key.toLowerCase() === "h" ? { replace: true } : undefined);
-        }
-      } else if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === "Tab" && useTabs.getState().ids.length > 1) {
-        e.preventDefault();
-        void cycleTab(e.shiftKey ? -1 : 1);
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "w" && useTabs.getState().ids.length > 1) {
-        e.preventDefault();
-        if (s.selectedPageId) void closeTab(s.selectedPageId);
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        useQuickCapture.getState().show();
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === ",") {
-        e.preventDefault();
-        useSettingsDialog.getState().show();
-      } else if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !typingTarget(e.target)) {
-        e.preventDefault();
-        useShortcutSheet.getState().toggle();
+        useLayout.setState({ compactOpen: false });
+
       }
     };
+    const run = (id: string) => {
+      const command = COMMANDS.find(c => c.id === id);
+      if (!command || (command.when && !command.when())) return false;
+      if (READ_ONLY && !READ_ONLY_COMMANDS.has(id)) return false;
+      void Promise.resolve(command.run()).catch(e => useWorkspace.getState().setError(toAppError(e).message));
+      return true;
+    };
+    const stop = installInputRouter({
+      ...Object.fromEntries(COMMANDS.map(c => [c.id, () => run(c.id)])),
+      search: () => { usePalette.getState().toggle(); },
+      "next-tab": () => { if (useTabs.getState().ids.length < 2) return false; void cycleTab(1); },
+      "previous-tab": () => { if (useTabs.getState().ids.length < 2) return false; void cycleTab(-1); },
+      "close-tab": () => { const s = useWorkspace.getState(); if (!s.selectedPageId || useTabs.getState().ids.length < 2) return false; void closeTab(s.selectedPageId); },
+    }, () => !isPreparing(useUpdates.getState().phase) && !useWorkspace.getState().workspaceBusy);
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    return () => { stop(); window.removeEventListener("keydown", onKey, true); };
   }, []);
 
   return (
@@ -368,8 +365,10 @@ export function App() {
       key={workspaceId}
       inert={workspaceBusy || updatePreparing}
       aria-busy={workspaceBusy || updatePreparing}
-      data-collapsed={collapsed || focus ? "" : undefined}
+      data-collapsed={collapsed && !rail ? "" : undefined}
+      data-rail={rail ? "" : undefined}
       data-focus={focus ? "" : undefined}
+      data-compact={compact ? "" : undefined}
       style={sidebarWidth ? ({ "--sidebar-w": `min(${sidebarWidth}px, 45vw)` } as React.CSSProperties) : undefined}
     >
       <Sidebar />

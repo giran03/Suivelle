@@ -1,3 +1,4 @@
+import { isMac, key } from "../features/shortcuts/bindings";
 import type { MenuItem } from "./ContextMenu";
 import { useWorkspace } from "../stores/workspace";
 
@@ -26,13 +27,13 @@ export function editingItems(target: HTMLElement, overrides: Partial<Record<"und
   const command = (name: string) => () => { if (restore()) document.execCommand(name); };
   return [
     ...(editable ? [
-      { label: "Undo", onSelect: overrides.undo ?? command("undo") },
-      { label: "Redo", onSelect: overrides.redo ?? command("redo") },
+      { label: "Undo", shortcut: overrides.undo ? "undo" : [key("z", "Primary")], onSelect: overrides.undo ?? command("undo") },
+      { label: "Redo", shortcut: overrides.redo ? "redo" : [isMac ? key("z", "Primary", "Shift") : key("y", "Primary")], onSelect: overrides.redo ?? command("redo") },
     ] : []),
-    ...(!privateField ? [{ label: selectable ? "Copy" : "Copy value", separated: editable, disabled: !text, onSelect: () => { if (!restore()) return; if (!selectable || !document.execCommand("copy")) void copyText(text); } }] : []),
+    ...(!privateField ? [{ label: selectable ? "Copy" : "Copy value", shortcut: selectable ? [key("c", "Primary")] : undefined, separated: editable, disabled: !text, onSelect: () => { if (!restore()) return; if (!selectable || !document.execCommand("copy")) void copyText(text); } }] : []),
     ...(editable ? [
-      ...(!privateField ? [{ label: "Cut", disabled: !text || !selectable, onSelect: command("cut") }] : []),
-      { label: "Paste text", disabled: !!field && !selectable && field.type !== "number", onSelect: async () => {
+      ...(!privateField ? [{ label: "Cut", shortcut: [key("x", "Primary")], disabled: !text || !selectable, onSelect: command("cut") }] : []),
+      { label: "Paste text", shortcut: [key("v", "Primary")], disabled: !!field && !selectable && field.type !== "number", onSelect: async () => {
         try {
           const text = await navigator.clipboard.readText();
           if (!restore()) return;
@@ -41,6 +42,6 @@ export function editingItems(target: HTMLElement, overrides: Partial<Record<"und
         } catch { useWorkspace.getState().setError("Could not paste from the clipboard. Use Ctrl+V (or Command+V)."); }
       } },
     ] : []),
-    { label: "Select all", disabled: !selectable, separated: true, onSelect: overrides.selectAll ?? (() => { if (!target.isConnected) return; target.focus(); if (field) field.select(); else document.execCommand("selectAll"); }) },
+    { label: "Select all", shortcut: [key("a", "Primary")], disabled: !selectable, separated: true, onSelect: overrides.selectAll ?? (() => { if (!target.isConnected) return; target.focus(); if (field) field.select(); else document.execCommand("selectAll"); }) },
   ];
 }

@@ -1,3 +1,4 @@
+import { useShortcutScope } from "../shortcuts/runtime";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { READ_ONLY } from "../../lib/access";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -189,21 +190,6 @@ export function Grid({ columns, view, db, table, focusRequest, onCreate, onAddPr
       return;
     }
     if (editing || e.target !== scroller.current) return;
-    // Selecting records without a mouse: Ctrl+Space ticks the current row (with Shift, the range from
-    // the last tick), Ctrl+A ticks every loaded row.
-    if ((e.ctrlKey || e.metaKey) && e.key === " ") {
-      const current = table.rowAt(active.row);
-      if (current) {
-        e.preventDefault();
-        tick(current, active.row, !selected.has(current.id), e.shiftKey);
-      }
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "a") {
-      e.preventDefault();
-      setAllTicked(true);
-      return;
-    }
     const item = table.itemAt(active.row);
     if (item.type === "header" && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
@@ -211,34 +197,39 @@ export function Grid({ columns, view, db, table, focusRequest, onCreate, onAddPr
     }
     const row = table.rowAt(active.row);
     const prop = columns[active.col]?.property;
-    if (e.key === "Enter" && e.shiftKey && row) {
-      e.preventDefault();
-      return openRecord(row);
-    }
     const next = moveCell(active, e.key, { rows: table.rowCount, cols: columns.length }, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey });
     if (next) {
       e.preventDefault();
       return go(next);
     }
     if (!row || !prop) return;
-    if (e.key === "Enter" || e.key === "F2") {
-      e.preventDefault();
-      start(active);
-    } else if (e.key === " " && (prop.type === "checkbox" || isPopoverType(prop.type))) {
-      e.preventDefault();
-      start(active);
-    } else if ((e.key === "Delete" || e.key === "Backspace") && TYPE_META[prop.type].editable) {
-      e.preventDefault();
-      void commit(row, prop, prop.type === "title" ? "" : prop.type === "checkbox" ? false : null);
+    if (e.key === " " && (prop.type === "checkbox" || isPopoverType(prop.type))) {
+      e.preventDefault(); start(active);
     } else if (isTypingKey(e) && ["title", "text", "number", "url", "email", "phone"].includes(prop.type)) {
       e.preventDefault();
       start(active, e.key);
-    } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
-      e.preventDefault();
-      const el = cellEl(active.row, active.col)?.getBoundingClientRect();
-      setMenu({ x: el?.left ?? 0, y: el?.bottom ?? 0, row });
+
     }
   };
+
+  const gridCommand = (run: (cell: Cell) => boolean | void) => (target: Element, event: KeyboardEvent | MouseEvent) => {
+    if (editing || target.closest("input, textarea, select, button")) return false;
+    const element = target.closest<HTMLElement>('[role="gridcell"][data-row-index]');
+    const cell = "key" in event ? active : element ? { row: Number(element.dataset.rowIndex), col: Number(element.dataset.columnIndex) } : null;
+    if (!cell || ("key" in event && target !== scroller.current)) return false;
+    const result = run(cell);
+    if (result !== false && !("key" in event)) { setActive(cell); scroller.current?.focus(); }
+    return result;
+  };
+  useShortcutScope(scroller, "grid", {
+    "grid-select-row": gridCommand(cell => { const row = table.rowAt(cell.row); if (!row) return false; tick(row, cell.row, !selected.has(row.id), false); }),
+    "grid-select-range": gridCommand(cell => { const row = table.rowAt(cell.row); if (!row) return false; tick(row, cell.row, !selected.has(row.id), true); }),
+    "grid-select-all": gridCommand(() => setAllTicked(true)),
+    "grid-open": gridCommand(cell => { const row = table.rowAt(cell.row); if (!row) return false; openRecord(row); }),
+    "grid-edit": gridCommand(cell => { if (READ_ONLY || table.itemAt(cell.row).type === "header") return false; start(cell); }),
+    "grid-clear": gridCommand(cell => { const row = table.rowAt(cell.row), prop = columns[cell.col]?.property; if (READ_ONLY || !row || !prop || !TYPE_META[prop.type].editable) return false; void commit(row, prop, prop.type === "title" ? "" : prop.type === "checkbox" ? false : null); }),
+    "grid-menu": gridCommand(cell => { const row = table.rowAt(cell.row); if (!row) return false; const rect = cellEl(cell.row, cell.col)?.getBoundingClientRect(); setMenu({ x: rect?.left ?? 0, y: rect?.bottom ?? 0, row, cell }); }),
+  });
 
   const finishInline = (row: RecordRow, prop: Property, cell: Cell, result: { value: unknown } | null, move: Move) => {
     setEditing(null);
@@ -274,11 +265,11 @@ export function Grid({ columns, view, db, table, focusRequest, onCreate, onAddPr
   const menuItems = (row: RecordRow, cell: Cell): MenuItem[] => [
     ...(columns[cell.col] ? [
       { label: "Copy cell value", disabled: !cellText(columns[cell.col].property, row), onSelect: () => void copyText(cellText(columns[cell.col].property, row)) },
-      ...(TYPE_META[columns[cell.col].property.type].editable ? [{ label: columns[cell.col].property.type === "checkbox" ? "Toggle checkbox" : "Edit cell…", onSelect: () => start(cell) }] : []),
+      ...(TYPE_META[columns[cell.col].property.type].editable ? [{ label: columns[cell.col].property.type === "checkbox" ? "Toggle checkbox" : "Edit cell…", shortcut: "grid-edit", onSelect: () => start(cell) }] : []),
     ] : []),
-    { label: "Open", onSelect: () => openRecord(row) },
-    { label: "Copy link", onSelect: () => void copyPageLink(row.pageId) },
-    { label: "Duplicate", onSelect: () => void duplicate(row) },
+    { label: "Open", shortcut: "grid-open", onSelect: () => openRecord(row) },
+    { label: "Copy link", shortcut: "copy-link", onSelect: () => void copyPageLink(row.pageId) },
+    { label: "Duplicate", shortcut: "duplicate", onSelect: () => void duplicate(row) },
     { label: "Move to trash", danger: true, separated: true, onSelect: () => void trash(row) },
   ];
 
@@ -464,6 +455,7 @@ export function Grid({ columns, view, db, table, focusRequest, onCreate, onAddPr
                       key={c.property.id}
                       id={`cell-${v.index}-${ci}`}
                       data-column-index={ci}
+                      data-row-index={v.index}
                       role="gridcell"
                       aria-selected={isActive}
                       aria-readonly={READ_ONLY || !meta.editable}

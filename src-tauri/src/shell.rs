@@ -9,13 +9,14 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
 /// Passed by the system when it starts the app at sign-in, so a manual launch always shows the window.
 pub const AUTOSTART_ARG: &str = "--autostart";
 const TRAY_ID: &str = "main";
 const FILE: &str = "shell.json";
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Behavior {
     pub launch_at_startup: bool,
@@ -24,6 +25,28 @@ pub struct Behavior {
     pub show_tray: bool,
     pub close_to_tray: bool,
     pub minimize_to_tray: bool,
+    pub focus_shortcut: bool,
+}
+
+impl Default for Behavior {
+    fn default() -> Self {
+        Self {
+            launch_at_startup: false,
+            start_minimized: false,
+            show_tray: false,
+            close_to_tray: false,
+            minimize_to_tray: false,
+            focus_shortcut: true,
+        }
+    }
+}
+
+pub fn focus_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyS)
+}
+
+fn apply_focus_shortcut(app: &AppHandle, enabled: bool) -> AppResult<()> {
+    crate::shortcuts::set_enabled(app, "focus", enabled)
 }
 
 impl Behavior {
@@ -69,8 +92,9 @@ fn save(app: &AppHandle, b: &Behavior) {
 
 pub fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
+        // Restore before showing so minimize-to-tray cannot immediately hide it again.
         let _ = w.unminimize();
+        let _ = w.show();
         let _ = w.set_focus();
     }
 }
@@ -120,6 +144,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .unwrap_or_else(|e| e.into_inner()) = b;
     build_tray(app)?;
     apply_tray(app, &b);
+    crate::shortcuts::init(app, b.focus_shortcut);
     let started_by_system = std::env::args().any(|a| a == AUTOSTART_ARG);
     if started_by_system && b.launch_at_startup && b.start_minimized {
         if let Some(w) = app.get_webview_window("main") {
@@ -131,6 +156,9 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 
 /// Window events: close and minimize go to the tray when asked to.
 pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
+    if matches!(event, WindowEvent::Focused(false) | WindowEvent::Destroyed) {
+        let _ = crate::shortcuts::recording(window.app_handle(), window.label(), false);
+    }
     if window.label() != "main" {
         return;
     }
@@ -168,6 +196,7 @@ pub fn shell_set_behavior(app: AppHandle, behavior: Behavior) -> AppResult<Behav
             ))
         })?;
     }
+    apply_focus_shortcut(&app, behavior.focus_shortcut)?;
     *app.state::<ShellState>()
         .0
         .lock()
@@ -182,5 +211,24 @@ pub fn shell_set_behavior(app: AppHandle, behavior: Behavior) -> AppResult<Behav
 pub fn shell_get_behavior(app: AppHandle) -> Behavior {
     let mut b = app.state::<ShellState>().get();
     b.launch_at_startup = app.autolaunch().is_enabled().unwrap_or(b.launch_at_startup);
+    b.focus_shortcut = crate::shortcuts::enabled(&app, "focus");
     b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn focus_key_is_distinct_and_old_settings_enable_it_by_default() {
+        assert_ne!(
+            focus_shortcut(),
+            crate::commands::content::capture_shortcut()
+        );
+        let old: Behavior = serde_json::from_str(r#"{"closeToTray":true}"#).unwrap();
+        assert!(old.focus_shortcut);
+        assert!(old.close_to_tray);
+        let disabled: Behavior = serde_json::from_str(r#"{"focusShortcut":false}"#).unwrap();
+        assert!(!disabled.focus_shortcut);
+        assert!(Behavior::default().focus_shortcut);
+    }
 }

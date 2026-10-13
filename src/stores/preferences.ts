@@ -135,8 +135,9 @@ export interface ShellChoices {
   showTray: boolean;
   closeToTray: boolean;
   minimizeToTray: boolean;
+  focusShortcut: boolean;
 }
-export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false };
+export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false, focusShortcut: true };
 
 interface Saved extends Choices {
   /** Null until the current workspace's legacy mode has been adopted once. */
@@ -199,7 +200,7 @@ function read(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Record<string, unknown>>;
     const sh = (v.shell ?? {}) as Partial<Record<keyof ShellChoices, unknown>>;
-    const shell = Object.fromEntries(Object.keys(SHELL_DEFAULTS).map((k) => [k, sh[k as keyof ShellChoices] === true])) as unknown as ShellChoices;
+    const shell = Object.fromEntries(Object.entries(SHELL_DEFAULTS).map(([k, fallback]) => [k, typeof sh[k as keyof ShellChoices] === "boolean" ? sh[k as keyof ShellChoices] : fallback])) as unknown as ShellChoices;
     const theme = v.theme === "system" || v.theme === "light" || v.theme === "dark" ? v.theme : null;
     return { ...sanitize(v), theme, globalCapture: v.globalCapture === true, windowCorners: v.windowCorners === true, shell };
   } catch {

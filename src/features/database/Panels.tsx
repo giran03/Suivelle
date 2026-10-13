@@ -195,7 +195,7 @@ export function SortPanel({ anchor, onClose, props, sorts, onChange }: { anchor:
     <Popover anchor={anchor} onClose={onClose} label="Sort" className="picker">
       {sorts.length === 0 && <p className="picker-muted">No sorting. Records appear in the order they were created.</p>}
       {sorts.map((s, i) => (
-        <div className="cond" key={s.propertyId}>
+        <div className="cond sort-row" key={s.propertyId}>
           <select
             aria-label="Sort property"
             value={s.propertyId}

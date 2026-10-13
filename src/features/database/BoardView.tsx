@@ -313,8 +313,8 @@ export function BoardView({ db, view, queryVersion }: { db: Db; view: DbView; qu
 
   const menuItems = (row: RecordRow, at: [string, string | null]): MenuItem[] => [
     { label: "Open", onSelect: () => void useWorkspace.getState().openPage(row.pageId) },
-    { label: "Copy link", onSelect: () => void copyPageLink(row.pageId) },
-    { label: "Duplicate", onSelect: async () => { try { await ipc.recordDuplicate(row.id); board.reload(); } catch (error) { setError(toAppError(error).message); } } },
+    { label: "Copy link", shortcut: "copy-link", onSelect: () => void copyPageLink(row.pageId) },
+    { label: "Duplicate", shortcut: "duplicate", onSelect: async () => { try { await ipc.recordDuplicate(row.id); board.reload(); } catch (error) { setError(toAppError(error).message); } } },
     ...(canDrag
       ? groups.map((g, i) => ({
           label: `Move to ${groupLabel(groupProp, g.key, cfg.group?.bucket)}`,

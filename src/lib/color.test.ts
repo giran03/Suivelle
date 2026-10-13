@@ -23,3 +23,17 @@ it("keeps twelve distinct committed colors and tolerates corrupt local history",
   rememberColor("#00000C"); expect(recentColors()[0]).toBe("#00000C"); expect(recentColors()).toHaveLength(12);
   rememberColor("garbage"); expect(recentColors()).toHaveLength(12);
 });
+
+it("normalizes alpha hex, preserves opacity endpoints and composites against the underlying surface", async () => {
+  const { normalizeHexAlpha, withOpacity, hexOpacity, compositeColor } = await import("./color");
+  expect(normalizeHexAlpha("#abc8")).toBe("#AABBCC88");
+  expect(normalizeHexAlpha("#12345680")).toBe("#12345680");
+  expect(normalizeHexAlpha("rgba(0,0,0,0.5)")).toBeNull();
+  expect(withOpacity("#123456", 0)).toBe("#12345600");
+  expect(withOpacity("#123456", 1)).toBe("#123456");
+  expect(withOpacity("#123456", 0.5)).toBe("#12345680");
+  expect(hexOpacity("#12345600")).toBe(0);
+  expect(compositeColor("#00000000", "#FFFFFF")).toBe("#FFFFFF");
+  expect(compositeColor("#00000080", "#FFFFFF")).toBe("#7F7F7F");
+  rememberColor("#12345680"); expect(recentColors()[0]).toBe("#12345680");
+});

@@ -92,3 +92,15 @@ describe("theme persistence and closing", () => {
     useSettingsDialog.getState().finishClose(next); expect(next).toHaveBeenCalledOnce(); expect(useSettingsDialog.getState().open).toBe(false);
   });
 });
+
+it("retains theme background opacity through sanitizing, saved profiles and exported files", () => {
+  const config = emptyTheme();
+  config.palettes.dark = { background: "#12345680", sidebar: "#abc4", "text-primary": "#FFFFFF80" };
+  const clean = sanitizeTheme(config);
+  expect(clean.palettes.dark).toEqual({ background: "#12345680", sidebar: "#AABBCC44" });
+  expect(themeVariables(clean, choices)["--background"]).toBe("light-dark(#F7F6F2, #12345680)");
+  useThemes.getState().saveProfile("Translucent", clean);
+  expect(useThemes.getState().profiles[0].config.palettes.dark.background).toBe("#12345680");
+  expect(parseThemeFile(JSON.stringify({format: "suivelle-theme", version: 1, config: clean})).config).toEqual(clean);
+  expect(contrastWarnings(resolvePalette(clean, "dark", choices)).every(w => Number.isFinite(w.ratio))).toBe(true);
+});

@@ -5,14 +5,18 @@
 .ws-switcher .ws-name { flex: 1; min-width: 0; padding: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-md); color: var(--workspace-color, var(--accent-ui)); background: color-mix(in srgb, var(--workspace-color, var(--accent-ui)) 10%, transparent); overflow: hidden; }
 .ws-custom-icon { font-size: 1rem; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
-.popover.ws-switch-popover { min-width: min(300px, calc(100vw - 16px)); padding: calc(8px * var(--density)); }
+.popover.ws-switch-popover { width: min(300px, calc(100vw - 16px)); min-width: 0; max-width: calc(100vw - 16px); padding: calc(8px * var(--density)); }
 .ws-switch-heading { font-size: 0.75rem; color: var(--text-muted); padding: calc(4px * var(--density)) calc(8px * var(--density)) calc(8px * var(--density)); }
-.ws-switch-list, .ws-directory ul { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; }
-.ws-directory-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: calc(var(--row-pad) + 2px) 8px; border-radius: var(--r-md); text-align: left; }
+.ws-switch-list, .ws-directory ul { list-style: none; padding: 0; margin: 0; max-height: 240px; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.ws-switch-list > li, .ws-directory ul > li { min-width: 0; }
+.ws-directory-row { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 100%; min-width: 0; padding: calc(var(--row-pad) + 2px) 8px; border-radius: var(--r-md); text-align: left; }
 .ws-directory-row:hover:not(:disabled) { background: var(--surface-hover); }
 .ws-directory-row[aria-current="true"] { background: var(--accent-soft); }
-.ws-directory-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.875rem; }
+.ws-directory-row:focus-visible { outline-offset: -2px; }
+.ws-directory-row > svg { flex: none; }
+.ws-directory-name { flex: 1 1 0%; min-width: 0; overflow-wrap: anywhere; white-space: normal; font-size: 0.875rem; line-height: 1.4; }
 .ws-directory-name small { display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.ws-switch-actions > .btn { min-width: 0; max-width: 100%; height: auto; min-height: var(--ctl-h); white-space: normal; overflow-wrap: anywhere; }
 .ws-switch-actions { display: flex; flex-wrap: wrap; gap: calc(8px * var(--density)); padding: 8px 4px 0; border-top: 1px solid var(--border-subtle); margin-top: 8px; }
 .palette.ws-dialog { width: min(780px, calc(100vw - 32px)); margin: auto; max-height: calc(100dvh - 32px); }
 .palette.ws-create-dialog { width: min(540px, calc(100vw - 32px)); }
@@ -25,10 +29,11 @@
 .ws-new { margin-top: 12px; width: 100%; justify-content: center; }
 .ws-directory > .picker-muted { margin-top: 10px; font-size: 0.75rem; }
 .ws-profile { padding: calc(20px * var(--density)) calc(24px * var(--density)) calc(24px * var(--density)); min-width: 0; }
-.ws-profile fieldset { border: 0; padding: 0; min-width: 0; }
-.ws-profile-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-.ws-profile-heading h3 { font-size: 1rem; font-weight: 600; }
-.ws-profile-heading p { font-size: 0.875rem; margin-top: 2px; }
+.ws-profile fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ws-profile-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.ws-profile-heading > div { display: grid; gap: 4px; min-width: 0; }
+.ws-profile-heading h3 { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.5; text-box: trim-both cap alphabetic; }
+.ws-profile-heading p { margin: 0; padding: 0; font-size: 0.875rem; line-height: 1.5; }
 .ws-profile .field { margin-bottom: 16px; }
 .ws-profile .field > span, .ws-delete .field > span { font-size: 0.875rem; font-weight: 500; }
 .ws-profile input, .ws-profile textarea, .ws-profile select, .ws-delete input, .ws-search, .ws-switch-popover input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); color: var(--fg); font: inherit; font-size: 0.875rem; }

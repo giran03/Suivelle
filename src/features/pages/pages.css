@@ -9,6 +9,59 @@
 body.resizing { cursor: col-resize; user-select: none; }
 .shell[data-collapsed] { grid-template-columns: minmax(0, 1fr); }
 .shell[data-collapsed] .sidebar { display: none; }
+.sidebar { min-inline-size: 0; }
+.sidebar .pages-tree-tools { flex-wrap: wrap; }
+.sidebar > .ws-row { flex: none; gap: calc(4px * var(--density)); }
+.sidebar .ws-switcher { flex: 1; inline-size: auto; }
+.sidebar-collapse { flex: none; color: var(--text-muted); }
+.sidebar-collapse:hover { color: var(--text-primary); }
+.sidebar > .side-search, .sidebar > footer { flex-shrink: 0; }
+
+/* The desktop rail shares the same controls and saved expanded width. */
+.shell[data-rail] { --rail-w: clamp(56px, calc(64px * var(--density)), 76px); grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+.shell[data-rail] .sidebar { overflow-y: auto; overflow-x: hidden; }
+.shell[data-rail] .ws-row { flex-direction: column; margin: 8px 6px 4px; padding: 0; gap: 4px; border: 0; background: none; }
+.shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse { flex: none; justify-content: center; inline-size: 40px; block-size: 40px; padding: 0; border-radius: var(--r-md); }
+.shell[data-rail] .side-search { justify-content: center; align-self: center; inline-size: 40px; min-block-size: 40px; margin: 0 0 8px; padding: 0; }
+.shell[data-rail] .side-search > span, .shell[data-rail] .side-search > kbd, .shell[data-rail] .foot-btn > span, .shell[data-rail] .foot-btn > svg:last-child { display: none; }
+.shell[data-rail] .sidebar .rail-pages { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border-subtle); scrollbar-width: thin; }
+.rail-page { display: flex; flex: none; align-items: center; justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; border-radius: var(--r-md); color: var(--text-secondary); }
+.rail-page:hover { background: var(--surface-hover); color: var(--fg); }
+.rail-page[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ui); }
+.shell[data-rail] .sidebar footer { align-items: center; gap: 4px; padding: 8px 0; }
+.shell[data-rail] .foot-btn { justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; }
+@media (pointer: coarse) {
+  .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse, .shell[data-rail] .side-search, .shell[data-rail] .foot-btn, .rail-page { inline-size: 44px; min-block-size: 44px; }
+}
+
+.shell > main { container: workspace-main / inline-size; }
+.topbar { flex-shrink: 0; }
+.nav-buttons, .topbar-actions { flex-shrink: 0; }
+.crumbs li:last-child { flex: 1; }
+.crumbs li:not(:last-child) { max-inline-size: 35%; }
+.crumbs .crumb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Navigation and content take turns in narrow windows, without an overlay. */
+.shell[data-compact] { grid-template-columns: minmax(0, 1fr); }
+.shell[data-compact]:not([data-collapsed]) > main { display: none; }
+.shell[data-compact] .sidebar { border-inline-end: 0; }
+.shell[data-compact] .sidebar-resizer { display: none; }
+.shell[data-compact] .sidebar-collapse { inline-size: 44px; block-size: 44px; }
+.shell[data-compact] .sidebar .side-search, .shell[data-compact] .sidebar .foot-btn { min-block-size: 44px; }
+.shell[data-compact] .sidebar .node { min-block-size: 44px; }
+.shell[data-compact] .main-scroll { --page-pad: clamp(16px, 5vw, 32px); }
+
+/* Respond to the content width, including a resized desktop sidebar. */
+@container workspace-main (max-width: 640px) {
+  .shell .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; min-block-size: var(--topbar-h); gap: 4px 8px; padding: 6px 8px; }
+  .nav-buttons { grid-area: 1 / 1; }
+  .topbar .topbar-search { grid-area: 1 / 2; justify-self: end; inline-size: 44px; block-size: 44px; padding: 0; margin: 0; justify-content: center; }
+  .topbar-search span, .topbar-search .kbd, .topbar .showcase-access { display: none; }
+  .topbar .icon-btn { inline-size: 44px; block-size: 44px; }
+  .topbar .crumbs { grid-area: 2 / 1; min-inline-size: 0; }
+  .topbar-actions { grid-area: 2 / 2; align-items: center; }
+  .save-state { font-size: 0; gap: 0; padding-inline: 4px; margin: 0; }
+}
 /* Focus mode: the toolbar fades out until the pointer or keyboard goes to it. */
 .shell[data-focus] .topbar { opacity: 0; transition: opacity var(--t-menu) var(--ease-out); }
 .shell[data-focus] .topbar:hover, .shell[data-focus] .topbar:focus-within { opacity: 1; }

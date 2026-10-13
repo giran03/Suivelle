@@ -1,6 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { trashPages } from "./pageBatch";
-import { clearSelection, pickedRoots, usePageSelection } from "./pageSelection";
+import { clearSelection } from "./pageSelection";
 
 /** The row to move to for Up, Down, Home and End among `count` rows; null for any other key. */
 export function nextRow(key: string, at: number, count: number): number | null {
@@ -85,28 +84,6 @@ export function handleTreeKeys(e: KeyboardEvent<HTMLElement>): void {
   if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
     e.preventDefault();
     pointer("contextmenu", e, row);
-    return;
-  }
-
-  // Ctrl/Cmd+A picks every row of this list; Delete trashes the picked pages (Undo is in the toast).
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
-    e.preventDefault();
-    const keys = rows.map((r) => r.dataset.key ?? "").filter(Boolean);
-    usePageSelection.setState({ ids: keys, anchor: keys[0] ?? null });
-    return;
-  }
-  if (e.key === "Delete" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    const picked = pickedRoots();
-    if (!picked.length) return;
-    e.preventDefault();
-    const tree = e.currentTarget;
-    void trashPages(picked).then(() =>
-      // The rows are gone: keep keyboard focus in the list, on the row that took the place of the first one.
-      requestAnimationFrame(() => {
-        const left = [...tree.querySelectorAll<HTMLElement>('[role="treeitem"]')];
-        left[Math.min(at, left.length - 1)]?.focus();
-      }),
-    );
     return;
   }
 

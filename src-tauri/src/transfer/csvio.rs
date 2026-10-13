@@ -63,6 +63,11 @@ fn clean_header(h: &str, n: usize, seen: &mut Vec<String>) -> String {
 }
 
 pub fn read(bytes: &[u8]) -> AppResult<Csv> {
+    read_with(bytes, MAX_CELL)
+}
+
+/// [`read`] with a different limit on each cell's length (Notion relation cells hold long paths).
+pub fn read_with(bytes: &[u8], max_cell: usize) -> AppResult<Csv> {
     let text = decode_text(bytes);
     if text.trim().is_empty() {
         return Err(AppError::Validation("the file is empty".into()));
@@ -102,7 +107,7 @@ pub fn read(bytes: &[u8]) -> AppResult<Csv> {
         }
         rows.push(
             (0..width)
-                .map(|i| rec.get(i).unwrap_or("").chars().take(MAX_CELL).collect())
+                .map(|i| rec.get(i).unwrap_or("").chars().take(max_cell).collect())
                 .collect(),
         );
     }
@@ -224,6 +229,10 @@ pub struct ColumnPlan {
     pub kind: String,
     pub samples: Vec<String>,
     pub distinct: usize,
+    /// What the column was in the source, when the import keeps or loses something special
+    /// ("Relation to Tasks", "Formula results"); shown next to the type in the preview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 pub fn plan(csv: &Csv) -> Vec<ColumnPlan> {
@@ -252,6 +261,7 @@ pub fn plan(csv: &Csv) -> Vec<ColumnPlan> {
                     .map(|s| s.chars().take(60).collect())
                     .collect(),
                 distinct: distinct.len(),
+                note: None,
             }
         })
         .collect()

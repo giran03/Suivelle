@@ -9,7 +9,7 @@ use super::markdown::Ctx;
 const MAX_DEPTH: usize = 120;
 
 #[derive(Debug, Clone)]
-enum Node {
+pub(crate) enum Node {
     Text(String),
     El {
         tag: String,
@@ -157,7 +157,7 @@ fn parse_attrs(s: &str) -> Vec<(String, String)> {
     out
 }
 
-fn parse_dom(src: &str) -> Vec<Node> {
+pub(crate) fn parse_dom(src: &str) -> Vec<Node> {
     let mut stack: Vec<Open> = vec![("#root".into(), vec![], vec![])];
     let bytes = src;
     let mut i = 0;
@@ -275,14 +275,14 @@ fn parse_dom(src: &str) -> Vec<Node> {
     stack.pop().map(|(_, _, k)| k).unwrap_or_default()
 }
 
-fn attr<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
+pub(crate) fn attr<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
     attrs
         .iter()
         .find(|(k, _)| k == name)
         .map(|(_, v)| v.as_str())
 }
 
-fn text_content(nodes: &[Node], out: &mut String) {
+pub(crate) fn text_content(nodes: &[Node], out: &mut String) {
     for n in nodes {
         match n {
             Node::Text(t) => out.push_str(t),
@@ -322,7 +322,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str, marks: &[Mark]) {
     });
 }
 
-fn collapse(s: &str) -> String {
+pub(crate) fn collapse(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut space = false;
     for c in s.chars() {
@@ -342,7 +342,7 @@ fn collapse(s: &str) -> String {
     out
 }
 
-fn inline_of(nodes: &[Node], marks: &[Mark], out: &mut Vec<Inline>, depth: usize) {
+pub(crate) fn inline_of(nodes: &[Node], marks: &[Mark], out: &mut Vec<Inline>, depth: usize) {
     if depth > MAX_DEPTH {
         return;
     }
@@ -409,7 +409,7 @@ fn inline_of(nodes: &[Node], marks: &[Mark], out: &mut Vec<Inline>, depth: usize
     }
 }
 
-fn trim_inline(mut v: Vec<Inline>) -> Vec<Inline> {
+pub(crate) fn trim_inline(mut v: Vec<Inline>) -> Vec<Inline> {
     while matches!(v.last(), Some(Inline::Break)) {
         v.pop();
     }
@@ -423,13 +423,13 @@ fn trim_inline(mut v: Vec<Inline>) -> Vec<Inline> {
     v
 }
 
-fn inline_blk(kind: &str, kids: &[Node]) -> Blk {
+pub(crate) fn inline_blk(kind: &str, kids: &[Node]) -> Blk {
     let mut v = Vec::new();
     inline_of(kids, &[], &mut v, 0);
     Blk::with_inline(kind, trim_inline(v))
 }
 
-fn image_meta(nodes: &[Node], outer: &[(String, String)]) -> Option<Media> {
+pub(crate) fn image_meta(nodes: &[Node], outer: &[(String, String)]) -> Option<Media> {
     fn find(nodes: &[Node], p: &mut serde_json::Value) -> Option<(String, String)> {
         for node in nodes {
             if let Node::El { tag, attrs, kids } = node {
@@ -521,7 +521,7 @@ fn is_block_tag(tag: &str) -> bool {
     )
 }
 
-fn list_blocks(tag: &str, kids: &[Node], depth: usize) -> Vec<Blk> {
+fn list_blocks(tag: &str, kids: &[Node], depth: usize, hook: Option<Hook>) -> Vec<Blk> {
     let kind = if tag == "ol" {
         "numbered_list"
     } else {
@@ -529,13 +529,13 @@ fn list_blocks(tag: &str, kids: &[Node], depth: usize) -> Vec<Blk> {
     };
     kids.iter()
         .filter_map(|k| match k {
-            Node::El { tag: t, kids, .. } if t == "li" => Some(list_item(kind, kids, depth)),
+            Node::El { tag: t, kids, .. } if t == "li" => Some(list_item(kind, kids, depth, hook)),
             _ => None,
         })
         .collect()
 }
 
-fn list_item(kind: &str, kids: &[Node], depth: usize) -> Blk {
+fn list_item(kind: &str, kids: &[Node], depth: usize, hook: Option<Hook>) -> Blk {
     // The item's own text runs up to its first block child.
     let split = kids
         .iter()
@@ -556,7 +556,7 @@ fn list_item(kind: &str, kids: &[Node], depth: usize) -> Blk {
     }
     let mut b = inline_blk(if checked.is_some() { "todo" } else { kind }, &head_nodes);
     b.checked = checked.unwrap_or(false);
-    b.children = blocks_of(rest, depth + 1);
+    b.children = blocks_of(rest, depth + 1, hook);
     b
 }
 
@@ -573,7 +573,11 @@ fn flatten_quote(blocks: &[Blk], out: &mut Vec<Inline>) {
     }
 }
 
-fn blocks_of(nodes: &[Node], depth: usize) -> Vec<Blk> {
+/// Lets a dialect (Notion's export) claim elements before the generic mapping sees them. It is
+/// called for every element, at any depth; `None` leaves the element to the generic rules.
+pub(crate) type Hook = fn(&str, &[(String, String)], &[Node], usize) -> Option<Vec<Blk>>;
+
+pub(crate) fn blocks_of(nodes: &[Node], depth: usize, hook: Option<Hook>) -> Vec<Blk> {
     let mut out: Vec<Blk> = Vec::new();
     if depth > MAX_DEPTH {
         return out;
@@ -598,6 +602,11 @@ fn blocks_of(nodes: &[Node], depth: usize) -> Vec<Blk> {
             continue;
         };
         if SKIP.contains(&tag.as_str()) {
+            continue;
+        }
+        if let Some(claimed) = hook.and_then(|h| h(tag, attrs, kids, depth)) {
+            flush(&mut run, &mut out);
+            out.extend(claimed);
             continue;
         }
         if !is_block_tag(tag) {
@@ -640,13 +649,13 @@ fn blocks_of(nodes: &[Node], depth: usize) -> Vec<Blk> {
                     b.media = Some(media);
                     out.push(b);
                 } else {
-                    out.extend(blocks_of(kids, depth + 1));
+                    out.extend(blocks_of(kids, depth + 1, hook));
                 }
             }
-            "ul" | "ol" => out.extend(list_blocks(tag, kids, depth)),
-            "li" => out.push(list_item("bullet_list", kids, depth)),
+            "ul" | "ol" => out.extend(list_blocks(tag, kids, depth, hook)),
+            "li" => out.push(list_item("bullet_list", kids, depth, hook)),
             "blockquote" => {
-                let inner = blocks_of(kids, depth + 1);
+                let inner = blocks_of(kids, depth + 1, hook);
                 let mut inline = Vec::new();
                 flatten_quote(&inner, &mut inline);
                 if !inline.is_empty() {
@@ -744,11 +753,11 @@ fn blocks_of(nodes: &[Node], depth: usize) -> Vec<Blk> {
                     _ => Blk::with_inline("toggle", vec![plain("Details")]),
                 };
                 b.open = attrs.iter().any(|(k, _)| k == "open");
-                b.children = blocks_of(&body, depth + 1);
+                b.children = blocks_of(&body, depth + 1, hook);
                 out.push(b);
             }
             "div" => {
-                let mut inner = blocks_of(kids, depth + 1);
+                let mut inner = blocks_of(kids, depth + 1, hook);
                 if let Some(align) =
                     attr(attrs, "align").filter(|v| matches!(*v, "left" | "center" | "right"))
                 {
@@ -762,15 +771,15 @@ fn blocks_of(nodes: &[Node], depth: usize) -> Vec<Blk> {
                 }
                 out.extend(inner);
             }
-            "dl" => out.extend(blocks_of(kids, depth + 1)),
-            _ => out.extend(blocks_of(kids, depth + 1)),
+            "dl" => out.extend(blocks_of(kids, depth + 1, hook)),
+            _ => out.extend(blocks_of(kids, depth + 1, hook)),
         }
     }
     flush(&mut run, &mut out);
     out
 }
 
-fn find_tag<'a>(nodes: &'a [Node], name: &str) -> Option<&'a [Node]> {
+pub(crate) fn find_tag<'a>(nodes: &'a [Node], name: &str) -> Option<&'a [Node]> {
     for n in nodes {
         if let Node::El { tag, kids, .. } = n {
             if tag == name {
@@ -872,7 +881,10 @@ pub fn parse(src: &str) -> Parsed {
         collapse(&s).trim().to_string()
     });
     let body = find_tag(&dom, "body").unwrap_or(&dom);
-    let mut blocks = blocks_of(body, 0);
+    // Notion's export (and Suivelle's, which follows it) marks blocks with class names.
+    let hook: Option<Hook> =
+        super::notion::html::is_notion(src).then_some(super::notion::html::hook as Hook);
+    let mut blocks = blocks_of(body, 0, hook);
     let mut h1s = 0;
     visit(&blocks, &mut |b| h1s += (b.kind == "heading_1") as usize);
     let mut shift = 0;
@@ -973,13 +985,18 @@ fn safe_href(h: &str) -> bool {
     !(l.starts_with("javascript:") || l.starts_with("data:") || l.starts_with("vbscript:"))
 }
 
+fn href(h: &str) -> String {
+    esc(&h.replace(' ', "%20"))
+}
+
 fn inline_html(items: &[Inline], ctx: &Ctx) -> String {
     let mut out = String::new();
     for it in items {
         match it {
             Inline::Text { text, marks } => {
+                let marks = super::markdown::page_links(marks, ctx);
                 let mut s = esc(text);
-                for m in marks {
+                for m in &marks {
                     s = match m {
                         Mark::Bold => format!("<strong>{s}</strong>"),
                         Mark::Italic => format!("<em>{s}</em>"),
@@ -989,7 +1006,7 @@ fn inline_html(items: &[Inline], ctx: &Ctx) -> String {
                         Mark::Link(h)
                             if safe_href(h) && crate::legacy::page_target(h).is_none() =>
                         {
-                            format!("<a href=\"{}\">{s}</a>", esc(h))
+                            format!("<a href=\"{}\">{s}</a>", href(h))
                         }
                         Mark::Link(_) => s,
                     };
@@ -997,10 +1014,16 @@ fn inline_html(items: &[Inline], ctx: &Ctx) -> String {
                 out.push_str(&s);
             }
             Inline::Break => out.push_str("<br>"),
-            Inline::Mention(id) => out.push_str(&format!(
-                "<span class=\"mention\">{}</span>",
-                esc(&(ctx.title)(id).unwrap_or_else(|| "page".into()))
-            )),
+            Inline::Mention(id) => {
+                let title = esc(&(ctx.title)(id).unwrap_or_else(|| "page".into()));
+                match (ctx.link)(id) {
+                    Some(p) => out.push_str(&format!(
+                        "<a class=\"mention\" href=\"{}\">{title}</a>",
+                        href(&p)
+                    )),
+                    None => out.push_str(&format!("<span class=\"mention\">{title}</span>")),
+                }
+            }
             Inline::Image { src, alt } => {
                 out.push_str(&format!("<img src=\"{}\" alt=\"{}\">", esc(src), esc(alt)))
             }
@@ -1009,33 +1032,44 @@ fn inline_html(items: &[Inline], ctx: &Ctx) -> String {
     out
 }
 
+/// Blocks as Notion's HTML export writes them (its class names), so Notion and Suivelle read
+/// them back as the same blocks.
 fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
     let mut i = 0;
     while i < blocks.len() {
         let b = &blocks[i];
         let list = |k: &str| matches!(k, "bullet_list" | "numbered_list" | "todo");
         if list(&b.kind) {
-            // One <ul>/<ol> per run of the same kind.
+            // One list per run of the same kind.
             let ordered = b.kind == "numbered_list";
             let todo = b.kind == "todo";
             out.push_str(if ordered {
-                "<ol>"
+                "<ol class=\"numbered-list\">"
             } else if todo {
-                "<ul class=\"todo\">"
+                "<ul class=\"to-do-list\">"
             } else {
-                "<ul>"
+                "<ul class=\"bulleted-list\">"
             });
             while i < blocks.len() && blocks[i].kind == b.kind {
                 let it = &blocks[i];
                 out.push_str("<li>");
                 if todo {
+                    let state = if it.checked { "on" } else { "off" };
                     out.push_str(&format!(
-                        "<input type=\"checkbox\" disabled{}> ",
-                        if it.checked { " checked" } else { "" }
+                        "<input type=\"checkbox\" class=\"checkbox checkbox-{state}\" disabled{}> <span class=\"to-do-children-{}\">{}</span>",
+                        if it.checked { " checked" } else { "" },
+                        if it.checked { "checked" } else { "unchecked" },
+                        inline_html(&it.inline, ctx)
                     ));
+                    if !it.children.is_empty() {
+                        out.push_str("<div class=\"indented\">");
+                        blocks_html(&it.children, ctx, out);
+                        out.push_str("</div>");
+                    }
+                } else {
+                    out.push_str(&inline_html(&it.inline, ctx));
+                    blocks_html(&it.children, ctx, out);
                 }
-                out.push_str(&inline_html(&it.inline, ctx));
-                blocks_html(&it.children, ctx, out);
                 out.push_str("</li>");
                 i += 1;
             }
@@ -1043,9 +1077,9 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
             continue;
         }
         match b.kind.as_str() {
-            "heading_1" => out.push_str(&format!("<h2>{}</h2>", inline_html(&b.inline, ctx))),
-            "heading_2" => out.push_str(&format!("<h3>{}</h3>", inline_html(&b.inline, ctx))),
-            "heading_3" => out.push_str(&format!("<h4>{}</h4>", inline_html(&b.inline, ctx))),
+            "heading_1" => out.push_str(&format!("<h1>{}</h1>", inline_html(&b.inline, ctx))),
+            "heading_2" => out.push_str(&format!("<h2>{}</h2>", inline_html(&b.inline, ctx))),
+            "heading_3" => out.push_str(&format!("<h3>{}</h3>", inline_html(&b.inline, ctx))),
             "paragraph" => {
                 let t = inline_html(&b.inline, ctx);
                 if !t.is_empty() {
@@ -1058,32 +1092,40 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                 inline_html(&b.inline, ctx)
             )),
             "callout" => out.push_str(&format!(
-                "<aside class=\"callout {}\">{}</aside>",
+                "<figure class=\"callout {}\"><div class=\"callout-icon\"><span class=\"icon\">{}</span></div><div class=\"callout-body\">{}</div></figure>",
                 esc(&b.tone),
+                super::notion::names::callout_icon(&b.tone),
                 inline_html(&b.inline, ctx)
             )),
             "divider" => out.push_str("<hr>"),
             "code" => out.push_str(&format!(
-                "<pre><code{}>{}</code></pre>",
+                "<pre class=\"code\"><code{}>{}</code></pre>",
                 b.language
                     .as_ref()
                     .map(|l| format!(" class=\"language-{}\"", esc(l)))
                     .unwrap_or_default(),
                 esc(&b.text)
             )),
-            "equation" => out.push_str(&format!("<pre class=\"equation\">{}</pre>", esc(&b.latex))),
+            "equation" => out.push_str(&format!(
+                "<figure class=\"equation\"><pre class=\"equation\">{}</pre></figure>",
+                esc(&b.latex)
+            )),
             "toggle" => {
+                let summary = inline_html(&b.inline, ctx);
+                let summary = match b.level {
+                    1..=3 => format!("<h{l}>{summary}</h{l}>", l = b.level),
+                    _ => summary,
+                };
                 out.push_str(&format!(
-                    "<details{}><summary>{}</summary>",
+                    "<ul class=\"toggle\"><li><details{}><summary>{summary}</summary>",
                     if b.open { " open" } else { "" },
-                    inline_html(&b.inline, ctx)
                 ));
                 blocks_html(&b.children, ctx, out);
-                out.push_str("</details>");
+                out.push_str("</details></li></ul>");
             }
             "simple_table" => {
                 if let Some(rows) = &b.table {
-                    out.push_str("<table>");
+                    out.push_str("<table class=\"simple-table\"><tbody>");
                     for (n, r) in rows.iter().enumerate() {
                         out.push_str("<tr>");
                         for c in r {
@@ -1092,13 +1134,13 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                         }
                         out.push_str("</tr>");
                     }
-                    out.push_str("</table>");
+                    out.push_str("</tbody></table>");
                 }
             }
             k if is_media(k) => {
                 if let Some(m) = &b.media {
                     if let Some(path) = (ctx.asset)(m) {
-                        let p = esc(&path.replace(' ', "%20"));
+                        let p = href(&path);
                         let name = esc(&m.name);
                         out.push_str(&match k {
                             "image" => image_html(m, &path, true),
@@ -1118,7 +1160,7 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                 out.push_str("</section>");
             }
             "columns" => {
-                out.push_str("<div class=\"columns\">");
+                out.push_str("<div class=\"column-list\">");
                 blocks_html(&b.children, ctx, out);
                 out.push_str("</div>");
             }
@@ -1127,20 +1169,112 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                 blocks_html(&b.children, ctx, out);
                 out.push_str("</div>");
             }
+            "table_of_contents" => out.push_str("<nav class=\"table_of_contents\"></nav>"),
             _ => {}
         }
         i += 1;
     }
 }
 
-const STYLE: &str = "body{font:16px/1.6 system-ui,Segoe UI,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#1f1f1f}h1{font-size:2rem}pre{background:#f6f5f4;padding:12px;overflow:auto;border-radius:4px}code{font-family:ui-monospace,Consolas,monospace}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px;text-align:left}blockquote{margin:0;padding-left:12px;border-left:3px solid #ccc;color:#555}.callout{padding:10px 14px;border-radius:6px;background:#f6f5f4}ul.todo{list-style:none;padding-left:4px}img{max-width:100%}.mention{background:#e0def7;border-radius:3px;padding:0 4px}.columns{display:flex;gap:24px;flex-wrap:wrap}.column{flex:1 1 200px;min-width:0}";
+const STYLE: &str = "body{font:16px/1.6 system-ui,Segoe UI,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#1f1f1f}.page-title{font-size:2.25rem;margin:0 0 12px}.page-header-icon{font-size:2.5rem;line-height:1}h1{font-size:1.75rem}h2{font-size:1.4rem}h3{font-size:1.15rem}pre{background:#f6f5f4;padding:12px;overflow:auto;border-radius:4px;white-space:pre-wrap}code{font-family:ui-monospace,Consolas,monospace}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px;text-align:left;vertical-align:top}blockquote{margin:0;padding-left:12px;border-left:3px solid #ccc;color:#555}.callout{display:flex;gap:10px;margin:8px 0;padding:12px 14px;border-radius:6px;background:#f6f5f4}.callout-icon{font-size:1.25em;line-height:1.3}.to-do-list{list-style:none;padding-left:4px}.to-do-children-checked{text-decoration:line-through;color:#888}.indented{padding-left:24px}.toggle{list-style:none;padding-left:0}img{max-width:100%}.mention{background:#e0def7;border-radius:3px;padding:0 4px;color:inherit;text-decoration:none}.column-list{display:flex;gap:24px;flex-wrap:wrap}.column{flex:1 1 200px;min-width:0}.properties{margin:8px 0 16px}.properties th{color:#666;font-weight:500;border:0;padding:2px 16px 2px 0}.properties td{border:0;padding:2px 0}.collection-content{width:100%}.collection-content th{background:#f6f5f4}.selected-value{display:inline-block;padding:0 6px;margin:0 4px 2px 0;border-radius:3px;background:#ebeaea}.checkbox{display:inline-block}@media print{body{margin:0 auto;max-width:none}pre,figure,table,img{break-inside:avoid}}";
+
+fn document(title: &str, header: &str, body: &str) -> String {
+    format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{t}</title>\n<style>{STYLE}</style>\n</head>\n<body>\n<article class=\"page sans\">\n<header>{header}<h1 class=\"page-title\">{t}</h1></header>\n<div class=\"page-body\">\n{body}\n</div>\n</article>\n</body>\n</html>\n",
+        t = esc(title)
+    )
+}
 
 /// A complete, self-contained HTML document for one page.
 pub fn render_document(title: &str, blocks: &[Blk], ctx: &Ctx) -> String {
+    render_page(title, None, &[], blocks, ctx)
+}
+
+/// One page with its icon and, for a database record, its properties as
+/// `(name, Notion property type, value as HTML)`.
+pub fn render_page(
+    title: &str,
+    icon: Option<&str>,
+    properties: &[(String, String, String)],
+    blocks: &[Blk],
+    ctx: &Ctx,
+) -> String {
     let mut body = String::new();
     blocks_html(blocks, ctx, &mut body);
-    format!(
-        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{t}</title>\n<style>{STYLE}</style>\n</head>\n<body>\n<h1>{t}</h1>\n{body}\n</body>\n</html>\n",
-        t = esc(title)
+    let mut header = String::new();
+    if let Some(i) = icon.filter(|i| !i.is_empty() && !i.contains(':')) {
+        header.push_str(&format!(
+            "<div class=\"page-header-icon\"><span class=\"icon\">{}</span></div>",
+            esc(i)
+        ));
+    }
+    let mut doc = document(title, &header, &body);
+    if !properties.is_empty() {
+        let rows: String = properties
+            .iter()
+            .map(|(name, kind, value)| {
+                format!(
+                    "<tr class=\"property-row property-row-{}\"><th>{}</th><td>{value}</td></tr>",
+                    esc(kind),
+                    esc(name)
+                )
+            })
+            .collect();
+        let table = format!("<table class=\"properties\"><tbody>{rows}</tbody></table>");
+        doc = doc.replacen("</h1></header>", &format!("</h1>{table}</header>"), 1);
+    }
+    doc
+}
+
+/// A database as Notion's HTML export writes it: a table whose column headers carry the type
+/// icon class (`svg.typesSelect`) and whose title cells link to the rows' pages.
+/// `columns` are `(name, Notion type icon class)`; cells are HTML.
+pub fn render_collection(
+    title: &str,
+    columns: &[(String, String)],
+    rows: &[Vec<String>],
+) -> String {
+    let head: String = columns
+        .iter()
+        .map(|(name, icon)| {
+            format!(
+                "<th><span class=\"icon property-icon\"><svg class=\"{}\"></svg></span>{}</th>",
+                esc(icon),
+                esc(name)
+            )
+        })
+        .collect();
+    let body: String = rows
+        .iter()
+        .map(|cells| {
+            let tds: String = cells
+                .iter()
+                .enumerate()
+                .map(|(i, c)| {
+                    if i == 0 {
+                        format!("<td class=\"cell-title\">{c}</td>")
+                    } else {
+                        format!("<td>{c}</td>")
+                    }
+                })
+                .collect();
+            format!("<tr>{tds}</tr>")
+        })
+        .collect();
+    let table = format!(
+        "<table class=\"collection-content\"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+    );
+    // A database's own page has no page body, only its table (as in Notion's export).
+    document(title, "", "").replace(
+        "<div class=\"page-body\">\n\n</div>\n",
+        &format!("{table}\n"),
     )
+}
+
+/// A link for an HTML cell or property: to `path` when the page is exported.
+pub fn link_html(text: &str, path: Option<&str>) -> String {
+    match path {
+        Some(p) => format!("<a href=\"{}\">{}</a>", href(p), esc(text)),
+        None => esc(text),
+    }
 }

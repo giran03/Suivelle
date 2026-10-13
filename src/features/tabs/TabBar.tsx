@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useShortcutScope } from "../shortcuts/runtime";
+import { useEffect, useMemo, useRef } from "react";
 import { Icon } from "../../components/Icon";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
@@ -69,6 +70,12 @@ function useTabDrag(id: string) {
 }
 
 function Tab({ id, active, focusable }: { id: string; active: boolean; focusable: boolean }) {
+  const inputRef = useRef<HTMLDivElement>(null);
+  useShortcutScope(inputRef, "tab", {
+    "tab-close": t => { if (t.closest(".tab-close")) return false; void closeTab(id); },
+    "tab-move-left": () => { moveTab(id, useTabs.getState().ids.indexOf(id) - 1); },
+    "tab-move-right": () => { moveTab(id, useTabs.getState().ids.indexOf(id) + 1); },
+  });
   const { title, page, gone } = useTabPage(id);
   const onPointerDown = useTabDrag(id);
   // A tab whose page was deleted or trashed elsewhere quietly goes away.
@@ -77,7 +84,7 @@ function Tab({ id, active, focusable }: { id: string; active: boolean; focusable
   }, [gone, id]);
   const label = title || "Untitled";
   return (
-    <div className={`tab${active ? " on" : ""}`} role="presentation">
+    <div ref={inputRef} className={`tab${active ? " on" : ""}`} role="presentation">
       <button
         className="tab-main"
         role="tab"
@@ -85,21 +92,8 @@ function Tab({ id, active, focusable }: { id: string; active: boolean; focusable
         tabIndex={focusable ? 0 : -1}
         title={label}
         onPointerDown={onPointerDown}
-        onKeyDown={(e) => {
-          // The usual browser keys for moving the focused tab.
-          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "PageUp" || e.key === "PageDown")) {
-            e.preventDefault();
-            const at = useTabs.getState().ids.indexOf(id);
-            moveTab(id, at + (e.key === "PageUp" ? -1 : 1));
-          }
-        }}
         onClick={() => void useWorkspace.getState().selectPage(id)}
-        onAuxClick={(e) => {
-          if (e.button === 1) {
-            e.preventDefault();
-            void closeTab(id);
-          }
-        }}
+
       >
         <PageGlyph page={page} size={14} />
         <span>{label}</span>

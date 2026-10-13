@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ColorPicker } from "../../components/ColorPicker";
 import { Icon } from "../../components/Icon";
-import { normalizeHex } from "../../lib/color";
 import { ipc, toAppError } from "../../lib/ipc";
 import { CHOICES, usePreferences } from "../../stores/preferences";
-import { COLOR_ROLES, contrastWarnings, emptyTheme, parseThemeFile, readableText, resolvePalette, type ColorRole, type PaletteMode, type ThemeConfig } from "./theme";
+import { COLOR_ROLES, contrastWarnings, emptyTheme, normalizeThemeColor, supportsOpacity, parseThemeFile, readableText, resolvePalette, type ColorRole, type PaletteMode, type ThemeConfig } from "./theme";
 import { useThemes } from "./themes";
 import { radioKeys } from "./radioKeys";
 import { PALETTE_PRESETS, withAccentPreset } from "./presets";
@@ -13,16 +12,18 @@ function ColorRow({ role, label, color, custom, onChange }: { role: ColorRole; l
   const [text, setText] = useState(color);
   const [picker, setPicker] = useState(false);
   useEffect(() => setText(color), [color]);
-  const invalid = normalizeHex(text) === null;
+  const allowOpacity = supportsOpacity(role);
+  const normalize = (value: string) => normalizeThemeColor(role, value);
+  const invalid = normalize(text) === null;
   return <div className="theme-color-row">
     <div><label htmlFor={`color-${role}`}>{label}</label><span className="set-hint">{custom ? "Custom color" : "Automatic"}</span></div>
     <div className="theme-color-control">
       <button className="theme-swatch" aria-label={`Choose ${label.toLowerCase()}`} title={`Choose ${label.toLowerCase()}`} style={{ background: color }} onClick={() => setPicker(true)} />
-      <input id={`color-${role}`} aria-label={`${label} hex color`} aria-invalid={invalid} aria-describedby={invalid ? `error-${role}` : undefined} spellCheck={false} maxLength={7} value={text} onChange={(e) => { setText(e.target.value); const hex = normalizeHex(e.target.value); if (hex && e.target.value.length === 7) onChange(hex); }} onBlur={() => { const hex = normalizeHex(text); if (hex) { setText(hex); onChange(hex); } }} />
+      <input id={`color-${role}`} aria-label={`${label} hex color`} aria-invalid={invalid} aria-describedby={invalid ? `error-${role}` : undefined} spellCheck={false} maxLength={allowOpacity ? 9 : 7} value={text} onChange={(e) => { setText(e.target.value); const hex = normalize(e.target.value); if (hex && [7, 9].includes(e.target.value.length)) onChange(hex); }} onBlur={() => { const hex = normalize(text); if (hex) { setText(hex); onChange(hex); } }} />
       <button className="icon-btn" aria-label={`Reset ${label.toLowerCase()}`} title="Reset to automatic" disabled={!custom && !invalid} onClick={() => { onChange(null); setText(color); }}><Icon name="restore" /></button>
     </div>
-    {invalid && <p id={`error-${role}`} className="field-error">Enter #RGB or #RRGGBB. The last valid color stays in the preview.</p>}
-    {picker && <ColorPicker initial={color} title={label} hint="Use color adds it to your theme draft." onClose={() => setPicker(false)} onUse={(hex) => { setText(hex); onChange(hex); }} />}
+    {invalid && <p id={`error-${role}`} className="field-error">Enter {allowOpacity ? "#RGB, #RGBA, #RRGGBB or #RRGGBBAA" : "#RGB or #RRGGBB"}. The last valid color stays in the preview.</p>}
+    {picker && <ColorPicker initial={color} allowOpacity={allowOpacity} title={label} hint="Use color adds it to your theme draft." onClose={() => setPicker(false)} onUse={(hex) => { setText(hex); onChange(hex); }} />}
   </div>;
 }
 

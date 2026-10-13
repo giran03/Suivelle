@@ -1,3 +1,4 @@
+import { useShortcut } from "../shortcuts/useShortcut";
 import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
@@ -28,6 +29,11 @@ function setTone(editor: Editor, patch: { fg?: Tone | null; bg?: Tone | null }) 
 }
 
 export function SelectionToolbar({ editor }: { editor: Editor }) {
+  const boldBinding = useShortcut("bold");
+  const italicBinding = useShortcut("italic");
+  const underlineBinding = useShortcut("underline");
+  const strikeBinding = useShortcut("strike");
+  const codeBinding = useShortcut("inline-code");
   const [mode, setMode] = useState<Mode>("marks");
   const [href, setHref] = useState("");
   const s = useEditorState({
@@ -142,19 +148,19 @@ export function SelectionToolbar({ editor }: { editor: Editor }) {
         </div>
       ) : (
         <div className="bubble-row" role="toolbar" aria-label="Text formatting">
-          <button type="button" className={`bubble-btn${s.bold ? " on" : ""}`} aria-label="Bold" aria-pressed={s.bold} title="Bold (Ctrl+B)" onMouseDown={keepSelection} onClick={mark("bold")}>
+          <button type="button" className={`bubble-btn${s.bold ? " on" : ""}`} aria-label="Bold" aria-pressed={s.bold} title={`Bold${boldBinding.label ? ` (${boldBinding.label})` : ""}`} onMouseDown={keepSelection} onClick={mark("bold")}>
             <b>B</b>
           </button>
-          <button type="button" className={`bubble-btn${s.italic ? " on" : ""}`} aria-label="Italic" aria-pressed={s.italic} title="Italic (Ctrl+I)" onMouseDown={keepSelection} onClick={mark("italic")}>
+          <button type="button" className={`bubble-btn${s.italic ? " on" : ""}`} aria-label="Italic" aria-pressed={s.italic} title={`Italic${italicBinding.label ? ` (${italicBinding.label})` : ""}`} onMouseDown={keepSelection} onClick={mark("italic")}>
             <i>I</i>
           </button>
-          <button type="button" className={`bubble-btn${s.underline ? " on" : ""}`} aria-label="Underline" aria-pressed={s.underline} title="Underline (Ctrl+U)" onMouseDown={keepSelection} onClick={mark("underline")}>
+          <button type="button" className={`bubble-btn${s.underline ? " on" : ""}`} aria-label="Underline" aria-pressed={s.underline} title={`Underline${underlineBinding.label ? ` (${underlineBinding.label})` : ""}`} onMouseDown={keepSelection} onClick={mark("underline")}>
             <u>U</u>
           </button>
-          <button type="button" className={`bubble-btn${s.strike ? " on" : ""}`} aria-label="Strikethrough" aria-pressed={s.strike} title="Strikethrough (Ctrl+Shift+S)" onMouseDown={keepSelection} onClick={mark("strike")}>
+          <button type="button" className={`bubble-btn${s.strike ? " on" : ""}`} aria-label="Strikethrough" aria-pressed={s.strike} title={`Strikethrough${strikeBinding.label ? ` (${strikeBinding.label})` : ""}`} onMouseDown={keepSelection} onClick={mark("strike")}>
             <s>S</s>
           </button>
-          <button type="button" className={`bubble-btn${s.code ? " on" : ""}`} aria-label="Inline code" aria-pressed={s.code} title="Inline code (Ctrl+E)" onMouseDown={keepSelection} onClick={mark("code")}>
+          <button type="button" className={`bubble-btn${s.code ? " on" : ""}`} aria-label="Inline code" aria-pressed={s.code} title={`Inline code${codeBinding.label ? ` (${codeBinding.label})` : ""}`} onMouseDown={keepSelection} onClick={mark("code")}>
             <Icon name="code" />
           </button>
           <span className="bubble-sep" aria-hidden="true" />

@@ -113,10 +113,9 @@ export function openFromClick(e: MouseEvent, id: string): void {
 }
 
 /** Middle click opens in a new tab. */
-export function openFromAuxClick(e: MouseEvent, id: string): void {
-  if (e.button !== 1) return;
-  e.preventDefault();
-  void openInNewTab(id);
+export function openFromAuxClick(e: MouseEvent, _id: string): void {
+  // The input router owns auxiliary button actions; prevent browser autoscroll for middle clicks.
+  if (e.button === 1) e.preventDefault();
 }
 
 /** Keeps the tab list in step with navigation and restores it per workspace. Returns an uninstall function. */

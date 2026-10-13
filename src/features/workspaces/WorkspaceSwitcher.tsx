@@ -11,7 +11,7 @@ import { workspaceOptions } from "./model";
 import { SearchField } from "../../components/SearchField";
 import { useTransferDialog } from "../transfer/store";
 
-export function WorkspaceSwitcher() {
+export function WorkspaceSwitcher({ iconOnly = false }: { iconOnly?: boolean }) {
   const workspace = useWorkspace((s) => s.workspace);
   const workspaces = useWorkspace((s) => s.workspaces);
   const busy = useWorkspace((s) => s.workspaceBusy);
@@ -21,16 +21,16 @@ export function WorkspaceSwitcher() {
   const [error, setError] = useState<string | null>(null);
   const show = (mode: "manage" | "create" | "delete") => { setAnchor(null); useWorkspaceDialog.getState().show(mode); };
   const items: MenuItem[] = [
-    { label: "Workspace settings…", onSelect: () => show("manage") },
-    { label: "New workspace…", onSelect: () => show("create") },
-    { label: "Import workspace…", onSelect: () => { setAnchor(null); useTransferDialog.getState().show("import", "workspace"); } },
-    { label: "Export workspace…", onSelect: () => { setAnchor(null); useTransferDialog.getState().show("export", "workspace"); } },
+    { label: "Workspace settings…", shortcut: "workspace-settings", onSelect: () => show("manage") },
+    { label: "New workspace…", shortcut: "new-workspace", onSelect: () => show("create") },
+    { label: "Import workspace…", shortcut: "import-workspace", onSelect: () => { setAnchor(null); useTransferDialog.getState().show("import", "workspace"); } },
+    { label: "Export workspace…", shortcut: "export-workspace", onSelect: () => { setAnchor(null); useTransferDialog.getState().show("export", "workspace"); } },
     { label: "Copy workspace name", onSelect: () => void copyText(workspace?.name ?? "") },
     { label: "Delete workspace…", danger: true, separated: true, disabled: workspaces.length <= 1, onSelect: () => show("delete") },
   ];
   return <>
-    <button className="ws-switcher" type="button" disabled={busy} aria-haspopup="dialog" aria-expanded={!!anchor} aria-label={`Workspace: ${workspace?.name ?? "Workspace"}. Switch or manage workspaces`} onClick={(e) => { setSearch(""); setError(null); setAnchor(anchor ? null : anchorOf(e.currentTarget)); void useWorkspace.getState().refreshWorkspaces(); }} onContextMenu={(e) => { e.preventDefault(); if (!busy) setMenu({ x: e.clientX, y: e.clientY }); }}>
-      <WorkspaceBadge workspace={workspace} /><span className="ws-name">{workspace?.name ?? "Workspace"}</span><Icon name="chevron" size={14} />
+    <button className="ws-switcher" type="button" title={iconOnly ? `Workspace: ${workspace?.name ?? "Workspace"}` : undefined} disabled={busy} aria-haspopup="dialog" aria-expanded={!!anchor} aria-label={`Workspace: ${workspace?.name ?? "Workspace"}. Switch or manage workspaces`} onClick={(e) => { setSearch(""); setError(null); setAnchor(anchor ? null : anchorOf(e.currentTarget)); void useWorkspace.getState().refreshWorkspaces(); }} onContextMenu={(e) => { e.preventDefault(); if (!busy) setMenu({ x: e.clientX, y: e.clientY }); }}>
+      <WorkspaceBadge workspace={workspace} />{!iconOnly && <><span className="ws-name">{workspace?.name ?? "Workspace"}</span><Icon name="chevron" size={14} /></>}
     </button>
     {anchor && <Popover anchor={anchor} onClose={() => setAnchor(null)} label="Switch workspace" className="ws-switch-popover">
       <p className="ws-switch-heading">Workspaces on this computer</p>

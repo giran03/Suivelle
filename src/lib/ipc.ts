@@ -1,3 +1,4 @@
+import type { GlobalConfig, GlobalState } from "../features/shortcuts/native";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
@@ -170,10 +171,12 @@ export const ipc = {
   /** Opens the native picker, reads the choice and resolves to what importing it would create. */
   importPick: (mode: "files" | "folder" | "workspace") => call<ImportPreview | null>("import_pick", { mode }),
   workspaceImport: (sessionId: string, name: string, appearance: boolean) => call<import("../types").WorkspaceImported>("workspace_import", { input: { sessionId, name, appearance } }),
-  importApply: (workspaceId: string, sessionId: string, columns: Record<number, string[]>) =>
-    call<ImportResult>("import_apply", { input: { workspaceId, sessionId, columns } }),
+  importApply: (workspaceId: string, sessionId: string, columns: Record<number, string[]>, target: import("../types").ImportTarget = { kind: "container" }) =>
+    call<ImportResult>("import_apply", { input: { workspaceId, sessionId, columns, target } }),
   importCancel: (sessionId: string) => call<void>("import_cancel", { sessionId }),
-  exportPage: (pageId: string, format: "markdown" | "html") => call<ExportWritten | null>("export_page", { pageId, format }),
+  /** Saves through the native dialog: one file, a zip when there is more than one, or a PDF. */
+  exportPage: (pageId: string, options: import("../types").ExportOptions) => call<ExportWritten | null>("export_page", { pageId, options }),
+  exportShape: (pageId: string, options: import("../types").ExportOptions) => call<import("../types").ExportShape>("export_shape", { pageId, options }),
   exportDatabase: (pageId: string) => call<number | null>("export_database", { pageId }),
   exportTheme: (json: string) => call<boolean>("export_theme", { json }),
   exportWorkspace: (workspaceId: string) => call<import("../types").WorkspaceExported | null>("export_workspace", { workspaceId }),
@@ -233,6 +236,10 @@ export const ipc = {
     }
   },
   /** Turns the system-wide quick-capture shortcut (Ctrl+Alt+N) on or off. */
+  shortcutsMigrate: (captureEnabled: boolean) => call<GlobalState>("shortcuts_migrate", { captureEnabled }),
+  shortcutsGet: () => call<GlobalState>("shortcuts_get"),
+  shortcutsSet: (config: GlobalConfig) => call<GlobalState>("shortcuts_set", { config }),
+  shortcutsRecording: (active: boolean) => call<void>("shortcuts_recording", { active }),
   quickCaptureShortcut: (enabled: boolean) => call<boolean>("quick_capture_shortcut", { enabled }),
   /** Applies the tray, close, minimize and start-with-computer choices. Fails with a readable reason when the system refuses. */
   shellSetBehavior: (behavior: import("../stores/preferences").ShellChoices) => call<import("../stores/preferences").ShellChoices>("shell_set_behavior", { behavior }),

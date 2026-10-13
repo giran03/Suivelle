@@ -5,6 +5,7 @@ const writeAction = /^(New\b|Create\b|Add (?!condition\b|filter\b|sort\b)|Import
 const nameOf = (el: Element) => el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent?.trim() || '';
 function lockedControl(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) return null;
+  if (target.closest(".shortcut-settings")) return null;
   const control = target.closest<HTMLElement>('button, [role="button"], input[type="checkbox"], input[type="file"]');
   return control && (control.matches('input[type="file"]') || writeAction.test(nameOf(control)) || control.matches('.main-scroll input[type="checkbox"]')) ? control : null;
 }
@@ -33,6 +34,7 @@ for (const event of ['click', 'dblclick', 'change']) {
   }, true);
 }
 window.addEventListener('keydown', e => {
+  if (e.target instanceof Element && e.target.closest(".shortcut-settings")) return;
   const typing = e.target instanceof Element && e.target.matches('input, textarea, [contenteditable="true"]');
   if (((e.ctrlKey || e.metaKey) && ['n', 'h', 'd'].includes(e.key.toLowerCase())) || (!typing && ['Delete', 'Backspace'].includes(e.key))) {
     e.preventDefault();

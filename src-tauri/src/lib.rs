@@ -14,6 +14,7 @@ pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
+pub mod shortcuts;
 pub mod transfer;
 pub mod updates;
 
@@ -121,6 +122,10 @@ pub fn run() {
     let mut context = tauri::generate_context!();
     legacy::preserve_directories(context.config_mut());
     tauri::Builder::default()
+        // Claim the instance before other plugins, database access or background jobs start.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            shell::show_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -129,14 +134,13 @@ pub fn run() {
             Some(vec![shell::AUTOSTART_ARG]),
         ))
         .manage(shell::ShellState::default())
+        .manage(shortcuts::ShortcutState::default())
         .on_window_event(shell::on_window_event)
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed
-                        && shortcut == &commands::content::capture_shortcut()
-                    {
-                        commands::content::open_quick_capture(app);
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        shortcuts::dispatch(app, shortcut);
                     }
                 })
                 .build(),
@@ -184,6 +188,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            shortcuts::shortcuts_get,
+            shortcuts::shortcuts_migrate,
+            shortcuts::shortcuts_set,
+            shortcuts::shortcuts_recording,
             updates::update_status,
             updates::update_preferences,
             updates::update_check,
@@ -198,6 +206,7 @@ pub fn run() {
             commands::image::image_copy,
             commands::image::image_open_link,
             commands::export_page_preview,
+            commands::export_shape,
             commands::workspace_create,
             commands::workspace_update,
             commands::workspace_delete,

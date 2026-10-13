@@ -63,6 +63,14 @@ pub fn parse(src: &str) -> Parsed {
     Parsed { title, blocks }
 }
 
+/// The blocks of a fragment of Markdown, without looking for a title or front matter.
+pub(crate) fn fragment(src: &str) -> Vec<Blk> {
+    let text = src.replace("\r\n", "\n").replace('\r', "\n");
+    let lines: Vec<String> = text.lines().map(expand_tabs).collect();
+    let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+    parse_blocks(&refs, 0)
+}
+
 fn fence_open(line: &str) -> Option<(char, usize, String)> {
     let t = line.trim_start();
     if indent_of(line) > 3 {
@@ -187,6 +195,7 @@ fn starts_block(line: &str) -> bool {
         || list_item(line).is_some()
         || line.trim() == "$$"
         || line.trim_start().starts_with("<details")
+        || line.trim_start().starts_with("<aside")
 }
 
 fn callout_tone(tag: &str) -> Option<&'static str> {
@@ -199,7 +208,7 @@ fn callout_tone(tag: &str) -> Option<&'static str> {
 }
 
 /// Text of a block for use inside a quote, where only inline content is allowed.
-fn flatten_inline(blocks: &[Blk], out: &mut Vec<Inline>) {
+pub(crate) fn flatten_inline(blocks: &[Blk], out: &mut Vec<Inline>) {
     for b in blocks {
         if !out.is_empty() {
             out.push(Inline::Break);
@@ -231,6 +240,29 @@ fn flatten_inline(blocks: &[Blk], out: &mut Vec<Inline>) {
     }
 }
 
+/// The emoji at the start of a callout's text, and the text after it.
+fn leading_icon(s: &str) -> (&str, &str) {
+    let t = s.trim_start();
+    let end = t
+        .char_indices()
+        .find(|(_, c)| c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation())
+        .map(|(i, _)| i)
+        .unwrap_or(t.len());
+    (&t[..end], t[end..].trim_start())
+}
+
+/// An `<aside>` callout, as Notion writes them: its emoji first, then its text.
+fn aside(inner: &str, depth: usize) -> Blk {
+    let (icon, rest) = leading_icon(inner.trim());
+    let lines: Vec<String> = rest.lines().map(expand_tabs).collect();
+    let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+    let mut inline = Vec::new();
+    flatten_inline(&parse_blocks(&refs, depth + 1), &mut inline);
+    let mut b = Blk::with_inline("callout", inline);
+    b.tone = super::notion::names::callout_tone(icon).into();
+    b
+}
+
 #[allow(clippy::nonminimal_bool)]
 fn parse_blocks(lines: &[&str], depth: usize) -> Vec<Blk> {
     let mut out: Vec<Blk> = Vec::new();
@@ -246,6 +278,27 @@ fn parse_blocks(lines: &[&str], depth: usize) -> Vec<Blk> {
         let line = lines[i];
         if line.trim().is_empty() {
             i += 1;
+            continue;
+        }
+        if line.trim_start().starts_with("<aside") {
+            let first = line.trim_start();
+            let mut rest = first.find('>').map(|g| &first[g + 1..]).unwrap_or("");
+            let mut inner = String::new();
+            loop {
+                if let Some(end) = rest.find("</aside>") {
+                    inner.push_str(&rest[..end]);
+                    i += 1;
+                    break;
+                }
+                inner.push_str(rest);
+                inner.push('\n');
+                i += 1;
+                if i >= lines.len() {
+                    break;
+                }
+                rest = lines[i];
+            }
+            out.push(aside(&inner, depth));
             continue;
         }
         if ["<p ", "<p>", "<div ", "<figure", "<img "]
@@ -868,6 +921,9 @@ pub struct Ctx<'a> {
     pub asset: &'a dyn Fn(&Media) -> Option<String>,
     /// The title of a mentioned page.
     pub title: &'a dyn Fn(&str) -> Option<String>,
+    /// Where a page is in the export, relative to the file being written; `None` when it is not
+    /// exported (the link is then left out and its text kept).
+    pub link: &'a dyn Fn(&str) -> Option<String>,
 }
 
 fn escape(text: &str, in_table: bool) -> String {
@@ -928,18 +984,39 @@ fn longest_run(s: &str, c: char) -> usize {
     best
 }
 
+/// Links to pages point at their exported files, or are dropped when the page is not exported.
+pub(crate) fn page_links(marks: &[Mark], ctx: &Ctx) -> Vec<Mark> {
+    marks
+        .iter()
+        .filter_map(|m| match m {
+            Mark::Link(h) => match crate::legacy::page_target(h) {
+                Some(id) => (ctx.link)(id).map(Mark::Link),
+                None => Some(m.clone()),
+            },
+            other => Some(other.clone()),
+        })
+        .collect()
+}
+
 pub fn render_inline(items: &[Inline], ctx: &Ctx, in_table: bool) -> String {
     let mut out = String::new();
     for it in items {
         match it {
-            Inline::Text { text, marks } => out.push_str(&wrap_text(text, marks, in_table)),
+            Inline::Text { text, marks } => {
+                let marks = page_links(marks, ctx);
+                out.push_str(&wrap_text(text, &marks, in_table))
+            }
             Inline::Break => out.push_str(if in_table { "<br>" } else { "  \n" }),
             Inline::Mention(id) => {
                 let title = (ctx.title)(id).unwrap_or_else(|| "page".into());
-                out.push_str(&format!(
-                    "[{}](suivelle://page/{id})",
-                    escape(&title, in_table)
-                ));
+                match (ctx.link)(id) {
+                    Some(path) => out.push_str(&format!(
+                        "[{}]({})",
+                        escape(&title, in_table),
+                        path.replace(' ', "%20").replace(')', "%29")
+                    )),
+                    None => out.push_str(&escape(&title, in_table)),
+                }
             }
             Inline::Image { src, alt } => {
                 out.push_str(&format!("![{}]({src})", escape(alt, in_table)))
@@ -1019,17 +1096,12 @@ fn render_block(b: &Blk, ctx: &Ctx, number: usize) -> Option<String> {
             kids("    ")
         ),
         "quote" => indent_lines(&text().replace("  \n", "\n"), "> ").replace("\n\n", "\n>\n"),
-        "callout" => {
-            let tag = match b.tone.as_str() {
-                "tip" => "TIP",
-                "warning" => "WARNING",
-                _ => "NOTE",
-            };
-            format!(
-                "> [!{tag}]\n{}",
-                indent_lines(&text().replace("  \n", "\n"), "> ")
-            )
-        }
+        // Notion writes callouts as HTML asides that start with the callout's emoji.
+        "callout" => format!(
+            "<aside>\n{} {}\n</aside>",
+            super::notion::names::callout_icon(&b.tone),
+            text().replace("  \n", "\n")
+        ),
         "divider" => "---".into(),
         "code" => {
             let fence = "`".repeat((longest_run(&b.text, '`') + 1).max(3));

@@ -125,7 +125,11 @@ pub async fn workspace_delete(
 }
 
 #[tauri::command]
-pub async fn backup_set_auto(app: tauri::AppHandle, enabled: Option<bool>, keep: Option<usize>) -> AppResult<Vec<Workspace>> {
+pub async fn backup_set_auto(
+    app: tauri::AppHandle,
+    enabled: Option<bool>,
+    keep: Option<usize>,
+) -> AppResult<Vec<Workspace>> {
     blocking("backup_set_auto", move || {
         let db = app.state::<Db>();
         let mut conn = lock(&db)?;
@@ -818,8 +822,10 @@ pub async fn import_pick(
                     .dialog()
                     .file()
                     .add_filter(
-                        "Documents, tables and archives",
-                        &["md", "markdown", "txt", "html", "htm", "csv", "tsv", "zip"],
+                        "Documents, tables, PDFs and zips",
+                        &[
+                            "md", "markdown", "txt", "html", "htm", "csv", "tsv", "pdf", "zip",
+                        ],
                     )
                     .blocking_pick_files();
                 match picked {
@@ -859,6 +865,9 @@ pub struct ImportApply {
     /// Column types chosen in the preview, by entry index.
     #[serde(default)]
     pub columns: std::collections::HashMap<usize, Vec<String>>,
+    /// Where the imported pages go (a new "Imported" page by default).
+    #[serde(default)]
+    pub target: crate::transfer::import::Target,
 }
 
 #[derive(serde::Deserialize)]
@@ -932,6 +941,7 @@ pub async fn import_apply(
                 &input.workspace_id,
                 &staged,
                 &input.columns,
+                &input.target,
             )
         });
         if res.is_err() {
@@ -956,46 +966,142 @@ pub fn import_cancel(sessions: State<'_, ImportSessions>, session_id: String) {
         .retain(|s| s.id != session_id);
 }
 
-/// Exports a page as Markdown or HTML. A page with files or subpages goes to a folder.
+/// What exporting a page with these options would produce (one file or a zip, and which of the
+/// dialog's choices apply).
 #[tauri::command]
-pub async fn export_page_preview(app: tauri::AppHandle, page_id: String, format: String) -> AppResult<crate::transfer::export::Preview> {
-    worker::blocking("export_page_preview", move || { let db = app.state::<Db>(); let conn = lock(&db)?; crate::transfer::export::preview(&conn,&page_id,&format) }).await
+pub async fn export_shape(
+    app: tauri::AppHandle,
+    page_id: String,
+    options: crate::transfer::export::ExportOptions,
+) -> AppResult<crate::transfer::export::Shape> {
+    worker::blocking("export_shape", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::transfer::export::shape(&conn, &page_id, &options)
+    })
+    .await
 }
 
+/// The page as it would be exported, for the preview.
+#[tauri::command]
+pub async fn export_page_preview(
+    app: tauri::AppHandle,
+    page_id: String,
+    format: String,
+) -> AppResult<crate::transfer::export::Preview> {
+    worker::blocking("export_page_preview", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::transfer::export::preview(&conn, &page_id, &format)
+    })
+    .await
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageExported {
+    #[serde(flatten)]
+    pub written: crate::transfer::export::Written,
+    pub file_name: String,
+}
+
+/// Exports a page as Notion does: Markdown & CSV or HTML (one file, or a zip when there is more
+/// than one), or PDF (a single page).
 #[tauri::command]
 pub async fn export_page(
     app: tauri::AppHandle,
     page_id: String,
-    format: String,
-) -> AppResult<Option<crate::transfer::export::Written>> {
+    options: crate::transfer::export::ExportOptions,
+) -> AppResult<Option<PageExported>> {
     worker::dialog("export_page", move || {
+        use crate::transfer::export::{self as ex, Sink};
+        use tauri_plugin_dialog::DialogExt;
         let db = app.state::<Db>();
         let store = app.state::<AttachmentStore>();
-        use tauri_plugin_dialog::DialogExt;
-        if format != "markdown" && format != "html" {
-            return Err(AppError::Validation("choose Markdown or HTML".into()));
-        }
         let shape = {
             let conn = lock(&db)?;
-            crate::transfer::export::shape(&conn, &page_id)?
+            ex::shape(&conn, &page_id, &options)?
         };
-        let name = crate::transfer::export::safe_name(&shape.title);
-        let ext = if format == "html" { "html" } else { "md" };
+        let name = ex::safe_name(&shape.title);
         let t = std::time::Instant::now();
-        let res = if shape.needs_folder {
-            let Some(dir) = app.dialog().file().blocking_pick_folder() else {
+        let file_name = |p: &std::path::Path| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        };
+        if options.format == "pdf" {
+            if shape.kind == "database" {
+                return Err(AppError::Validation(
+                    "a database cannot be saved as a PDF; choose HTML or Markdown & CSV".into(),
+                ));
+            }
+            let Some(file) = app
+                .dialog()
+                .file()
+                .set_file_name(format!("{name}.pdf"))
+                .add_filter("PDF", &["pdf"])
+                .blocking_save_file()
+            else {
                 return Ok(None);
             };
-            let target = path_of(dir)?.join(&name);
-            std::fs::create_dir_all(&target)?;
-            lock(&db).and_then(|c| {
-                crate::transfer::export::export_page_folder(
-                    &c,
+            let file = path_of(file)?;
+            let temp = crate::transfer::unzip::TempDir::new()?;
+            let written = {
+                let mut sink = Sink::Dir(temp.path().to_path_buf());
+                let conn = lock(&db)?;
+                let w = ex::export(
+                    &conn,
                     &store.root,
                     &page_id,
-                    &format,
-                    &target,
-                )
+                    &options,
+                    &mut sink,
+                    Some("page.html"),
+                )?;
+                sink.finish()?;
+                w
+            };
+            let res = crate::transfer::pdf::print(&app, &temp.path().join("page.html"), &file).map(
+                |()| {
+                    Some(PageExported {
+                        written,
+                        file_name: file_name(&file),
+                    })
+                },
+            );
+            return logged("export_page", t, res);
+        }
+        let ext = if options.format == "html" {
+            "html"
+        } else {
+            "md"
+        };
+        let res = if shape.needs_folder {
+            let Some(file) = app
+                .dialog()
+                .file()
+                .set_file_name(format!("{name}.zip"))
+                .add_filter("Zip", &["zip"])
+                .blocking_save_file()
+            else {
+                return Ok(None);
+            };
+            let file = path_of(file)?;
+            // Written beside the destination first, so a failure never leaves half a zip behind.
+            let partial = file.with_extension("zip.partial");
+            let res = (|| {
+                let mut sink = Sink::zip(&partial)?;
+                let conn = lock(&db)?;
+                let w = ex::export(&conn, &store.root, &page_id, &options, &mut sink, None)?;
+                sink.finish()?;
+                std::fs::rename(&partial, &file)?;
+                Ok(w)
+            })();
+            if res.is_err() {
+                let _ = std::fs::remove_file(&partial);
+            }
+            res.map(|written| PageExported {
+                written,
+                file_name: file_name(&file),
             })
         } else {
             let Some(file) = app
@@ -1007,9 +1113,27 @@ pub async fn export_page(
                 return Ok(None);
             };
             let file = path_of(file)?;
-            lock(&db).and_then(|c| {
-                crate::transfer::export::export_page_file(&c, &store.root, &page_id, &format, &file)
-            })
+            let dir = file
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_default();
+            let mut sink = Sink::Dir(dir);
+            lock(&db)
+                .and_then(|c| {
+                    ex::export(
+                        &c,
+                        &store.root,
+                        &page_id,
+                        &options,
+                        &mut sink,
+                        Some(&file_name(&file)),
+                    )
+                })
+                .and_then(|w| sink.finish().map(|()| w))
+                .map(|written| PageExported {
+                    written,
+                    file_name: file_name(&file),
+                })
         };
         logged("export_page", t, res.map(Some))
     })

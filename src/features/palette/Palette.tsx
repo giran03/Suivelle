@@ -1,3 +1,4 @@
+import { useShortcuts } from "../shortcuts/store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { READ_ONLY } from "../../lib/access";
 import { Icon } from "../../components/Icon";
@@ -36,6 +37,7 @@ const MAX_PER_PAGE = 2;
 const label = (t: string) => t || "Untitled";
 
 function PaletteBody() {
+  const shortcutOverrides = useShortcuts(s => s.overrides);
   const ws = useWorkspace((s) => s.workspace);
   const currentId = useWorkspace((s) => s.selectedPageId);
   const [query, setQuery] = useState("");
@@ -115,7 +117,7 @@ function PaletteBody() {
       out.push({ key: "create", section: "Commands", kind: "create", title: `Create page “${q}”`, run: () => useWorkspace.getState().createPage(null, q) });
     }
     return out;
-  }, [q, hits, recents, currentId]);
+  }, [shortcutOverrides, q, hits, recents, currentId]);
 
   useEffect(() => setActive((a) => Math.min(a, Math.max(0, rows.length - 1))), [rows.length]);
   useEffect(() => {

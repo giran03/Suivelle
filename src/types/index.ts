@@ -413,6 +413,8 @@ export interface ColumnPlan {
   kind: string;
   samples: string[];
   distinct: number;
+  /** What the column was in the source when that changes something ("Relation to Tasks"). */
+  note?: string;
 }
 
 export interface ImportEntry {
@@ -447,7 +449,23 @@ export interface ImportPreview {
   bytes: number;
   warnings: string[];
   archive: { appVersion: string; createdAt: string; workspaceName: string; workspaceIcon?: string | null; settings?: Record<string, unknown>; counts: ArchiveCounts } | null;
+  /** Set when the files were recognized as an export from another app. */
+  origin: ImportOrigin | null;
 }
+
+export interface ImportOrigin {
+  kind: "notion";
+  format: "markdown" | "html" | "pdf" | "mixed";
+  /** Subpages were in folders, or (without folders) nested by their links. */
+  layout: "folders" | "flat";
+  /** The export holds a whole workspace rather than one page and its subpages. */
+  workspace: boolean;
+  /** A name for a workspace made from it. */
+  name: string;
+}
+
+/** Where imported pages go. */
+export type ImportTarget = { kind: "container" } | { kind: "page"; pageId: string } | { kind: "workspace"; name: string };
 
 export interface ImportResult {
   pageId: string;
@@ -456,12 +474,37 @@ export interface ImportResult {
   records: number;
   attachments: number;
   warnings: string[];
+  /** The workspace the import created, when it made one. */
+  workspace: Workspace | null;
 }
 
 export interface ExportWritten {
   files: number;
   attachments: number;
   skipped: string[];
+  fileName?: string;
+}
+
+export type ExportFormat = "markdown" | "html" | "pdf";
+
+/** The choices of the export form, as in Notion's export dialog. */
+export interface ExportOptions {
+  format: ExportFormat;
+  includeSubpages: boolean;
+  folders: boolean;
+  /** Files and images are included. */
+  files: boolean;
+  rows: "all" | "view";
+}
+
+export interface ExportShape {
+  kind: "page" | "record" | "database";
+  title: string;
+  /** More than one file, so it is saved as a zip. */
+  needsFolder: boolean;
+  hasChildren: boolean;
+  hasDatabases: boolean;
+  files: number;
 }
 
 export type WidgetType = "text" | "chart" | "linked_view";

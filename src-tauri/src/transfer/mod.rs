@@ -7,6 +7,9 @@ pub mod export;
 pub mod html;
 pub mod import;
 pub mod markdown;
+pub mod notion;
+pub mod pdf;
+pub mod unzip;
 
 #[cfg(test)]
 mod tests;

@@ -75,8 +75,8 @@
 /* ---- popovers and pickers ---- */
 .popover { position: fixed; z-index: 60; min-width: 220px; max-width: min(380px, 94vw); max-height: min(520px, 80vh); overflow-y: auto; padding: 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--menu-shadow); animation: dropdown-in var(--dropdown-open-dur) var(--ease-smooth-out); }
 .popover.is-closing { animation: dropdown-out var(--dropdown-close-dur) var(--ease-smooth-out) forwards; pointer-events: none; }
-.popover select, .popover input:not([type="checkbox"]) { min-width: 0; padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); font: inherit; }
-.popover select:focus-visible, .popover input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; border-color: transparent; }
+.popover input:not([type="checkbox"]) { min-width: 0; padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); font: inherit; }
+.popover input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; border-color: transparent; }
 .picker-search { width: 100%; }
 .picker-list { max-height: 240px; margin-top: 6px; overflow-y: auto; }
 .picker-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: var(--r-sm); cursor: pointer; }
@@ -86,7 +86,7 @@
 .picker-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .picker-add { width: 100%; margin-top: 6px; }
 .confirm-text { max-width: 300px; padding: 4px; line-height: 1.45; }
-.field { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; font-size: 0.875rem; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: calc(4px * var(--density, 1)); margin: calc(6px * var(--density, 1)) 0; font-size: 0.875rem; color: var(--muted); }
 .field input { width: 100%; color: var(--fg); }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.9375rem; }
 .field-error { margin: 4px 0 0; color: var(--danger); font-size: 0.875rem; }
@@ -102,7 +102,14 @@
 .swatch-btn[data-tone="blue"] { background: color-mix(in srgb, var(--tone-blue) 45%, transparent); }
 
 .filter-panel { width: 560px; }
-.cond { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+/* Database panels reuse .picker, whose base rule has no padding (the emoji picker supplies its own). */
+.popover.picker:not(:has(> .picker-head, > .picker-scroll)) { padding: calc(10px * var(--density, 1)); }
+.popover.picker:not(:has(> .picker-head, > .picker-scroll)) > .picker-group:first-child { padding-top: 0; }
+.popover.picker > .btn:not(:only-child):last-child { margin-top: calc(4px * var(--density, 1)); }
+.cond { display: flex; align-items: center; gap: calc(8px * var(--density, 1)); margin: 0 0 calc(8px * var(--density, 1)); }
+.cond.sort-row > select { flex: 1 1 0; max-width: none; }
+.cond.sort-row { min-width: 300px; }
+.picker-muted:first-child { padding-inline: 0; }
 .cond > select { flex: 0 1 auto; max-width: 150px; }
 .cond > input[type="text"], .cond > input[type="number"] { flex: 1; }
 .cond-none { flex: 1; }
@@ -150,7 +157,7 @@
 .group-toggle[aria-expanded="false"] svg { transform: rotate(0deg); }
 .group-count { color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .group-name { font-weight: 500; }
-.group-picker { display: grid; gap: 8px; margin-bottom: 8px; }
+.group-picker { display: grid; gap: calc(8px * var(--density, 1)); margin-bottom: 8px; }
 .check-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 
 /* ---- list ---- */
@@ -218,7 +225,6 @@
 .cell-error { color: var(--danger); font-size: 0.8125rem; }
 
 /* ---- toolbar extras ---- */
-.tsel select { padding: 3px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
 .seg-btn { padding: 3px 10px; color: var(--muted); }
 .seg-btn + .seg-btn { border-left: 1px solid var(--border); }

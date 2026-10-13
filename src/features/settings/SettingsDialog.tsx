@@ -1,3 +1,5 @@
+import { useShortcut } from "../shortcuts/useShortcut";
+import { ShortcutSettings } from "../shortcuts/ShortcutSettings";
 import { useEffect, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { BrandMark } from "../../components/BrandMark";
@@ -7,7 +9,6 @@ import { useWorkspace } from "../../stores/workspace";
 import type { ThemeSetting } from "../../types";
 import { useBackupsDialog } from "../backup/store";
 import { useFilesDialog } from "../files/store";
-import { useShortcutSheet } from "../shortcuts/ShortcutSheet";
 import { syncDialog } from "../../lib/dialog";
 import "./settings.css";
 import { UpdatesSection } from "../updates/Updates";
@@ -21,7 +22,7 @@ const PAGES: { id: string; title: string; icon: IconName }[] = [
   { id: "layout", title: "Layout and motion", icon: "dashboard" },
   { id: "editor", title: "Editor", icon: "text" },
   { id: "window", title: "Window and startup", icon: "monitor" },
-  { id: "keyboard", title: "Keyboard and capture", icon: "keyboard" },
+  { id: "keyboard", title: "Shortcuts and input", icon: "keyboard" },
   { id: "data", title: "Data and backups", icon: "layers" },
   { id: "updates", title: "Updates", icon: "download" },
   { id: "about", title: "About", icon: "note" },
@@ -132,13 +133,14 @@ function WindowCornersRow() {
 
 /** Starting with the computer, the tray icon, and what closing or minimizing the window does. */
 function WindowSection() {
+  const focusBinding = useShortcut("global-focus");
   const shell = usePreferences((s) => s.shell);
   const setShell = usePreferences((s) => s.setShell);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Start-with-computer can be changed outside the app, so ask the system.
-    ipc.shellGetBehavior().then((b) => setShell({ ...usePreferences.getState().shell, launchAtStartup: b.launchAtStartup })).catch(() => undefined);
+    ipc.shellGetBehavior().then((b) => setShell(b)).catch(() => undefined);
   }, [setShell]);
 
   const change = (patch: Partial<ShellChoices>) => {
@@ -154,6 +156,9 @@ function WindowSection() {
   return (
     <section>
       <h3>Window and startup</h3>
+      <Row title="Focus app from any program" hint={`${focusBinding.label || "Configure a binding in Shortcuts and input"} shows and focuses Suivelle while it is running, including from the tray.`}>
+        <Switch label="Focus app from any program" checked={shell.focusShortcut} onChange={(on) => change({ focusShortcut: on })} />
+      </Row>
       <Row title="Start with Windows" hint="Open Suivelle when you sign in.">
         <Switch label="Start with Windows" checked={shell.launchAtStartup} onChange={(on) => change({ launchAtStartup: on })} />
       </Row>
@@ -184,8 +189,6 @@ function SettingsBody() {
   const autoBackup = useWorkspace((s) => s.settings.autoBackup);
   const setTheme = usePreferences((s) => s.setTheme);
   const setAutoBackup = useWorkspace((s) => s.setAutoBackup);
-  const globalCapture = usePreferences((s) => s.globalCapture);
-  const setGlobalCapture = usePreferences((s) => s.setGlobalCapture);
   const initialSection = useSettingsDialog((s) => s.section);
   const [page, setPage] = useState<string>(initialSection ?? "appearance");
   const [query, setQuery] = useState("");
@@ -201,7 +204,6 @@ function SettingsBody() {
   const nav = useRef<HTMLDivElement>(null);
   const [horizontalTabs, setHorizontalTabs] = useState(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(committed) || (draftMode !== null && draftMode !== theme);
-  const [captureError, setCaptureError] = useState<string | null>(null);
   const close = (after?: () => void) => useSettingsDialog.getState().requestClose(after);
   const finish = () => { useThemes.getState().setPreview(null); useSettingsDialog.getState().finishClose(afterClose.current); };
   const apply = () => {
@@ -339,41 +341,8 @@ function SettingsBody() {
         </SettingsPage>
 
         <SettingsPage id="keyboard" active={query.trim() ? "search" : page}>
-          <h3>Keyboard and capture</h3>
-          <Row title="Quick capture from any program" hint="Press Ctrl+Alt+N anywhere to jot something into your Inbox. It uses a system-wide key, so it is off until you turn it on.">
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={globalCapture}
-                aria-label="Quick capture from any program"
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  setCaptureError(null);
-                  ipc
-                    .quickCaptureShortcut(on)
-                    .then(() => setGlobalCapture(on))
-                    .catch((err) => setCaptureError(toAppError(err).message));
-                }}
-              />
-              <span className="switch-track" aria-hidden="true" />
-            </label>
-          </Row>
-          {captureError && (
-            <p className="field-error" role="alert">
-              {captureError}
-            </p>
-          )}
-          <Row title="Keyboard shortcuts" hint="Every shortcut on one page.">
-            <button
-              className="btn"
-              onClick={() => {
-                close(() => useShortcutSheet.getState().show());
-              }}
-            >
-              <Icon name="keyboard" />
-              View shortcuts
-            </button>
-          </Row>
+          <h3>Shortcuts and input</h3>
+          <ShortcutSettings active={page === "keyboard" && !query.trim()} />
         </SettingsPage>
 
         <SettingsPage id="updates" active={query.trim() ? "search" : page}><UpdatesSection /></SettingsPage>

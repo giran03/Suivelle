@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { duplicateBlock, moveBlock, selectEnclosingBlock } from "../commands";
+import { duplicateBlock, insertBlockAbove, moveBlock, selectEnclosingBlock } from "../commands";
 import { BlockRangeSelection } from "../blockSelection";
 import { duplicateSelectedBlocks, moveSelectedBlocks } from "../blockSelectionActions";
 
@@ -29,5 +29,14 @@ export const Behaviors = Extension.create({
       // First Esc selects the whole block so it can be moved, copied or deleted as a unit.
       Escape: ({ editor }) => selectEnclosingBlock(editor),
     };
+  },
+});
+
+/** Precedes node-specific Mod-Enter handlers, including exiting a code block. */
+export const InsertBlockAbove = Extension.create({
+  name: "insertBlockAbove",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return { "Mod-Enter": ({ editor }) => insertBlockAbove(editor) };
   },
 });

@@ -1,11 +1,12 @@
 import { Icon } from "../../components/Icon";
+import { useShortcut } from "../shortcuts/useShortcut";
 import { READ_ONLY } from "../../lib/access";
 import { canBack, canForward } from "../../lib/history";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
 import { useHistoryPanel } from "../history/store";
-import { modKey, usePalette } from "../palette/store";
-import { useLayout } from "../../stores/layout";
+import { usePalette } from "../palette/store";
+import { sidebarInvisible, useLayout } from "../../stores/layout";
 import { useSaveStatus } from "../../stores/saveStatus";
 import { IconSwap, SwapText } from "../../components/Swap";
 
@@ -44,7 +45,11 @@ function SaveIndicator() {
 }
 
 export function Topbar() {
-  const collapsed = useLayout((s) => s.collapsed);
+  const searchShortcut = useShortcut("search");
+  const backShortcut = useShortcut("back");
+  const forwardShortcut = useShortcut("forward");
+  const hidden = useLayout(sidebarInvisible);
+  const sidebarAction = hidden ? "Show sidebar" : "Hide sidebar";
   const history = useWorkspace((s) => s.history);
   const view = useWorkspace((s) => s.view);
   const page = useWorkspace((s) => s.selectedPage);
@@ -58,18 +63,20 @@ export function Topbar() {
     <div className="topbar" data-context-page={page?.id}>
       <div className="nav-buttons">
         <button
-          className={`icon-btn${collapsed ? " on" : ""}`}
-          aria-label={collapsed ? "Show sidebar" : "Hide sidebar"}
-          aria-pressed={!collapsed}
-          title={`${collapsed ? "Show" : "Hide"} sidebar (${modKey}+\\)`}
-          onClick={() => useLayout.getState().toggleSidebar()}
+          type="button"
+          className={`icon-btn sidebar-toggle${hidden ? " on" : ""}`}
+          aria-label={sidebarAction}
+          aria-expanded={!hidden}
+          aria-controls="workspace-sidebar"
+          title={sidebarAction}
+          onClick={() => useLayout.getState().toggleSidebarVisibility()}
         >
-          <Icon name="sidebar" />
+          <IconSwap name={hidden ? "expandSidebar" : "sidebar"} />
         </button>
-        <button className="icon-btn" aria-label="Back" title="Back (Alt+Left)" disabled={!canBack(history)} onClick={() => void goBack()}>
+        <button className="icon-btn" aria-label="Back" title={`Back${backShortcut.label ? ` (${backShortcut.label})` : ""}`} disabled={!canBack(history)} onClick={() => void goBack()}>
           <Icon name="back" />
         </button>
-        <button className="icon-btn" aria-label="Forward" title="Forward (Alt+Right)" disabled={!canForward(history)} onClick={() => void goForward()}>
+        <button className="icon-btn" aria-label="Forward" title={`Forward${forwardShortcut.label ? ` (${forwardShortcut.label})` : ""}`} disabled={!canForward(history)} onClick={() => void goForward()}>
           <Icon name="forward" />
         </button>
       </div>
@@ -120,10 +127,10 @@ export function Topbar() {
         )
       )}
       {READ_ONLY && <span className="showcase-access" title="Browse pages, search, and explore views. Content is read-only.">Read-only showcase</span>}
-      <button type="button" className="topbar-search" onClick={() => usePalette.getState().show()} aria-label={READ_ONLY ? "Search pages" : "Search or create a page"} aria-keyshortcuts="Control+K Meta+K">
+      <button type="button" className="topbar-search" onClick={() => usePalette.getState().show()} aria-label={READ_ONLY ? "Search pages" : "Search or create a page"} aria-keyshortcuts={searchShortcut.aria}>
         <Icon name="search" />
         <span>{READ_ONLY ? "Search pages…" : "Search or create a page…"}</span>
-        <kbd className="kbd">{modKey} K</kbd>
+        {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
     </div>
   );

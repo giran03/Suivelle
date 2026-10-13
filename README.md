@@ -13,7 +13,7 @@
 
 <div align="center">
   <h2>
-      <a href="https://suivelle.cafetako.com/">DEMO PAGE</a>
+      <a href="https://suivelle.cafetako.com/">Explore the demo</a>
   </h2>
 </div>
 
@@ -30,19 +30,19 @@ https://github.com/user-attachments/assets/e32ecc50-2de8-4d35-b7d2-f530ffe424b2
 
 ## A place for every thought
 
-Turn a blank page into a brief, a journal, or the next big idea. Shape your writing with headings, checklists, callouts, code, and images. Nest pages, pin favorites, and connect the details with links and mentions.
+Capture a quick thought, write a project brief, or build a personal wiki. Shape your pages with headings, checklists, callouts, code, and images. Keep related notes together with nested pages, favorites, links, and mentions.
 
-Your notes and your plans share the same home, so context stays close to the work.
+From the first idea to the finished plan, everything has a place.
 
 ## See the whole project
 
-Move from an idea to a clear next step. Organize deliverables into boards, track the details in tables, and see what comes next in calendar and timeline views.
+Turn ideas into next steps. Move tasks across a board, compare details in a table, and plan ahead with calendar and timeline views. See the same project from the angle that helps you most.
 
 ![Autumn launch organized into Planned, In progress, and Complete columns](docs/images/project-board.png)
 
 ### Keep the details in view
 
-Give every task the structure it needs: status, dates, categories, and custom properties. Filter, sort, and group your records to bring the right work into focus.
+Track status, dates, categories, and the details that matter to your project. Custom properties, filters, sorting, and grouping help you find what needs attention.
 
 ![Autumn launch table with deliverables, status, area, owner, and due dates](docs/images/project-table.png)
 
@@ -50,17 +50,17 @@ Give every task the structure it needs: status, dates, categories, and custom pr
 
 | Find your flow | Make it yours | Keep it close |
 | :--- | :--- | :--- |
-| Jump between pages with quick search. Capture a thought without losing your place. Keep several pages open in tabs. | Choose light or dark, tune typography and spacing, and give each workspace its own identity. | Work offline with local storage. Revisit page history, keep backups, and bring your notes in or take them with you. |
+| Find notes with quick search, capture ideas as they arrive, and keep several pages open in tabs. | Choose light or dark themes, adjust colors and typography, and give each workspace its own identity. | Work offline, revisit page history, and keep local backups. Import your notes or export them to take your work with you. |
 
-Start with a project template, build a dashboard, or let local automations handle recurring steps. Keep separate workspaces for different parts of your life, with room for each one to grow.
+## Make room for every kind of work
 
-Settings groups controls into eight pages with a searchable sidebar. Theme mode and colors apply across all workspaces, including Workspace settings. In Appearance, choose Midnight, Graphite or Forest for dark mode, or Paper, Mist or Sand for light mode. Customize individual colors for the sidebar, editor, toolbar, text, code and other interface roles with separate light and dark palettes. Preview changes throughout the app, including Settings, then Apply to save and switch to the mode of your last preset or custom color edit. Cancel preserves your saved colors and current mode. Save named themes or import and export theme files to reuse them.
+Start with a template for a project, task tracker, or software plan. Bring progress together in dashboards and charts, collect entries with forms, and let local automations handle recurring steps.
 
-The desktop titlebar follows your toolbar colors and keeps window controls available across workspace switches. Drag its blank area to move the window, or double-click to maximize and restore. Minimize and Close follow your tray preferences. The maximize button does not show the Windows hover Snap Layout menu.
+Keep separate workspaces for personal notes, creative projects, and daily tasks, each with its own pages and organization.
 
-## Updates
+## Your work stays yours
 
-Windows NSIS installations support signed stable updates from GitHub. Settings → Updates controls automatic checking and downloading, with installation after saving changes and making a verified backup. The changelog remains available offline. See [Publishing updates](docs/releasing.md) for signing setup, the release workflow, and installer acceptance checks.
+Suivelle keeps your workspace on your computer and works offline, with no account required. Page history and local backups help you return to earlier work. Import existing notes, including Notion exports, and export pages or whole workspaces when you need them elsewhere.
 
 ---
 

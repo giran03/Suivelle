@@ -22,12 +22,13 @@ export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
     // A block inside a column also offers removing the whole columns block.
     const columns = at.node.type.name === "columns" ? null : enclosingColumns(editor, at.pos);
     return [
-      { label: "Duplicate", onSelect: on(() => duplicateBlock(editor)) },
-      { label: "Move up", onSelect: on(() => moveBlock(editor, -1)) },
-      { label: "Move down", onSelect: on(() => moveBlock(editor, 1)) },
+      { label: "Duplicate", shortcut: "duplicate-block", onSelect: on(() => duplicateBlock(editor)) },
+      { label: "Move up", shortcut: "move-block-up", onSelect: on(() => moveBlock(editor, -1)) },
+      { label: "Move down", shortcut: "move-block-down", onSelect: on(() => moveBlock(editor, 1)) },
       { label: "Turn into synced block", separated: true, disabled: !canSync(editor, at.node), onSelect: () => void syncBlock(editor, at.pos, at.node) },
       ...TURN_INTO.map((k, i) => ({
         label: `Turn into ${k.title}`,
+        shortcut: ({ paragraph: "paragraph", heading_1: "heading-1", heading_2: "heading-2", heading_3: "heading-3", bullet_list: "bullet-list", numbered_list: "ordered-list", todo: "task-list", code: "code-block" } as Record<string, string>)[k.id],
         separated: i === 0,
         disabled: !at.node.isTextblock && !["details", "listItem", "taskItem"].includes(at.node.type.name),
         onSelect: on(() => void k.apply(editor)),

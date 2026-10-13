@@ -4,11 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { ContextMenu } from "./ContextMenu";
 import { AppContextMenu } from "./AppContextMenu";
+import { useShortcuts } from "../features/shortcuts/store";
+import { key, mouse } from "../features/shortcuts/bindings";
+import { installInputRouter } from "../features/shortcuts/runtime";
 import { editingItems } from "./editingMenu";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
-afterEach(async () => { await act(async () => root?.unmount()); document.body.replaceChildren(); vi.restoreAllMocks(); });
+afterEach(async () => { await act(async () => root?.unmount()); document.body.replaceChildren(); useShortcuts.setState({ overrides: {}, recording: false }); vi.restoreAllMocks(); });
 async function mount(node: React.ReactNode) { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); await act(async () => root.render(node)); return host; }
 function context(el: Element) { const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true }); el.dispatchEvent(event); return event; }
 
@@ -25,7 +28,7 @@ it("keeps field editing ahead of parent record actions and preserves captured se
   expect(parentAction).not.toHaveBeenCalled();
   const command = vi.fn(() => { expect(document.activeElement).toBe(input); expect(input.selectionStart).toBe(0); expect(input.selectionEnd).toBe(5); return true; });
   Object.defineProperty(document, "execCommand", { configurable: true, value: command });
-  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent === "Copy")!.click());
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.getAttribute("aria-label") === "Copy")!.click());
   expect(command).toHaveBeenCalledWith("copy");
 });
 it("mounts text menus inside the active modal subtree", async () => {
@@ -64,4 +67,44 @@ it("offers value copying for date/number fields without unsupported selection ac
   expect(items.find((i) => i.label === "Cut")?.disabled).toBe(true);
   expect(items.find((i) => i.label === "Paste text")?.disabled).toBe(true);
   expect(items.find((i) => i.label === "Select all")?.disabled).toBe(true);
+});
+
+it("shows live keycaps and runs the captured item rather than a workspace action", async () => {
+  const clicked = vi.fn(), unrelated = vi.fn(), close = vi.fn();
+  const stop = installInputRouter({ search: unrelated }, () => true);
+  try {
+    const host = await mount(<ContextMenu x={0} y={0} onClose={close} items={[{ label: "Copy this page", shortcut: "page-copy", onSelect: clicked }, { label: "Copy link", onSelect: unrelated }]} />);
+    expect([...host.querySelectorAll("kbd")].map(el => el.textContent)).toEqual(["Ctrl", "C"]);
+    expect(host.querySelector('[aria-label="Copy link"] kbd')).toBeNull();
+    await act(async () => useShortcuts.setState({ overrides: { "page-copy": [key("k", "Control")] } }));
+    expect([...host.querySelectorAll("kbd")].map(el => el.textContent)).toEqual(["Ctrl", "K"]);
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })));
+    expect(clicked).toHaveBeenCalledTimes(1); expect(unrelated).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledTimes(1);
+    await act(async () => useShortcuts.setState({ overrides: { "page-copy": [] } }));
+    expect(host.querySelector("kbd")).toBeNull();
+  } finally { stop(); }
+});
+
+it("preserves literal plus keys, mouse hints and disabled action safety", async () => {
+  const disabled = vi.fn(), clicked = vi.fn();
+  const host = await mount(<ContextMenu x={0} y={0} onClose={() => {}} items={[{ label: "Disabled", shortcut: [key("+", "Control")], disabled: true, onSelect: disabled }, { label: "Mouse action", shortcut: [mouse(3, "Control")], onSelect: clicked }]} />);
+  expect([...host.querySelector('[aria-label="Disabled"]')!.querySelectorAll("kbd")].map(el => el.textContent)).toEqual(["Ctrl", "+"]);
+  expect(host.querySelector('[aria-label="Mouse action"]')?.textContent).toContain("Mouse Back");
+  await act(async () => host.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "+", ctrlKey: true, bubbles: true, cancelable: true })));
+  expect(disabled).not.toHaveBeenCalled();
+  await act(async () => host.querySelector('[role="menu"]')!.dispatchEvent(new MouseEvent("mousedown", { button: 3, ctrlKey: true, bubbles: true, cancelable: true })));
+  expect(clicked).toHaveBeenCalledTimes(1);
+});
+
+it("bounds menus in CSS zoom mode without scaling viewport coordinates twice", async () => {
+  document.documentElement.style.zoom = "1.5";
+  const viewport = vi.spyOn(window, "innerWidth", "get").mockReturnValue(320);
+  const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(180);
+  const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
+  try {
+    const host = await mount(<ContextMenu x={300} y={100} items={[{ label: "Open", onSelect: () => {} }]} onClose={() => {}} />);
+    const menu = host.querySelector<HTMLElement>('[role="menu"]')!;
+    expect(parseFloat(menu.style.maxWidth)).toBeCloseTo((320 - 16) / 1.5);
+    expect(parseFloat(menu.style.left)).toBeCloseTo((320 - 8) / 1.5 - 180);
+  } finally { document.documentElement.style.zoom = ""; viewport.mockRestore(); width.mockRestore(); height.mockRestore(); }
 });

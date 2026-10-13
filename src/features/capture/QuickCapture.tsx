@@ -1,3 +1,5 @@
+import { useShortcutScope, installInputRouter } from "../shortcuts/runtime";
+import { useShortcut } from "../shortcuts/useShortcut";
 import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import { Icon } from "../../components/Icon";
@@ -31,6 +33,8 @@ export function CaptureBody({ onClose, onSave = capture, page, ready = true }: {
   const [target, setTarget] = useState<"inbox" | "page">("inbox");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const saveShortcut = useShortcut("capture-save");
   const input = useRef<HTMLTextAreaElement>(null);
   const selectedPage = useWorkspace((s) => (s.view === "page" && s.selectedPage?.kind === "page" ? s.selectedPage : null));
   const openPage = page === undefined ? selectedPage : page;
@@ -54,8 +58,11 @@ export function CaptureBody({ onClose, onSave = capture, page, ready = true }: {
     }
   };
 
+  useShortcutScope(formRef, "capture", { "capture-save": () => { if (busy || !ready) return false; void save(); } });
+  useEffect(() => { if ("__TAURI_INTERNALS__" in window && window.location.search.includes("quick-capture")) return installInputRouter({}, () => true); }, []);
   return (
     <form
+      ref={formRef}
       className="qc"
       onKeyDown={(e) => {
         if (e.key === "Escape" && !e.nativeEvent.isComposing) {
@@ -86,13 +93,7 @@ export function CaptureBody({ onClose, onSave = capture, page, ready = true }: {
           setText(e.target.value);
           setError(null);
         }}
-        onKeyDown={(e) => {
-          // Enter saves; Shift+Enter adds a line.
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            void save();
-          }
-        }}
+
       />
       {error && (
         <p className="field-error" role="alert">
@@ -123,7 +124,7 @@ export function CaptureBody({ onClose, onSave = capture, page, ready = true }: {
         </button>
       </div>
       <p className="qc-hint">
-        <kbd className="kbd">Enter</kbd> adds it <kbd className="kbd">Shift</kbd>
+        <kbd className="kbd">{saveShortcut.label || "Add button"}</kbd> adds it <kbd className="kbd">Shift</kbd>
         <kbd className="kbd">Enter</kbd> new line
       </p>
     </form>

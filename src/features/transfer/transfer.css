@@ -30,3 +30,33 @@
 .export-preview-content iframe { width: 100%; height: 400px; border: 1px solid var(--border); border-radius: var(--r-md); background: white; }
 .export-preview-content pre { padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--field); border-radius: var(--r-md); font-size: 0.875rem; }
 .export-notices { margin: 0 0 16px; padding-left: 20px; color: var(--text-secondary); font-size: 0.875rem; }
+
+/* Export form: flat label rows like Settings, one hairline between them, controls on the right. */
+.exp-form { margin-top: calc(10px * var(--density)); border-top: 1px solid var(--border-subtle); }
+.exp-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: calc(var(--ctl-h, 32px) + 8px); padding: calc(var(--row-pad) + 1px) 0; border-bottom: 1px solid var(--border-subtle); }
+.exp-label { display: grid; gap: 1px; min-width: 0; font-size: 0.9375rem; }
+.exp-hint { color: var(--text-muted); font-size: 0.8125rem; }
+.exp-row select { flex: none; inline-size: min(240px, 52%); }
+.exp-row:has(input:disabled) .exp-label > span:first-child { color: var(--text-secondary); }
+.switch:has(input:disabled) { opacity: 0.45; cursor: default; }
+.switch:has(input:disabled) input { cursor: default; }
+.exp-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: calc(10px * var(--density)); }
+.exp-foot .bak-actions { margin-top: 0; }
+.exp-saves { margin: 0; color: var(--text-secondary); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.exp-block > .imp-done, .exp-block > .field-error { margin-top: calc(8px * var(--density)); }
+@media (max-width: 520px) {
+  .exp-row:has(select) { flex-direction: column; align-items: stretch; gap: 6px; }
+  .exp-row select { inline-size: 100%; }
+}
+
+/* Import: where the files came from, as a neutral chip (never another app's branding). */
+.imp-source { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+.imp-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-primary); font-size: 0.8125rem; font-weight: 550; }
+.imp-chip svg { color: var(--accent-ui); }
+.imp-target-name { display: grid; gap: 4px; margin-left: 24px; }
+.imp-target-name input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--fg); font: inherit; }
+.imp-note { display: block; color: var(--text-muted); font-size: 0.75rem; }
+/* The name wins over its detail when a row is narrow. */
+.imp-row .imp-name { flex: 1 1 auto; min-width: 8ch; }
+.imp-row > .picker-muted { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-row > .link { flex: none; }

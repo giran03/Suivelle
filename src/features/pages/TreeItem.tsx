@@ -1,4 +1,10 @@
-import { createContext, useContext, useId, type HTMLAttributes, type ReactNode } from "react";
+import { useShortcutScope } from "../shortcuts/runtime";
+import { selectPageGesture, usePageSelection, pickedRoots } from "./pageSelection";
+import { copyHierarchyPages, pasteHierarchyPages } from "./pageClipboard";
+import { trashPages } from "./pageBatch";
+import { openInNewTab } from "../tabs/tabs";
+import { READ_ONLY } from "../../lib/access";
+import { createContext, useContext, useId, useRef, type HTMLAttributes, type ReactNode } from "react";
 import { create } from "zustand";
 import { handleTreeKeys } from "./treeKeys";
 
@@ -16,11 +22,26 @@ const TreeCtx = createContext<{ name: string; stop: string | null }>({ name: "",
  * and the context-menu key are handled here; see treeKeys.ts.
  */
 export function Tree({ name, label, keys, className, children }: { name: string; label: string; keys: string[]; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLUListElement>(null);
+  const page = (target: Element, event: KeyboardEvent | MouseEvent) => {
+    const row = target.closest<HTMLElement>('[role="treeitem"]');
+    if (!row || (!("key" in event) && !target.closest(".title"))) return null;
+    return row.dataset.key ?? null;
+  };
+  useShortcutScope(ref, "pages", {
+    "page-new-tab": (t, e) => { const id = page(t, e); if (!id) return false; void openInNewTab(id); },
+    "page-pick": (t, e) => { const id = page(t, e); if (!id) return false; selectPageGesture(t, id, "toggle"); },
+    "page-range": (t, e) => { const id = page(t, e); if (!id) return false; selectPageGesture(t, id, "range"); },
+    "page-select-all": () => { usePageSelection.setState({ ids: keys, anchor: keys[0] ?? null }); },
+    "page-copy": (t, e) => { if (READ_ONLY) return false; return copyHierarchyPages(page(t, e) ?? undefined); },
+    "page-paste": (t, e) => { if (READ_ONLY) return false; return pasteHierarchyPages(page(t, e) ?? undefined); },
+    "page-trash": () => { const pages = pickedRoots(); if (READ_ONLY || !pages.length) return false; void trashPages(pages).then(() => ref.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus()); },
+  });
   const last = useTreeStop((s) => s.at[name]);
   const stop = last && keys.includes(last) ? last : (keys[0] ?? null);
   return (
     <TreeCtx.Provider value={{ name, stop }}>
-      <ul role="tree" aria-label={label} aria-multiselectable="true" className={className ?? "tree"} onKeyDown={handleTreeKeys}>
+      <ul ref={ref} role="tree" aria-label={label} aria-multiselectable="true" className={className ?? "tree"} onKeyDown={handleTreeKeys}>
         {children}
       </ul>
     </TreeCtx.Provider>

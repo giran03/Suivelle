@@ -34,10 +34,20 @@ fn serve(app: &AppHandle, req: &Request<Vec<u8>>) -> Result<Response<Vec<u8>>, u
     // `?thumb=<edge>` asks for a small copy of an image; anything else gets the original.
     if let Some(value) = req.uri().query().and_then(|q| q.split('&').find_map(|s| s.strip_prefix("crop="))) {
         let v: Vec<f64> = value.split(',').filter_map(|s| s.parse().ok()).collect();
-        if v.len() != 4 || !mime.starts_with("image/") { return Err(400); }
-        let crop = crate::domain::image::Crop { x:v[0], y:v[1], width:v[2], height:v[3] };
-        if !crop.valid() { return Err(400); }
-        let image = super::image_edit::render(&super::blob_path(&store.root, hash), Some(crop)).map_err(|_| 422u16)?;
+        if v.len() != 4 || !mime.starts_with("image/") {
+            return Err(400);
+        }
+        let crop = crate::domain::image::Crop {
+            x: v[0],
+            y: v[1],
+            width: v[2],
+            height: v[3],
+        };
+        if !crop.valid() {
+            return Err(400);
+        }
+        let image = super::image_edit::render(&super::blob_path(&store.root, hash), Some(crop))
+            .map_err(|_| 422u16)?;
         let mut bytes = std::io::Cursor::new(Vec::new());
         image.write_to(&mut bytes, image::ImageFormat::Png).map_err(|_| 500u16)?;
         return Response::builder().status(200u16).header(header::CONTENT_TYPE, "image/png").header("Access-Control-Allow-Origin", "*").header(header::CACHE_CONTROL, "public, max-age=31536000, immutable").body(bytes.into_inner()).map_err(|_| 500u16);

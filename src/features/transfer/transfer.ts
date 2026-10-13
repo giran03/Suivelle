@@ -24,8 +24,56 @@ export const COLUMN_KINDS: { value: string; label: string }[] = [
   { value: "phone", label: "Phone" },
   { value: "skip", label: "Leave out" },
 ];
+
+/** The types a column can become: the usual ones, plus what it already is when that is special
+ * (a relation keeps its links, a status keeps its groups). */
+export function columnKinds(original: string): { value: string; label: string }[] {
+  const extra = original === "relation" ? [{ value: "relation", label: "Relation" }]
+    : original === "status" ? [{ value: "status", label: "Status" }]
+    : [];
+  return [...extra, ...COLUMN_KINDS];
+}
+
+/** Where an import goes when the user has not chosen: a whole workspace gets its own. */
+export function defaultTarget(origin: ImportOrigin | null | undefined): ImportTarget["kind"] {
+  return origin?.workspace ? "workspace" : "container";
+}
+
+/** "Markdown & CSV, subpages in folders". */
+export function describeOrigin(origin: ImportOrigin): string {
+  const format = { markdown: "Markdown & CSV", html: "HTML", pdf: "PDF", mixed: "Mixed formats" }[origin.format];
+  if (origin.format === "pdf") return format;
+  return `${format}, ${origin.layout === "flat" ? "subpages nested by their links" : "subpages in folders"}`;
+}
+
+export const EXPORT_FORMATS: { value: ExportOptions["format"]; label: string }[] = [
+  { value: "markdown", label: "Markdown & CSV" },
+  { value: "html", label: "HTML" },
+  { value: "pdf", label: "PDF" },
+];
+
+export const DEFAULT_EXPORT: ExportOptions = { format: "markdown", includeSubpages: true, folders: true, files: true, rows: "all" };
+
+/** The options as they apply: a PDF is one page, a database is never a PDF, and folders only
+ * matter when there are subpages. */
+export function effectiveOptions(o: ExportOptions, kind: ExportShape["kind"] | undefined): ExportOptions {
+  const format = kind === "database" && o.format === "pdf" ? "markdown" : o.format;
+  const includeSubpages = format !== "pdf" && o.includeSubpages;
+  return { ...o, format, includeSubpages, folders: includeSubpages && o.folders };
+}
+
+/** What pressing Export will save, in a sentence. */
+export function savesText(shape: ExportShape, o: ExportOptions): string {
+  if (o.format === "pdf") return "Saves the page as one PDF file.";
+  if (shape.needsFolder) return `Saves a zip of ${plural(shape.files, "file", "files")}${o.files ? " and the files they show" : ""}.`;
+  if (shape.kind === "database") return o.format === "html" ? "Saves the table as one HTML file." : "Saves the table as one CSV file.";
+  return o.format === "html" ? "Saves the page as one HTML file." : "Saves the page as one Markdown file.";
+}
+
+export type { ColumnPlan };
 import { ipc } from "../../lib/ipc";
 import { flushAllEditors } from "../editor/flushRegistry";
+import type { ColumnPlan, ExportOptions, ExportShape, ImportOrigin, ImportTarget } from "../../types";
 
 /** Every entry point saves pending edits before choosing an archive destination. */
 export async function exportWorkspaceArchive(workspaceId: string) {

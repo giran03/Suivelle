@@ -50,6 +50,7 @@ fn render(blocks: &[Blk]) -> String {
                     .map(|a| format!("assets/{}", a["name"].as_str().unwrap_or("f")))
             },
             title: &|id| Some(format!("Page {id}")),
+            link: &|_| None,
         },
     )
 }
@@ -411,6 +412,7 @@ fn html_export_is_escaped_and_reimports() {
         &Ctx {
             asset: &|_| None,
             title: &|_| None,
+            link: &|_| None,
         },
     );
     assert!(!doc.contains("<script>"));
@@ -802,11 +804,11 @@ fn cropped_image_exports_match_preview_and_import_with_layout() {
             .any(|n| n.contains("Private image notes")));
         let folder = temp();
         export::export_page_folder(&conn, &store, &page.id, format, &folder).unwrap();
-        let file = folder.join(if format == "html" {
-            "Crop test.html"
-        } else {
-            "Crop test.md"
-        });
+        let file = folder.join(format!(
+            "Crop test {}.{}",
+            page.id.replace('-', ""),
+            if format == "html" { "html" } else { "md" }
+        ));
         assert_eq!(std::fs::read_to_string(file).unwrap(), preview.source);
         let asset = std::fs::read_dir(folder.join("assets"))
             .unwrap()
@@ -904,22 +906,46 @@ fn exporting_pages_and_databases_round_trips_through_import() {
         },
     )
     .unwrap();
-    assert!(export::shape(&conn, &parent.id).unwrap().needs_folder);
-    assert!(!export::shape(&conn, &child.id).unwrap().needs_folder);
+    let md = export::ExportOptions::of("markdown");
+    assert!(export::shape(&conn, &parent.id, &md).unwrap().needs_folder);
+    assert!(!export::shape(&conn, &child.id, &md).unwrap().needs_folder);
+    let alone = export::ExportOptions {
+        include_subpages: false,
+        files: false,
+        ..export::ExportOptions::of("markdown")
+    };
+    assert!(
+        !export::shape(&conn, &parent.id, &alone)
+            .unwrap()
+            .needs_folder,
+        "without subpages and files a page is a single file"
+    );
     let out = temp();
     let w = export::export_page_folder(&conn, &store, &parent.id, "markdown", &out).unwrap();
     assert_eq!((w.files, w.attachments), (2, 1));
-    let main = out.join("Trip- plan-2026-.md");
+    // Names end with the page's id, as Notion's do; subpages are in the folder of the same name.
+    let id = |p: &str| p.replace('-', "");
+    let main = out.join(format!("Trip- plan-2026- {}.md", id(&parent.id)));
     let text = std::fs::read_to_string(&main).unwrap();
     assert!(text.starts_with("# Trip: plan/2026?\n"));
     assert!(text.contains("- [ ] passport") && text.contains("![map.png](assets/"));
-    assert!(out.join("Trip- plan-2026-").join("Day one.md").exists());
+    assert!(out
+        .join(format!("Trip- plan-2026- {}", id(&parent.id)))
+        .join(format!("Day one {}.md", id(&child.id)))
+        .exists());
     assert_eq!(std::fs::read_dir(out.join("assets")).unwrap().count(), 1);
-    // HTML works the same way and is self-contained.
+    // HTML works the same way, is self-contained and uses Notion's markup.
     let out_html = temp();
     export::export_page_folder(&conn, &store, &parent.id, "html", &out_html).unwrap();
-    let h = std::fs::read_to_string(out_html.join("Trip- plan-2026-.html")).unwrap();
-    assert!(h.contains("<input type=\"checkbox\" disabled>") && h.contains("<img src=\"assets/"));
+    let h =
+        std::fs::read_to_string(out_html.join(format!("Trip- plan-2026- {}.html", id(&parent.id))))
+            .unwrap();
+    assert!(
+        h.contains("<ul class=\"to-do-list\">")
+            && h.contains("checkbox-off")
+            && h.contains("<img src=\"assets/")
+    );
+    assert!(h.contains("<article class=\"page sans\">") && h.contains("class=\"page-title\""));
     // Importing the exported folder gives the same pages back.
     let (mut conn2, ws2, store2) = workspace();
     let staged = import::stage_folder(out.clone()).unwrap();
@@ -1832,9 +1858,16 @@ fn html_export_keeps_what_is_inside_columns() {
         &Ctx {
             asset: &|_| None,
             title: &|_| None,
+            link: &|_| None,
         },
     );
-    assert!(doc.contains("<div class=\"columns\">"), "{doc}");
+    assert!(doc.contains("<div class=\"column-list\">"), "{doc}");
+    let back = html::parse(&doc);
+    assert_eq!(
+        kinds(&back.blocks),
+        ["columns"],
+        "Notion's column markup reads back as columns"
+    );
     assert!(
         doc.contains("left side") && doc.contains("right side"),
         "{doc}"
@@ -1954,6 +1987,7 @@ fn tab_panels_export_all_content_and_preserve_labels_in_rows() {
         &Ctx {
             asset: &|_| None,
             title: &|_| None,
+            link: &|_| None,
         },
     );
     for text in ["First panel", "Second panel", "Overview"] {

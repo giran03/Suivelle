@@ -1,3 +1,4 @@
+import { key } from "../features/shortcuts/bindings";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -27,11 +28,11 @@ export function AppContextMenu() {
         const page = pageId === store.selectedPage?.id ? store.selectedPage : store.ancestors.find((p) => p.id === pageId);
         if (link) items = [{ label: "Copy link address", onSelect: () => void copyText(link.href) }];
         else if (page) items = pageItems(page);
-        else if (window.getSelection()?.toString()) { const text = window.getSelection()!.toString(); items = [{ label: "Copy", onSelect: () => void copyText(text) }]; }
+        else if (window.getSelection()?.toString()) { const text = window.getSelection()!.toString(); items = [{ label: "Copy", shortcut: [key("c", "Primary")], onSelect: () => void copyText(text) }]; }
         else if (target.closest(".sidebar")) items = [
-          { label: "New page", onSelect: () => void store.createPage(null) },
-          { label: "New database", onSelect: () => void store.createDatabase(null) },
-          { label: "New dashboard", onSelect: () => void store.createDashboard(null) },
+          { label: "New page", shortcut: "new-page", onSelect: () => void store.createPage(null) },
+          { label: "New database", shortcut: "new-database", onSelect: () => void store.createDatabase(null) },
+          { label: "New dashboard", shortcut: "new-dashboard", onSelect: () => void store.createDashboard(null) },
         ];
       }
       // Keep modal-dialog menus within its non-inert DOM subtree.

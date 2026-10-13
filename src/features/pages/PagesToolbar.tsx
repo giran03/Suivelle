@@ -4,10 +4,16 @@ import { Icon } from "../../components/Icon";
 import { useWorkspace } from "../../stores/workspace";
 import { modKey } from "../palette/store";
 import { useTemplateGallery } from "../templates/store";
+import { pastePages, usePageClipboard } from "./pageClipboard";
+import { READ_ONLY } from "../../lib/access";
+import { useShortcut } from "../shortcuts/useShortcut";
 import { clearSelection, usePageSelection } from "./pageSelection";
 
 /** Creation stays one click away; tree controls remain visible without hovering. */
 export function PagesToolbar() {
+  const held = usePageClipboard(s => s.held);
+  const pasting = usePageClipboard(s => s.pasting);
+  const pasteShortcut = useShortcut("page-paste");
   const workspaceId = useWorkspace((s) => s.workspace?.id);
   const roots = useWorkspace((s) => s.children.root);
   const expanded = useWorkspace((s) => s.expanded);
@@ -49,11 +55,12 @@ export function PagesToolbar() {
     finally { setRefreshing(false); }
   };
   const items: MenuItem[] = menu?.kind === "new" ? [
-    { label: "New page", onSelect: () => void useWorkspace.getState().createPage(null) },
-    { label: "New database", onSelect: () => void useWorkspace.getState().createDatabase(null) },
-    { label: "New dashboard", onSelect: () => void useWorkspace.getState().createDashboard(null) },
-    { label: "New from template…", separated: true, onSelect: () => useTemplateGallery.getState().show() },
+    { label: "New page", shortcut: "new-page", onSelect: () => void useWorkspace.getState().createPage(null) },
+    { label: "New database", shortcut: "new-database", onSelect: () => void useWorkspace.getState().createDatabase(null) },
+    { label: "New dashboard", shortcut: "new-dashboard", onSelect: () => void useWorkspace.getState().createDashboard(null) },
+    { label: "New from template…", shortcut: "new-from-template", separated: true, onSelect: () => useTemplateGallery.getState().show() },
   ] : [
+    ...(!READ_ONLY && held ? [{ label: pasting ? "Pasting pages…" : "Paste pages at top level", shortcut: "page-paste", disabled: !available || pasting, onSelect: () => void pastePages(null) }] : []),
     { label: currentPage?.kind === "record" ? "Show current database in tree" : "Show current page in tree", disabled: !currentPage, onSelect: () => void reveal() },
     { label: refreshing ? "Refreshing pages…" : "Refresh pages", disabled: refreshing || expanding, onSelect: () => void refresh() },
     ...(pickedCount ? [{ label: `Clear selection (${pickedCount})`, separated: true, onSelect: clearSelection }] : []),
@@ -79,6 +86,7 @@ export function PagesToolbar() {
         <button type="button" className="pages-tree-action" aria-label="Collapse all pages" title={expanding ? "Stop expanding and collapse all pages" : "Collapse all pages"} disabled={!available || (!hasExpanded && !expanding)} onClick={() => useWorkspace.getState().collapseAllPages()}>
           <Icon name="collapseAll" size={14} /><span>Collapse</span>
         </button>
+        {!READ_ONLY && held && <button type="button" className="icon-btn" aria-label="Paste pages at top level" title={`Paste pages at top level${pasteShortcut.label ? ` (${pasteShortcut.label})` : ""}`} disabled={!available || pasting} onClick={() => void pastePages(null)}><Icon name="duplicate" /></button>}
         <button type="button" className="icon-btn pages-options" aria-label="Page tree options" title="Page tree options" aria-haspopup="menu" aria-expanded={menu?.kind === "options"} disabled={!available} onClick={(e) => openMenu(e.currentTarget, "options")}>
           <Icon name="more" />
         </button>
