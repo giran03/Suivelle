@@ -772,3 +772,38 @@ fn upgrading_backfills_tags_from_existing_blocks() {
         }]
     );
 }
+
+#[test]
+fn unlinked_mentions_find_the_title_in_text_that_does_not_link() {
+    let (mut conn, ws) = setup();
+    let target = page(&mut conn, &ws, None, "Tether physics");
+    let plain = page(&mut conn, &ws, None, "Plain");
+    let linked = page(&mut conn, &ws, None, "Linked");
+    add_block(
+        &mut conn,
+        &plain,
+        "paragraph",
+        rich("We tuned the tether physics today."),
+    );
+    add_block(
+        &mut conn,
+        &target,
+        "paragraph",
+        rich("Tether physics notes on itself."),
+    );
+    add_block(
+        &mut conn,
+        &linked,
+        "paragraph",
+        format!(
+            r#"{{"content":[{{"type":"text","text":"tether physics "}},{{"type":"pageMention","attrs":{{"pageId":"{}"}}}}]}}"#,
+            target.id
+        ),
+    );
+    let found = unlinked_mentions(&conn, &target.id).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].source_page_id, plain.id);
+    assert!(found[0].snippet.contains("tether physics"));
+    let short = page(&mut conn, &ws, None, "UI");
+    assert!(unlinked_mentions(&conn, &short.id).unwrap().is_empty());
+}

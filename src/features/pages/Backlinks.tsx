@@ -16,24 +16,51 @@ function readOpen(): boolean {
   }
 }
 
-/** Pages that mention or link to this page. Renders nothing when there are none. */
+function Items({ links }: { links: Backlink[] }) {
+  return (
+    <ul className="bl-list">
+      {links.map((l) => (
+        <li key={`${l.sourceBlockId}`}>
+          <button type="button" className="bl-item" onClick={() => void useWorkspace.getState().openPage(l.sourcePageId, l.sourceBlockId)}>
+            <span className="bl-title">
+              <Icon name="page" size={14} />
+              {l.sourcePageTitle || "Untitled"}
+              {l.parentTitle && <span className="bl-path">in {l.parentTitle}</span>}
+            </span>
+            {l.snippet && <span className="bl-snippet">{l.snippet}</span>}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Pages that mention or link to this page, and pages that name it without a link. Renders nothing when there are none. */
 export function Backlinks({ pageId }: { pageId: string }) {
   const [links, setLinks] = useState<Backlink[]>([]);
+  const [unlinked, setUnlinked] = useState<Backlink[]>([]);
   const [open, setOpen] = useState(readOpen);
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLinks([]);
+    setUnlinked([]);
+    setUnlinkedOpen(false);
     ipc
       .pageBacklinks(pageId)
       .then((l) => !cancelled && setLinks(l))
       .catch(() => !cancelled && setLinks([]));
+    ipc
+      .pageUnlinkedMentions(pageId)
+      .then((l) => !cancelled && setUnlinked(l))
+      .catch(() => !cancelled && setUnlinked([]));
     return () => {
       cancelled = true;
     };
   }, [pageId]);
 
-  if (!links.length) return null;
+  if (!links.length && !unlinked.length) return null;
   const toggle = () => {
     setOpen((o) => {
       try {
@@ -55,20 +82,21 @@ export function Backlinks({ pageId }: { pageId: string }) {
         <span className="bl-count">{links.length}</span>
       </button>
       <Collapse open={open}>
-        <ul className="bl-list">
-          {links.map((l) => (
-            <li key={`${l.sourceBlockId}`}>
-              <button type="button" className="bl-item" onClick={() => void useWorkspace.getState().openPage(l.sourcePageId, l.sourceBlockId)}>
-                <span className="bl-title">
-                  <Icon name="page" size={14} />
-                  {l.sourcePageTitle || "Untitled"}
-                  {l.parentTitle && <span className="bl-path">in {l.parentTitle}</span>}
-                </span>
-                {l.snippet && <span className="bl-snippet">{l.snippet}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <Items links={links} />
+        {unlinked.length > 0 && (
+          <>
+            <button type="button" className="backlinks-head bl-unlinked" aria-expanded={unlinkedOpen} onClick={() => setUnlinkedOpen((o) => !o)}>
+              <span className={`bl-chevron${unlinkedOpen ? " open" : ""}`}>
+                <Icon name="chevron" size={14} />
+              </span>
+              Unlinked mentions
+              <span className="bl-count">{unlinked.length}</span>
+            </button>
+            <Collapse open={unlinkedOpen}>
+              <Items links={unlinked} />
+            </Collapse>
+          </>
+        )}
       </Collapse>
     </section>
   );

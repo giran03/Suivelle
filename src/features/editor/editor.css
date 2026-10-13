@@ -208,6 +208,7 @@
 .backlinks { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
 .backlinks-head { display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin-left: -6px; border-radius: var(--r-sm); color: var(--muted); font-weight: 600; font-size: 0.9375rem; }
 .backlinks-head:hover { background: var(--hover); color: var(--fg); }
+.backlinks-head.bl-unlinked { margin-top: 8px; font-size: 0.875rem; font-weight: 500; }
 .bl-chevron { display: grid; place-items: center; transition: transform 150ms ease-out; }
 .bl-chevron.open { transform: rotate(90deg); }
 .bl-count { font-weight: 400; font-size: 0.875rem; }

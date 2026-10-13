@@ -479,3 +479,16 @@ pub async fn reminder_list(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn page_unlinked_mentions(
+    app: tauri::AppHandle,
+    page_id: String,
+) -> AppResult<Vec<crate::search::Backlink>> {
+    blocking("page_unlinked_mentions", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::search::unlinked_mentions(&conn, &page_id)
+    })
+    .await
+}

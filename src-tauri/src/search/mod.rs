@@ -611,3 +611,50 @@ pub fn link_graph(conn: &Connection, workspace_id: &str) -> AppResult<LinkGraph>
         .collect::<Result<_, _>>()?;
     Ok(LinkGraph { nodes, edges })
 }
+
+/// Pages whose text names this page's title without linking to it, so a link can be added.
+/// Titles shorter than three characters would match too much and are skipped.
+pub fn unlinked_mentions(conn: &Connection, page_id: &str) -> AppResult<Vec<Backlink>> {
+    validate_id(page_id, "page")?;
+    let Some((title, workspace_id)) = conn
+        .query_row(
+            "SELECT title, workspace_id FROM page WHERE id = ?1",
+            [page_id],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        )
+        .optional()?
+    else {
+        return Ok(Vec::new());
+    };
+    let words: Vec<String> = title
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .take(8)
+        .map(str::to_string)
+        .collect();
+    if words.concat().chars().count() < 3 {
+        return Ok(Vec::new());
+    }
+    let phrase = format!("body : \"{}\"", words.join(" "));
+    let mut stmt = conn.prepare(
+        "SELECT d.page_id, d.block_id, p.title, pp.title, snippet(search_fts, 1, '', '', '…', 14)
+         FROM search_fts
+         JOIN search_doc d ON d.id = search_fts.rowid
+         JOIN page p ON p.id = d.page_id
+         LEFT JOIN page pp ON pp.id = p.parent_page_id
+         WHERE search_fts MATCH ?1 AND d.workspace_id = ?2 AND p.deleted_at IS NULL
+           AND d.block_id IS NOT NULL AND d.page_id != ?3
+           AND d.page_id NOT IN (SELECT source_page_id FROM page_reference WHERE target_page_id = ?3)
+         ORDER BY p.updated_at DESC LIMIT 20",
+    )?;
+    let rows = stmt.query_map(params![phrase, workspace_id, page_id], |r| {
+        Ok(Backlink {
+            source_page_id: r.get(0)?,
+            source_block_id: r.get(1)?,
+            source_page_title: r.get(2)?,
+            parent_title: r.get(3)?,
+            snippet: r.get(4)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
