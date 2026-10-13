@@ -43,10 +43,12 @@ function SaveIndicator() {
   if (status === "idle") return null;
   if (status === "error") {
     return (
-      <button className="save-state failed" role="status" title={detail ?? "Changes are not saved yet"} onClick={() => retry?.()}>
-        <Icon name="warning" size={14} />
-        Not saved. Retry
-      </button>
+      <span role="status">
+        <button className="save-state failed" title={detail ?? "Changes are not saved yet"} onClick={() => retry?.()}>
+          <Icon name="warning" size={14} />
+          Not saved. Retry
+        </button>
+      </span>
     );
   }
   return (

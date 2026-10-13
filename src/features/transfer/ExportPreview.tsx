@@ -79,7 +79,7 @@ export function ExportPreview({
           </p>
         )}
         {source ? (
-          <pre tabIndex={0} aria-label="Export source">
+          <pre tabIndex={0} role="region" aria-label="Export source">
             {preview.source}
           </pre>
         ) : (

@@ -84,7 +84,7 @@ export function ShortcutSettings({ active = true }: { active?: boolean }) {
     {native && Object.entries(native.errors).map(([id, message]) => message && <p key={id} className="field-error" role="status">{id === "capture" ? "Global capture" : id === "focus" ? "Global focus" : "Global shortcut settings"}: {message}</p>)}
     {edit && <section className="shortcut-recorder" aria-label="Edit binding">
       <h4>{ACTIONS.find(a => a.id === edit.id)?.title}</h4>
-      <div ref={zone} className="shortcut-capture" tabIndex={0} aria-label="Record a shortcut. Press a key or mouse button here. Escape cancels." onKeyDown={e => record(e)} onMouseDown={e => record(e)} onAuxClick={e => { e.preventDefault(); e.stopPropagation(); }} onClick={e => { e.preventDefault(); e.stopPropagation(); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}>
+      <div ref={zone} className="shortcut-capture" tabIndex={0} role="application" aria-label="Record a shortcut. Press a key or mouse button here. Escape cancels." onKeyDown={e => record(e)} onMouseDown={e => record(e)} onAuxClick={e => { e.preventDefault(); e.stopPropagation(); }} onClick={e => { e.preventDefault(); e.stopPropagation(); }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}>
         <span role="status" aria-live="polite">{!recordReady ? "Preparing input recording…" : edit.candidate ? format(edit.candidate) : "Press a key or mouse button here"}</span>
       </div>
       <div className="shortcut-manual">
@@ -120,6 +120,6 @@ export function ShortcutSettings({ active = true }: { active?: boolean }) {
         </div>; })}</section> : null;
       })}
     </div>
-    <section className="shortcut-diagnostic"><h4>Test input</h4><p className="set-hint">Only inputs received by the app can be bound. Fn and device-specific buttons may be handled by your keyboard or mouse driver.</p><div className="shortcut-capture" tabIndex={0} aria-label="Test keyboard and mouse input" onFocus={() => { useShortcuts.getState().setRecording(true); void setRecordingNative(true).catch(e => setError(String(e))); }} onBlur={() => { useShortcuts.getState().setRecording(false); void setRecordingNative(false); }} onKeyDown={e => record(e, true)} onMouseDown={e => record(e, true)} onAuxClick={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}><output aria-live="polite">{lastInput}</output></div></section>
+    <section className="shortcut-diagnostic"><h4>Test input</h4><p className="set-hint">Only inputs received by the app can be bound. Fn and device-specific buttons may be handled by your keyboard or mouse driver.</p><div className="shortcut-capture" tabIndex={0} role="application" aria-label="Test keyboard and mouse input" onFocus={() => { useShortcuts.getState().setRecording(true); void setRecordingNative(true).catch(e => setError(String(e))); }} onBlur={() => { useShortcuts.getState().setRecording(false); void setRecordingNative(false); }} onKeyDown={e => record(e, true)} onMouseDown={e => record(e, true)} onAuxClick={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}><output aria-live="polite">{lastInput}</output></div></section>
   </div>;
 }

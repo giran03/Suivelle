@@ -78,7 +78,7 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
       })}
     </div>
     <p className="set-hint">Presets replace this palette’s colors. Apply saves your choice and switches the app to {mode} mode.</p>
-    <div className="theme-preview" style={style} aria-label={`${mode} theme preview`}>
+    <div className="theme-preview" style={style} role="group" aria-label={`${mode} theme preview`}>
       <aside><strong>Suivelle</strong><span>My workspace</span><span className="theme-preview-selected"><Icon name="page" />Daily notes</span><span><Icon name="page" />Ideas</span></aside>
       <div className="theme-preview-main"><div className="theme-preview-top">Daily notes <span>Preview</span></div><article><strong>A space for your thoughts</strong><p>Write a little. Make room for what matters.</p><div className="theme-preview-field">Search your notes…</div><span className="theme-preview-button">Add a note</span></article></div>
     </div>

@@ -22,7 +22,7 @@ function Block({ b }: { b: PreviewBlock }) {
   const mark = MARK[b.change];
   return (
     <li className={`hist-block ${b.change}`} style={{ paddingLeft: 8 + b.depth * 14 }}>
-      <span className="hist-mark" title={mark.label} aria-label={mark.label || undefined}>
+      <span className="hist-mark" title={mark.label} role={mark.label ? "img" : undefined} aria-label={mark.label || undefined}>
         {mark.sign}
       </span>
       <span className="hist-type">{b.type.replace(/_/g, " ")}</span>

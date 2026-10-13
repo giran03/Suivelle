@@ -32,7 +32,7 @@ export function Titlebar() {
       if (action === "toggleMaximize") setMaximized(await appWindow.isMaximized());
     } catch (e) { setError(`Could not ${action === "toggleMaximize" ? "resize" : action} the window: ${toAppError(e).message}`); }
   };
-  return <header className="app-titlebar" data-focused={focused} aria-label="Application title bar">
+  return <header className="app-titlebar" data-focused={focused} role="banner" aria-label="Application title bar">
     <div className="app-titlebar-drag" data-tauri-drag-region>
       <BrandMark size={18} /><span>Suivelle</span>
     </div>

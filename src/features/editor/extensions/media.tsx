@@ -243,6 +243,7 @@ function ImageViewer({
         ref={body}
         className={`media-viewer-body${zoom ? " is-zoomed" : ""}`}
         tabIndex={0}
+        role="region"
         aria-label="Image viewport"
         onPointerDown={(e) => {
           if (!zoom || e.button !== 0) return;

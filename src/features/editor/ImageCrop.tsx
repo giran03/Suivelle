@@ -221,7 +221,7 @@ export function ImageCrop({
           >
             <img
               src={url}
-              alt="Original image for cropping"
+              alt="Original for cropping"
               draggable={false}
               onLoad={(e) =>
                 setSourceRatio(

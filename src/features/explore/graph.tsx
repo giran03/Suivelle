@@ -77,7 +77,7 @@ export function GraphPanel() {
     const palette = { line: color("--border"), node: color("--text-muted"), accent: color("--accent"), text: color("--fg"), font: `12px ${getComputedStyle(document.body).fontFamily}` };
     // Start framed on the whole graph: centre its bounds and scale it to fit, with room for labels.
     let fitted = false;
-    const fit = (w: number, h: number) => {
+    const frame = (w: number, h: number) => {
       const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
       const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
       view.current.x = -(minX + maxX) / 2;
@@ -88,7 +88,7 @@ export function GraphPanel() {
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = el.clientWidth, h = el.clientHeight;
-      if (!fitted && w && h) fit(w, h);
+      if (!fitted && w && h) frame(w, h);
       el.width = w * dpr; el.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);

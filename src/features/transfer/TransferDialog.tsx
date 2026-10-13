@@ -324,7 +324,7 @@ function SwitchRow({ label, hint, checked, disabled, onChange }: { label: string
         {hint && <span className="exp-hint" id={`${id}-h`}>{hint}</span>}
       </span>
       <label className="switch">
-        <input type="checkbox" role="switch" aria-labelledby={`${id}-l`} aria-describedby={hint ? `${id}-h` : undefined} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" role="switch" aria-checked={checked} aria-labelledby={`${id}-l`} aria-describedby={hint ? `${id}-h` : undefined} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
         <span className="switch-track" aria-hidden="true" />
       </label>
     </div>

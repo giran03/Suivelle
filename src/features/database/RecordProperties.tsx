@@ -61,7 +61,7 @@ export function RecordProperties({ pageId }: { pageId: string }) {
               className={`rp-value${!READ_ONLY && TYPE_META[prop.type].editable ? " editable" : ""}`}
               role={!READ_ONLY && TYPE_META[prop.type].editable ? "button" : undefined}
               tabIndex={!READ_ONLY && TYPE_META[prop.type].editable && !isEditing ? 0 : undefined}
-              aria-label={`${prop.name}: ${cellText(prop, record) || "empty"}`}
+              aria-label={!READ_ONLY && TYPE_META[prop.type].editable ? `${prop.name}: ${cellText(prop, record) || "empty"}` : undefined}
               onClick={(e) => !isEditing && begin(prop, e.currentTarget)}
               onKeyDown={(e) => {
                 if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && !isEditing) {
