@@ -16,6 +16,8 @@ The file is outside the repository. The `.gitignore` also excludes private signi
 
 ## Prepare each release
 
+`release-notes.json` is the changelog for the next release. Add upcoming changes to its `notes` field and replace the Unreleased placeholder before publishing. Published notes are preserved in `docs/changelog/`; after a release, archive its notes and bump the app versions and `release-notes.json` together to the next development version.
+
 1. Update `package.json`, the package version in `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and `release-notes.json` to the same stable semantic version. Refresh lockfiles with the package managers.
 2. Write the release date and actual notes in `release-notes.json`. These exact notes are bundled for offline changelog access and published in GitHub/the updater feed. Headings and bullet lines are supported; raw HTML is displayed as text.
 3. Run `node scripts/check-release.mjs`, `npm test`, `npm run build`, and `cargo test --manifest-path src-tauri/Cargo.toml --lib`.
