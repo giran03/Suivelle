@@ -40,7 +40,7 @@ fn decode_text(bytes: &[u8]) -> String {
 
 fn sniff(text: &str) -> u8 {
     let sample: String = text.lines().take(5).collect::<Vec<_>>().join("\n");
-    [b',', b';', b'\t', b'|']
+    (*b",;\t|")
         .into_iter()
         .max_by_key(|d| sample.bytes().filter(|b| b == d).count())
         .filter(|d| sample.bytes().any(|b| b == *d))
@@ -280,11 +280,10 @@ pub fn cell_value(kind: &str, raw: &str) -> Option<Value> {
         "date" => parse_date(t).map(|d| json!({ "start": d })),
         "url" => Some(json!(t)),
         "email" => is_email(t).then(|| json!(t)),
-        "phone" => Some(json!(t)).filter(|_| {
-            t.chars().count() <= 40
-                && t.chars()
-                    .all(|c| c.is_ascii_digit() || " +-().x#*,".contains(c))
-        }),
+        "phone" => (t.chars().count() <= 40
+            && t.chars()
+                .all(|c| c.is_ascii_digit() || " +-().x#*,".contains(c)))
+        .then(|| json!(t)),
         _ => Some(json!(raw)),
     }
 }
