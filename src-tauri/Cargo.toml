@@ -54,3 +54,4 @@ windows-core = "0.62"
 
 [dev-dependencies]
 proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+ts-rs = "12"

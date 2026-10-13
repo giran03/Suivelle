@@ -388,6 +388,7 @@ pub struct SearchInput {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct SearchHit {
     /// "page" for a title match, "block" for text inside a page.
     pub kind: &'static str,
@@ -454,6 +455,7 @@ pub fn search(conn: &Connection, input: &SearchInput) -> AppResult<Vec<SearchHit
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Backlink {
     pub source_page_id: String,
     pub source_page_title: String,
@@ -490,6 +492,7 @@ pub fn backlinks(conn: &Connection, page_id: &str) -> AppResult<Vec<Backlink>> {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct PageTitle {
     pub id: String,
     pub title: String,
@@ -530,6 +533,7 @@ pub fn page_titles(conn: &Connection, ids: &[String]) -> AppResult<Vec<PageTitle
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct TagCount {
     pub tag: String,
     pub pages: i64,

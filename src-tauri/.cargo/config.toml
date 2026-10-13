@@ -1,0 +1,5 @@
+[env]
+# Tests write TypeScript copies of the IPC types here; src/types/contract.ts checks them
+# against the hand-written types (see scripts and CI).
+TS_RS_EXPORT_DIR = { value = "../src/types/generated", relative = true }
+TS_RS_LARGE_INT = "number"

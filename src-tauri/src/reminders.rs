@@ -14,6 +14,7 @@ const KEEP_FIRED_DAYS: i64 = 7;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Reminder {
     pub id: String,
     pub page_id: String,

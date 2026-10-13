@@ -55,3 +55,6 @@ jobs:
         run: cargo clippy --lib --all-targets -- -D warnings
       - name: Tests
         run: cargo test --lib
+      # The tests regenerate src/types/generated from the Rust IPC types (ts-rs).
+      - name: IPC types are current
+        run: git diff --exit-code -- ../src/types/generated

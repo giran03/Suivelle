@@ -51,6 +51,7 @@ pub fn now() -> String {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Workspace {
     pub id: String,
     pub name: String,
@@ -64,6 +65,7 @@ pub struct Workspace {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Page {
     pub id: String,
     pub workspace_id: String,
@@ -86,6 +88,7 @@ pub struct Page {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Block {
     pub id: String,
     pub page_id: String,
@@ -102,6 +105,7 @@ pub struct Block {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Attachment {
     pub id: String,
     pub workspace_id: String,

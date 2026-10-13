@@ -14,6 +14,7 @@ const SETTLE: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Health {
     pub database_bytes: u64,
     pub wal_bytes: u64,
@@ -38,6 +39,7 @@ pub struct Health {
 /// abandoned temporary files.
 #[derive(Debug, Default, Clone, Copy, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
 pub struct Sweep {
     pub files: u64,
     pub bytes: u64,
