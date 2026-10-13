@@ -1,0 +1,110 @@
+name: Build signed Windows release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Validate release version and notes
+        run: node scripts/check-release.mjs
+      - name: Test update and application behavior
+        shell: pwsh
+        run: |
+          node --test scripts/release-check.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Release contract tests failed.' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed.' }
+          cargo test --manifest-path src-tauri/Cargo.toml --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed.' }
+      - name: Prepare release metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $release = Get-Content -Raw release-notes.json | ConvertFrom-Json
+          "tag=v$($release.version)" >> $env:GITHUB_OUTPUT
+          "name=Suivelle $($release.version)" >> $env:GITHUB_OUTPUT
+          "notes<<SUIVELLE_RELEASE_NOTES" >> $env:GITHUB_OUTPUT
+          $release.notes >> $env:GITHUB_OUTPUT
+          "SUIVELLE_RELEASE_NOTES" >> $env:GITHUB_OUTPUT
+      - name: Refuse to modify an already published version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          try {
+            $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+            $existing = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" -Headers $headers
+            if (-not $existing.draft) { throw 'This version is already published. Bump the version before releasing again.' }
+          } catch {
+            if ($_.Exception.Response.StatusCode -ne 404) { throw }
+          }
+      - name: Check signing secret is configured
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'Add TAURI_SIGNING_PRIVATE_KEY to repository Actions secrets before releasing.' }
+      - name: Build installer and upload draft release
+        id: release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.metadata.outputs.tag }}
+          releaseName: ${{ steps.metadata.outputs.name }}
+          releaseBody: ${{ steps.metadata.outputs.notes }}
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true
+          args: --config src-tauri/tauri.release.conf.json --bundles nsis
+      - name: Validate uploaded updater manifest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_ID: ${{ steps.release.outputs.releaseId }}
+        run: |
+          gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --pattern latest.json --dir release-check
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download updater manifest from draft release.' }
+          node scripts/validate-update-manifest.mjs release-check/latest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Updater manifest validation failed; do not publish this draft.' }
+          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect uploaded release assets.' }
+          $manifest = Get-Content -Raw release-check/latest.json | ConvertFrom-Json
+          $assetName = [Uri]::UnescapeDataString(([Uri]$manifest.platforms.'windows-x86_64'.url).Segments[-1])
+          if (-not ($assets | Where-Object { $_.name -eq $assetName -and $_.size -gt 0 })) { throw 'The manifest installer asset is missing.' }
+          if (-not ($assets | Where-Object { $_.name -eq "$assetName.sig" -and $_.size -gt 0 })) { throw 'The installer signature asset is missing.' }
+          gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --pattern $assetName --pattern "$assetName.sig" --dir release-check
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the signed installer for verification.' }
+          $signature = Get-Content -Raw -LiteralPath (Join-Path release-check "$assetName.sig")
+          if ($signature.Trim() -ne $manifest.platforms.'windows-x86_64'.signature.Trim()) { throw 'Manifest signature differs from the installer signature file.' }
+          node scripts/verify-update-artifact.mjs (Join-Path release-check $assetName) (Join-Path release-check "$assetName.sig")
+          if ($LASTEXITCODE -ne 0) { throw 'Installer signature does not verify against the public key embedded in the app.' }
+      - name: Release handoff
+        shell: pwsh
+        run: |
+          'Draft release prepared. Verify it in a disposable Windows installation before publishing.' >> $env:GITHUB_STEP_SUMMARY

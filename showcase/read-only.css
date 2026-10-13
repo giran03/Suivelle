@@ -1,0 +1,14 @@
+[data-showcase="read-only"] [data-showcase-locked],
+[data-showcase="read-only"] .pages-create,
+[data-showcase="read-only"] .cover-actions,
+[data-showcase="read-only"] .page-affordances,
+[data-showcase="read-only"] .rec-props .rp-foot,
+[data-showcase="read-only"] .tl-handle {
+  display: none;
+}
+[data-showcase="read-only"] .page-icon[data-showcase-locked] { display: inline-flex; cursor: default; }
+[data-showcase="read-only"] .doc input[type="checkbox"][data-showcase-locked] { display: inline-block; opacity: 1; }
+[data-showcase="read-only"] .page-title input { cursor: text; }
+[data-showcase="read-only"] .tl-bar { cursor: pointer; }
+.showcase-access { color: var(--text-secondary); font-size: 0.75rem; white-space: nowrap; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--r-sm); }
+@media (max-width: 800px) { .showcase-access { padding-inline: 4px; } }

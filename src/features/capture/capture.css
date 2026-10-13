@@ -1,0 +1,14 @@
+.palette.capture { width: min(520px, calc(100vw - 32px)); margin-top: 18vh; }
+.capture-window { min-height: 100vh; background: var(--surface-1); overflow: auto; }
+.capture-window .qc-text { flex: 1; }
+.capture-window .qc { min-height: 100vh; }
+.qc { display: flex; flex-direction: column; gap: calc(10px * var(--density)); padding: 14px 16px 12px; }
+.qc-head { display: flex; align-items: center; justify-content: space-between; }
+.qc-head h2 { font-size: 1rem; font-weight: 600; }
+.qc-text { width: 100%; min-height: 96px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--fg); font: inherit; line-height: 1.5; resize: vertical; outline: 0; }
+.qc-text:focus { border-color: var(--focus-ring); }
+.qc-foot { display: flex; align-items: center; gap: 8px; }
+.qc-spacer { flex: 1; }
+.qc-where select { height: 28px; max-width: 220px; padding: 0 8px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--field); color: var(--text-secondary); font-size: 0.8125rem; }
+.qc-hint { margin: 0; color: var(--text-muted); font-size: 0.75rem; display: flex; align-items: center; gap: 4px; }
+@media (max-width: 520px) { .qc-foot { flex-wrap: wrap; } }

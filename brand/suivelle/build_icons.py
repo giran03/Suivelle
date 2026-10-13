@@ -1,0 +1,121 @@
+"""Builds the Suivelle icon masters and every raster size from one geometry.
+
+Run from the project root:  python brand/suivelle/build_icons.py
+Needs Pillow. Writes SVG masters and PNGs into brand/suivelle/, and src/lib/appIconData.ts
+(the 256px window icons, embedded so the app can swap them at runtime without a network fetch).
+"""
+import base64, io, math, os
+from PIL import Image, ImageDraw
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+
+# The mark is drawn on a 96 unit tile: an S built from two half circles, with a four-point star where it begins.
+# It is centred as a whole (S and star together) and scaled 8% up inside the tile.
+CX, CY, SCALE = 55, 47, 1.08
+STROKE = 10
+S_PATH_SVG = "M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30"
+STAR_SVG = "M70 13C71.6 23.5 74.5 26.4 85 28C74.5 29.6 71.6 32.5 70 43C68.4 32.5 65.5 29.6 55 28C65.5 26.4 68.4 23.5 70 13Z"
+STAR_BEZIERS = [((70, 13), (71.6, 23.5), (74.5, 26.4), (85, 28)), ((85, 28), (74.5, 29.6), (71.6, 32.5), (70, 43)),
+                ((70, 43), (68.4, 32.5), (65.5, 29.6), (55, 28)), ((55, 28), (65.5, 26.4), (68.4, 23.5), (70, 13))]
+GROUP = f"translate(48 48) scale({SCALE}) translate(-{CX} -{CY})"
+
+VARIANTS = {
+    # name: (tile, tile outline or None, S, star)
+    "dark": ("#0B1226", None, "#7FA4F0", "#CFE0FF"),
+    "light": ("#F6F5F1", "#C9D1E0", "#16275A", "#3B5BA9"),
+    "mono": ("#0B1226", None, "#C9D1E0", "#C9D1E0"),
+}
+
+
+def svg(name, tile=True):
+    bg, line, s, star = VARIANTS[name]
+    body = f'<g transform="{GROUP}"><path d="{S_PATH_SVG}" fill="none" stroke="{s}" stroke-width="{STROKE}" stroke-linecap="round" stroke-linejoin="round"/><path d="{STAR_SVG}" fill="{star}"/></g>'
+    if tile:
+        outline = f' stroke="{line}" stroke-width="2"' if line else ""
+        inset = ' x="1" y="1" width="94" height="94"' if line else ' width="96" height="96"'
+        body = f'<rect{inset} rx="22" fill="{bg}"{outline}/>' + body
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img"><title>Suivelle</title>{body}</svg>\n'
+
+
+def bez(p0, p1, p2, p3, n=40):
+    for i in range(n + 1):
+        t = i / n
+        u = 1 - t
+        yield (u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
+               u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1])
+
+
+def centerline():
+    pts = []
+    for i in range(0, 181):  # (66,28) -> (48,28)
+        pts.append((66 - 18 * i / 180, 28))
+    for i in range(0, 361):  # top half circle, through the left
+        a = math.radians(-90 - 180 * i / 360)
+        pts.append((48 + 12 * math.cos(a), 40 + 12 * math.sin(a)))
+    for i in range(0, 361):  # bottom half circle, through the right
+        a = math.radians(-90 + 180 * i / 360)
+        pts.append((48 + 12 * math.cos(a), 64 + 12 * math.sin(a)))
+    for i in range(0, 181):  # (48,76) -> (30,76)
+        pts.append((48 - 18 * i / 180, 76))
+    return pts
+
+
+def hexrgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def render(name, size, tile=True):
+    bg, line, s, star = VARIANTS[name]
+    ss = 8
+    n = size * ss
+    k = n / 96
+    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    def px(p):
+        return (k * (48 + SCALE * (p[0] - CX)), k * (48 + SCALE * (p[1] - CY)))
+
+    if tile:
+        d.rounded_rectangle([0, 0, n - 1, n - 1], radius=22 * k, fill=hexrgb(bg))
+        if line:
+            w = max(2, int(2 * k))
+            d.rounded_rectangle([0, 0, n - 1, n - 1], radius=22 * k, outline=hexrgb(line), width=w)
+    r = STROKE * SCALE * k / 2
+    for p in centerline():
+        x, y = px(p)
+        d.ellipse([x - r, y - r, x + r, y + r], fill=hexrgb(s))
+    poly = []
+    for b in STAR_BEZIERS:
+        poly += [px(p) for p in bez(*b)]
+    d.polygon(poly, fill=hexrgb(star))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def main():
+    png_dir = os.path.join(HERE, "png")
+    os.makedirs(png_dir, exist_ok=True)
+    for name in VARIANTS:
+        with open(os.path.join(HERE, f"suivelle-{name}.svg"), "w", encoding="utf-8") as f:
+            f.write(svg(name))
+        for size in (16, 24, 32, 48, 64, 128, 256, 512, 1024):
+            render(name, size).save(os.path.join(png_dir, f"suivelle-{name}-{size}.png"), optimize=True)
+    # The symbol alone, for use on any background (S and star take the dark variant's colours).
+    with open(os.path.join(HERE, "suivelle-symbol.svg"), "w", encoding="utf-8") as f:
+        f.write(svg("dark", tile=False))
+    # Multi-size .ico for the installed app (dark variant: the default until the app picks a theme).
+    base = render("dark", 256)
+    base.save(os.path.join(HERE, "suivelle.ico"), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    # Window icons the app swaps at runtime, embedded as data.
+    out = ["// Generated by brand/suivelle/build_icons.py. Do not edit.", "/** The 256px application icon for each theme, as PNG data. */", "export const APP_ICON_PNG: Record<\"dark\" | \"light\", string> = {"]
+    for name in ("dark", "light"):
+        buf = io.BytesIO()
+        render(name, 256).save(buf, "PNG", optimize=True)
+        out.append(f'  {name}: "{base64.b64encode(buf.getvalue()).decode()}",')
+    out.append("};")
+    with open(os.path.join(ROOT, "src", "lib", "appIconData.ts"), "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    print("done")
+
+
+main()

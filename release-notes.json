@@ -1,0 +1,5 @@
+{
+  "version": "0.1.2",
+  "date": "2026-10-11",
+  "notes": "## Added\n- Image controls: proportional resizing, a zoom viewer, non-destructive crop with rule-of-thirds guides, private image notes, and native image clipboard support.\n- Block marquee selection with shared bulk actions.\n- Spreadsheet-style table controls: header strips to select, insert and delete columns and rows, and a + at each end.\n- A right-click option on images and media to show the name below instead of as a tooltip.\n- A full emoji picker for page and workspace icons: the complete offline Unicode 17.0 catalog with search, categories and paging, including skin tones, families and flags.\n\n## Improved\n- Column controls stay visible while the caret is inside the columns block.\n- Image names show as a tooltip by default.\n- Text fields use border focus styling.\n\n## Fixed\n- Columns blocks and blocks that are the only content of a container can now be deleted, and blocks inside columns can delete the whole columns block."
+}

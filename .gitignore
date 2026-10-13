@@ -1,0 +1,60 @@
+# Dependencies and generated output
+node_modules/
+dist/
+target/
+/src-tauri/gen/
+coverage/
+.vite/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
+# Local tooling, reviews, and sample user data
+/.claude/
+/.plans/
+/.impeccable/
+/.vscode/
+/.idea/
+/graphify-out/
+/sample-workspace/
+/brand/logo/
+
+# Secrets and signing credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+.npmrc
+.netrc
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+*.pub
+
+# Runtime data, backups, and local noise
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.log
+*.bak
+*.tmp
+*.temp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# motion showcase build output and tooling
+showcase/dist/
+showcase/tools/node_modules/
+showcase/tools/shots/

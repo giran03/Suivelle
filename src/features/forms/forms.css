@@ -1,0 +1,35 @@
+.form-view { flex: 1; min-height: 0; overflow: auto; padding: 8px 0 56px; }
+.form-fill, .form-edit, .form-done { max-width: 640px; margin: 0 auto; }
+.form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.form-head h2 { margin: 0; font-size: 1.25rem; font-weight: 650; }
+.form-intro { margin: 0 0 18px; color: var(--muted); white-space: pre-wrap; }
+
+.form-field { margin: 0 0 18px; }
+.form-label { display: block; margin-bottom: 4px; font-weight: 600; }
+.form-req { color: var(--danger); }
+.form-opt-note { color: var(--muted); font-weight: 400; font-size: 0.875rem; }
+.form-help { margin: 0 0 6px; color: var(--muted); font-size: 0.875rem; }
+.form-field input:not([type="checkbox"]), .form-field select, .form-field textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); }
+.form-field textarea { resize: vertical; }
+.form-field.bad input:not([type="checkbox"]), .form-field.bad select, .form-field.bad textarea { border-color: var(--danger); }
+.form-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.form-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.form-opt { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 6px; border: 1px solid var(--border); border-radius: var(--r-md); cursor: pointer; }
+.form-opt:hover { background: var(--hover); }
+.form-opt.on { border-color: var(--accent-ui); background: var(--select); }
+.form-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+
+.form-done { padding: 56px 0; text-align: center; }
+.form-done h2 { margin: 12px 0 4px; font-size: 1.25rem; font-weight: 650; }
+.form-done-mark { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--select); color: var(--accent-ui); }
+.form-done-actions { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+
+.form-fields { margin: 12px 0; padding: 0; list-style: none; }
+.form-edit-row { margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); }
+.form-edit-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.form-edit-actions { margin-left: auto; display: inline-flex; }
+.form-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: end; }
+.form-edit-grid .check-row { grid-column: 1 / -1; }
+.form-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 16px; }
+.form-edit .field textarea, .form-edit .field input { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); }
+@media (max-width: 560px) { .form-edit-grid { grid-template-columns: 1fr; } }

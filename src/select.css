@@ -1,0 +1,45 @@
+/* Shared native select picker, with the transitions.dev accordion's height reveal,
+   content fade/blur and chevron flip. Older WebViews keep their native picker. */
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]), select:not([multiple]):not([size])::picker(select) { appearance: base-select; }
+  select:not([multiple]):not([size]) { gap: 8px; min-inline-size: 0; }
+  select:not([multiple]):not([size])::picker-icon {
+    color: var(--text-muted); font-size: 0; inline-size: 12px; block-size: 12px;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    transform: scaleY(1); transform-origin: center;
+    transition: transform var(--acc-rows, 250ms) var(--ease-smooth-out, ease-out);
+  }
+  select:not([multiple]):not([size]):open::picker-icon { transform: scaleY(-1); }
+  select:not([multiple]):not([size])::picker(select) {
+    interpolate-size: allow-keywords;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    box-shadow: var(--menu-shadow);
+    min-inline-size: anchor-size(width); max-inline-size: min(480px, calc(100vw - 24px));
+    max-block-size: min(320px, calc(100dvh - 24px));
+    padding: 0; overflow-y: auto; overscroll-behavior: contain;
+    block-size: 0; opacity: 0; filter: blur(var(--blur-small, 2px));
+    transition: block-size var(--acc-rows, 250ms) var(--ease-smooth-out, ease-out),
+      opacity var(--acc-collapse, 250ms) var(--ease-smooth-out, ease-out),
+      filter var(--acc-collapse, 250ms) var(--ease-smooth-out, ease-out),
+      display var(--acc-collapse, 250ms) allow-discrete, overlay var(--acc-collapse, 250ms) allow-discrete;
+  }
+  select:not([multiple]):not([size]):open::picker(select) {
+    block-size: auto;
+    /* Clamp the interpolation target too, so a long list reveals at the same speed. */
+    block-size: calc-size(auto, min(size, 320px, calc(100dvh - 24px)));
+    opacity: 1; filter: blur(0);
+  }
+  @starting-style { select:not([multiple]):not([size]):open::picker(select) { block-size: 0; opacity: 0; filter: blur(var(--blur-small, 2px)); } }
+  select:not([multiple]):not([size]) option { padding: 8px 12px; gap: 8px; font-size: .875rem; white-space: normal; overflow-wrap: anywhere; }
+  select:not([multiple]):not([size]) option:checked { font-weight: 600; background: var(--accent-soft); }
+  select:not([multiple]):not([size]) option:not(:disabled):hover { background: var(--surface-hover); }
+  select:not([multiple]):not([size]) option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  select:not([multiple]):not([size]) option:disabled { color: var(--text-muted); }
+  select:not([multiple]):not([size]) option::checkmark { color: var(--accent-ui); }
+  select:not([multiple]):not([size]) optgroup { padding-block: 4px; }
+  select:not([multiple]):not([size]) optgroup > legend { padding: 6px 12px; color: var(--text-secondary); font-size: .75rem; }
+  :root[data-motion="reduced"] select::picker(select), :root[data-motion="reduced"] select::picker-icon { transition: none; filter: none; }
+  @media (prefers-reduced-motion: reduce) { select::picker(select), select::picker-icon { transition: none !important; filter: none !important; } }
+}

@@ -1,0 +1,54 @@
+/* ---- chart view ---- */
+.chart-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; }
+.chart-stage { flex: 1; min-height: 300px; border-top: 1px solid var(--border); padding-top: 12px; }
+.chart-view.bare .chart-stage { border-top: 0; padding-top: 0; min-height: 0; }
+
+.chart-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
+.csel { display: flex; flex-direction: column; gap: 2px; font-size: 0.8125rem; color: var(--muted); }
+.csel select, .field select, .field textarea { padding: 3px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--fg); }
+.csel select { min-width: 120px; max-width: 200px; }
+.field textarea { width: 100%; resize: vertical; }
+.field select { width: 100%; }
+
+/* ---- the chart itself ---- */
+.chart { position: relative; display: flex; flex-direction: column; height: 100%; margin: 0; }
+.chart-plot { position: relative; flex: 1; min-height: 240px; }
+.chart.compact .chart-plot { min-height: 0; }
+.chart-plot svg { display: block; position: absolute; inset: 0; overflow: visible; }
+.chart-grid { stroke: var(--border-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-tick, .chart-label { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-label { fill: var(--fg); opacity: 0.8; }
+.chart-center { fill: var(--fg); font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.chart-toggle { position: absolute; top: -2px; right: 0; z-index: 2; }
+.chart.compact .chart-toggle { top: -6px; }
+.chart-empty { margin: 0; padding: 24px 8px; color: var(--muted); }
+.chart-note { margin: 6px 0 0; color: var(--muted); font-size: 0.8125rem; }
+
+.chart-tip { position: absolute; z-index: 3; min-width: 130px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); box-shadow: var(--menu-shadow); font-size: 0.8125rem; pointer-events: none; }
+.chart-tip b { display: block; margin-bottom: 3px; font-weight: 600; }
+.chart-tip-row { display: flex; align-items: center; gap: 6px; }
+.chart-tip-row i, .chart-legend i { flex: none; width: 10px; height: 10px; border-radius: 2px; }
+.chart-tip-row span:nth-of-type(1) { flex: 1; color: var(--muted); }
+.chart-tip-row.total { margin-top: 3px; padding-top: 3px; border-top: 1px solid var(--border-subtle); }
+.chart-tip-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.chart-tip-note { margin-top: 3px; color: var(--muted); }
+
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 8px 0 0; list-style: none; font-size: 0.875rem; }
+.chart-legend li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.chart-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.chart-legend-note { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.chart-table-wrap { flex: 1; min-height: 0; overflow: auto; padding-top: 24px; }
+.chart-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.chart-table th, .chart-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-subtle); text-align: left; font-weight: 400; }
+.chart-table thead th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 500; border-bottom-color: var(--border); }
+.chart-table th[scope="row"] { font-weight: 500; }
+.chart-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- a single number ---- */
+.kpi { display: flex; flex-direction: column; justify-content: center; height: 100%; margin: 0; padding: 24px 4px; }
+.kpi-number { font-size: 3.25rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kpi-label { margin-top: 4px; color: var(--muted); }
+.kpi-sub { margin-top: 2px; color: var(--muted); font-size: 0.8125rem; }
+.kpi.compact { padding: 4px 0; }
+.kpi.compact .kpi-number { font-size: 2.25rem; }

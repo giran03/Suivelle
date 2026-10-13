@@ -1,0 +1,11 @@
+import { readFileSync } from "node:fs";
+const file = process.argv[2];
+if (!file) throw new Error("Pass the downloaded latest.json path.");
+const manifest = JSON.parse(readFileSync(file, "utf8"));
+const notes = JSON.parse(readFileSync(new URL("../release-notes.json", import.meta.url), "utf8"));
+if (manifest.version.replace(/^v/, "") !== notes.version || manifest.notes !== notes.notes) throw new Error("Manifest version/notes differ from the bundled release.");
+const platform = manifest.platforms?.["windows-x86_64"];
+if (!platform?.signature?.trim()) throw new Error("Missing Windows x64 updater signature.");
+const url = new URL(platform.url);
+if (url.origin !== "https://github.com" || !url.pathname.startsWith(`/giran03/Suivelle/releases/download/v${notes.version}/`) || !url.pathname.endsWith("-setup.exe")) throw new Error("Manifest must point to this release's NSIS installer.");
+console.log(`Signed updater manifest verified: ${manifest.version}`);

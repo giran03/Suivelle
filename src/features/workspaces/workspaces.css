@@ -1,0 +1,78 @@
+/* Workspaces extend the Quiet Desk shell: a quick switcher and one focused settings flow. */
+.ws-switcher { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px; border-radius: var(--r-md); text-align: left; }
+.ws-switcher:hover:not(:disabled) { background: var(--surface-hover); }
+.ws-switcher > svg:last-child { flex: none; transform: rotate(90deg); color: var(--text-muted); }
+.ws-switcher .ws-name { flex: 1; min-width: 0; padding: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-md); color: var(--workspace-color, var(--accent-ui)); background: color-mix(in srgb, var(--workspace-color, var(--accent-ui)) 10%, transparent); overflow: hidden; }
+.ws-custom-icon { font-size: 1rem; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.popover.ws-switch-popover { min-width: min(300px, calc(100vw - 16px)); padding: calc(8px * var(--density)); }
+.ws-switch-heading { font-size: 0.75rem; color: var(--text-muted); padding: calc(4px * var(--density)) calc(8px * var(--density)) calc(8px * var(--density)); }
+.ws-switch-list, .ws-directory ul { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; }
+.ws-directory-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: calc(var(--row-pad) + 2px) 8px; border-radius: var(--r-md); text-align: left; }
+.ws-directory-row:hover:not(:disabled) { background: var(--surface-hover); }
+.ws-directory-row[aria-current="true"] { background: var(--accent-soft); }
+.ws-directory-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.875rem; }
+.ws-directory-name small { display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.ws-switch-actions { display: flex; flex-wrap: wrap; gap: calc(8px * var(--density)); padding: 8px 4px 0; border-top: 1px solid var(--border-subtle); margin-top: 8px; }
+.palette.ws-dialog { width: min(780px, calc(100vw - 32px)); margin: auto; max-height: calc(100dvh - 32px); }
+.palette.ws-create-dialog { width: min(540px, calc(100vw - 32px)); }
+.ws-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: calc(16px * var(--density)) calc(20px * var(--density)); border-bottom: 1px solid var(--border-subtle); flex: none; }
+.ws-dialog-head h2 { font-size: 1.25rem; font-weight: 600; }
+.ws-manager { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 0; overflow-y: auto; }
+.ws-create-dialog .ws-manager { display: block; }
+.ws-directory { padding: calc(20px * var(--density)) calc(12px * var(--density)); border-right: 1px solid var(--border-subtle); }
+.ws-directory h3, .ws-danger-zone h3 { font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; }
+.ws-new { margin-top: 12px; width: 100%; justify-content: center; }
+.ws-directory > .picker-muted { margin-top: 10px; font-size: 0.75rem; }
+.ws-profile { padding: calc(20px * var(--density)) calc(24px * var(--density)) calc(24px * var(--density)); min-width: 0; }
+.ws-profile fieldset { border: 0; padding: 0; min-width: 0; }
+.ws-profile-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.ws-profile-heading h3 { font-size: 1rem; font-weight: 600; }
+.ws-profile-heading p { font-size: 0.875rem; margin-top: 2px; }
+.ws-profile .field { margin-bottom: 16px; }
+.ws-profile .field > span, .ws-delete .field > span { font-size: 0.875rem; font-weight: 500; }
+.ws-profile input, .ws-profile textarea, .ws-profile select, .ws-delete input, .ws-search, .ws-switch-popover input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); color: var(--fg); font: inherit; font-size: 0.875rem; }
+.ws-profile textarea { resize: vertical; min-height: 60px; }
+.ws-icon-choices { display: flex; flex-wrap: wrap; gap: 5px; }
+.ws-icon-choice { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); border-radius: var(--r-md); color: var(--text-secondary); }
+.ws-icon-choice .ws-badge { width: 26px; height: 26px; background: none; }
+.ws-icon-choice:hover, .ws-icon-choice[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ui); border-color: var(--accent-ui); }
+.ws-custom-field { margin-top: 6px; }
+.ws-color-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ws-color-choice { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-md); background: var(--workspace-color); color: light-dark(var(--on-accent), var(--background)); }
+.ws-color-choice[aria-pressed="true"] { outline: 2px solid var(--workspace-color); outline-offset: 2px; }
+.ws-badge > .pg-image { width: 100%; height: 100%; object-fit: cover; object-position: center; border-radius: inherit; }
+.ws-badge .brand-mark { --brand-s: var(--workspace-color, var(--accent-ui)); --brand-star: var(--workspace-color, var(--accent-ui)); }
+.ws-image-upload { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.ws-image-upload > .ws-badge { width: 56px; height: 56px; }
+.ws-image-upload > div { min-width: 0; }
+.ws-image-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ws-image-actions .btn { min-height: var(--ctl-h); }
+.ws-profile .ws-spacing { display: flex; width: fit-content; max-width: 100%; flex-wrap: wrap; margin-top: 6px; }
+.ws-profile .ws-spacing button { display: flex; align-items: center; gap: 6px; height: 36px; padding-inline: 8px; }
+.ws-image-upload p, .ws-color-note { margin-top: 6px; font-size: .75rem; }
+.ws-custom-color > span { width: 16px; height: 16px; border-radius: var(--r-sm); border: 1px solid var(--border); }
+.ws-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.ws-actions > span { flex: 1; }
+.ws-saved { display: flex; align-items: center; gap: 6px; color: var(--tone-green); font-size: 0.875rem; }
+.ws-danger-zone { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); }
+.ws-danger-zone p { font-size: 0.875rem; }
+.ws-data-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ws-delete { padding: calc(20px * var(--density)) calc(24px * var(--density)) calc(24px * var(--density)); overflow-y: auto; min-height: 0; }
+.ws-delete > p { margin-top: 14px; font-size: 0.875rem; }
+.ws-identity { display: flex; align-items: center; gap: 10px; overflow-wrap: anywhere; }
+.ws-delete form { margin-top: 24px; }
+.ws-discard { display: grid; gap: calc(8px * var(--density)); padding: 16px 20px; background: var(--surface-hover); border-bottom: 1px solid var(--border-subtle); font-size: 0.875rem; }
+.ws-discard > div { display: flex; gap: 8px; }
+.sidebar[data-density="compact"] { --workspace-row-pad: 2px; }
+.sidebar[data-density="normal"] { --workspace-row-pad: 5px; }
+.sidebar[data-density="comfortable"] { --workspace-row-pad: 8px; }
+.sidebar[data-density] .node .title, .sidebar[data-density] .fav { padding-block: var(--workspace-row-pad); }
+.workspace-pending { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); z-index: 80; font-size: 0.875rem; }
+@media (max-width: 640px) {
+  .ws-manager { grid-template-columns: minmax(0, 1fr); }
+  .ws-directory { border-right: 0; border-bottom: 1px solid var(--border-subtle); padding: 12px; }
+  .ws-directory ul { max-height: 120px; }
+  .ws-profile, .ws-delete { padding: 16px; }
+  .ws-profile-heading { margin-bottom: 16px; }
+}

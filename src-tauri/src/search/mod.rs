@@ -1,0 +1,482 @@
+//! Full-text search (SQLite FTS5), page references and recents.
+//!
+//! The index is maintained incrementally inside the same transaction as every page and block
+//! write, so it cannot drift from the data. Trashed pages stay indexed and are hidden at query
+//! time, which makes trashing and restoring free.
+
+pub mod text;
+
+#[cfg(test)]
+mod tests;
+
+use crate::domain::{validate_id, Block, Page};
+use crate::errors::{AppError, AppResult};
+use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
+
+/// Private-use characters that wrap matched terms in snippets; the UI splits on them, so no
+/// HTML is ever produced here.
+pub const MARK_START: char = '\u{E000}';
+pub const MARK_END: char = '\u{E001}';
+
+pub const MAX_QUERY_CHARS: usize = 200;
+pub const MAX_LIMIT: i64 = 50;
+const SNIPPET_TOKENS: i64 = 14;
+
+// ---------------------------------------------------------------------------------------------
+// index maintenance
+// ---------------------------------------------------------------------------------------------
+
+pub mod index {
+    use super::*;
+
+    fn doc_id(conn: &Connection, key: &str) -> AppResult<Option<i64>> {
+        Ok(conn
+            .query_row("SELECT id FROM search_doc WHERE key = ?1", [key], |r| {
+                r.get(0)
+            })
+            .optional()?)
+    }
+
+    pub fn remove_key(conn: &Connection, key: &str) -> AppResult<()> {
+        if let Some(id) = doc_id(conn, key)? {
+            conn.execute("DELETE FROM search_fts WHERE rowid = ?1", [id])?;
+            conn.execute("DELETE FROM search_doc WHERE id = ?1", [id])?;
+        }
+        Ok(())
+    }
+
+    fn upsert(
+        conn: &Connection,
+        key: &str,
+        workspace_id: &str,
+        page_id: &str,
+        block_id: Option<&str>,
+        title: &str,
+        body: &str,
+    ) -> AppResult<()> {
+        if title.is_empty() && body.is_empty() {
+            return remove_key(conn, key);
+        }
+        match doc_id(conn, key)? {
+            Some(id) => {
+                conn.execute(
+                    "UPDATE search_fts SET title = ?2, body = ?3 WHERE rowid = ?1",
+                    params![id, title, body],
+                )?;
+            }
+            None => {
+                conn.execute(
+                    "INSERT INTO search_doc (key, workspace_id, page_id, block_id) VALUES (?1, ?2, ?3, ?4)",
+                    params![key, workspace_id, page_id, block_id],
+                )?;
+                let id = conn.last_insert_rowid();
+                conn.execute(
+                    "INSERT INTO search_fts (rowid, title, body) VALUES (?1, ?2, ?3)",
+                    params![id, title, body],
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn upsert_page(conn: &Connection, page: &Page) -> AppResult<()> {
+        upsert(
+            conn,
+            &format!("p:{}", page.id),
+            &page.workspace_id,
+            &page.id,
+            None,
+            page.title.trim(),
+            "",
+        )
+    }
+
+    /// Indexes a block's text and replaces its page references.
+    pub fn upsert_block(
+        conn: &Connection,
+        workspace_id: &str,
+        page_id: &str,
+        block_id: &str,
+        block_type: &str,
+        schema_version: i64,
+        data_json: &str,
+    ) -> AppResult<()> {
+        let text = text::plain_text(block_type, schema_version, data_json);
+        let (title, body) = if block_type.starts_with("heading_") {
+            (text.as_str(), "")
+        } else {
+            ("", text.as_str())
+        };
+        upsert(
+            conn,
+            &format!("b:{block_id}"),
+            workspace_id,
+            page_id,
+            Some(block_id),
+            title,
+            body,
+        )?;
+
+        conn.execute(
+            "DELETE FROM page_reference WHERE source_block_id = ?1",
+            [block_id],
+        )?;
+        for target in text::extract_refs(data_json) {
+            conn.execute(
+                "INSERT OR IGNORE INTO page_reference (source_page_id, source_block_id, target_page_id) VALUES (?1, ?2, ?3)",
+                params![page_id, block_id, target],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Indexes a text property's value so records can be found by it (body text, no heading rank).
+    pub fn upsert_property_text(
+        conn: &Connection,
+        workspace_id: &str,
+        page_id: &str,
+        record_id: &str,
+        property_id: &str,
+        text: &str,
+    ) -> AppResult<()> {
+        upsert(
+            conn,
+            &format!("v:{record_id}:{property_id}"),
+            workspace_id,
+            page_id,
+            None,
+            "",
+            text.trim(),
+        )
+    }
+
+    pub fn remove_property_text(
+        conn: &Connection,
+        record_id: &str,
+        property_id: &str,
+    ) -> AppResult<()> {
+        remove_key(conn, &format!("v:{record_id}:{property_id}"))
+    }
+
+    /// Removes every record's indexed text for one property (when the property is deleted).
+    pub fn remove_property_docs(conn: &Connection, property_id: &str) -> AppResult<()> {
+        let pattern = format!("v:%:{property_id}");
+        conn.execute(
+            "DELETE FROM search_fts WHERE rowid IN (SELECT id FROM search_doc WHERE key LIKE ?1)",
+            [&pattern],
+        )?;
+        conn.execute("DELETE FROM search_doc WHERE key LIKE ?1", [&pattern])?;
+        Ok(())
+    }
+
+    /// Removes a block and all of its descendants from the index (call before deleting the block).
+    pub fn remove_block_tree(conn: &Connection, block_id: &str) -> AppResult<()> {
+        let mut stmt = conn.prepare(
+            "WITH RECURSIVE tree(id) AS (
+                 SELECT id FROM block WHERE id = ?1
+                 UNION ALL
+                 SELECT b.id FROM block b JOIN tree t ON b.parent_block_id = t.id
+             ) SELECT id FROM tree",
+        )?;
+        let ids = stmt
+            .query_map([block_id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        for id in ids {
+            remove_key(conn, &format!("b:{id}"))?;
+        }
+        Ok(())
+    }
+
+    /// Removes a page's title and block documents and every reference pointing at it.
+    pub fn remove_page(conn: &Connection, page_id: &str) -> AppResult<()> {
+        conn.execute(
+            "DELETE FROM search_fts WHERE rowid IN (SELECT id FROM search_doc WHERE page_id = ?1)",
+            [page_id],
+        )?;
+        conn.execute("DELETE FROM search_doc WHERE page_id = ?1", [page_id])?;
+        conn.execute(
+            "DELETE FROM page_reference WHERE target_page_id = ?1",
+            [page_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_workspace(conn: &Connection, workspace_id: &str) -> AppResult<()> {
+        conn.execute(
+            "DELETE FROM search_fts WHERE rowid IN (SELECT id FROM search_doc WHERE workspace_id = ?1)",
+            [workspace_id],
+        )?;
+        conn.execute(
+            "DELETE FROM search_doc WHERE workspace_id = ?1",
+            [workspace_id],
+        )?;
+        Ok(())
+    }
+
+    /// Rebuilds one workspace's index and references from the stored pages and blocks.
+    /// Returns the number of documents indexed.
+    pub fn rebuild_workspace(conn: &Connection, workspace_id: &str) -> AppResult<i64> {
+        remove_workspace(conn, workspace_id)?;
+        conn.execute(
+            "DELETE FROM page_reference WHERE source_page_id IN (SELECT id FROM page WHERE workspace_id = ?1)",
+            [workspace_id],
+        )?;
+        let pages: Vec<(String, String)> = {
+            let mut stmt = conn.prepare("SELECT id, title FROM page WHERE workspace_id = ?1")?;
+            let rows = stmt.query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (id, title) in &pages {
+            upsert(
+                conn,
+                &format!("p:{id}"),
+                workspace_id,
+                id,
+                None,
+                title.trim(),
+                "",
+            )?;
+        }
+        let blocks: Vec<Block> = {
+            let mut stmt = conn.prepare(
+                "SELECT b.id, b.page_id, b.parent_block_id, b.type, b.position, b.data_json, b.schema_version,
+                        b.revision, b.created_at, b.updated_at
+                 FROM block b JOIN page p ON p.id = b.page_id WHERE p.workspace_id = ?1",
+            )?;
+            let rows = stmt.query_map([workspace_id], |r| {
+                Ok(Block {
+                    id: r.get(0)?,
+                    page_id: r.get(1)?,
+                    parent_block_id: r.get(2)?,
+                    block_type: r.get(3)?,
+                    position: r.get(4)?,
+                    data_json: r.get(5)?,
+                    schema_version: r.get(6)?,
+                    revision: r.get(7)?,
+                    created_at: r.get(8)?,
+                    updated_at: r.get(9)?,
+                })
+            })?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for b in &blocks {
+            upsert_block(
+                conn,
+                workspace_id,
+                &b.page_id,
+                &b.id,
+                &b.block_type,
+                b.schema_version,
+                &b.data_json,
+            )?;
+        }
+        let texts: Vec<(String, String, String, String)> = {
+            let mut stmt = conn.prepare(
+                "SELECT v.record_id, rec.page_id, v.property_id, v.value_json
+                 FROM db_value v
+                 JOIN db_property pr ON pr.id = v.property_id AND pr.type IN ('text', 'url', 'email', 'phone')
+                 JOIN db_record rec ON rec.id = v.record_id
+                 JOIN page p ON p.id = rec.page_id
+                 WHERE p.workspace_id = ?1",
+            )?;
+            let rows = stmt.query_map([workspace_id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (record_id, page_id, property_id, json_text) in texts {
+            if let Ok(serde_json::Value::String(text)) =
+                serde_json::from_str::<serde_json::Value>(&json_text)
+            {
+                upsert_property_text(
+                    conn,
+                    workspace_id,
+                    &page_id,
+                    &record_id,
+                    &property_id,
+                    &text,
+                )?;
+            }
+        }
+        let n: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM search_doc WHERE workspace_id = ?1",
+            [workspace_id],
+            |r| r.get(0),
+        )?;
+        Ok(n)
+    }
+
+    /// Startup safety net: if there is content but no index (first run after this feature
+    /// shipped, or a damaged index), build it.
+    pub fn ensure_index(conn: &Connection) -> AppResult<()> {
+        let docs: i64 = conn.query_row("SELECT COUNT(*) FROM search_doc", [], |r| r.get(0))?;
+        let pages: i64 = conn.query_row("SELECT COUNT(*) FROM page", [], |r| r.get(0))?;
+        if docs == 0 && pages > 0 {
+            let ids: Vec<String> = {
+                let mut stmt = conn.prepare("SELECT id FROM workspace")?;
+                let rows = stmt.query_map([], |r| r.get(0))?;
+                rows.collect::<Result<_, _>>()?
+            };
+            for id in ids {
+                rebuild_workspace(conn, &id)?;
+            }
+            tracing::info!("search index rebuilt on startup");
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// queries
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchInput {
+    pub workspace_id: String,
+    pub query: String,
+    #[serde(default)]
+    pub titles_only: bool,
+    pub modified_within_days: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    /// "page" for a title match, "block" for text inside a page.
+    pub kind: &'static str,
+    pub page_id: String,
+    pub block_id: Option<String>,
+    pub page_title: String,
+    pub parent_title: Option<String>,
+    /// Matched terms are wrapped in `MARK_START` / `MARK_END`.
+    pub snippet: String,
+    pub updated_at: String,
+}
+
+pub fn search(conn: &Connection, input: &SearchInput) -> AppResult<Vec<SearchHit>> {
+    validate_id(&input.workspace_id, "workspace")?;
+    if input.query.chars().count() > MAX_QUERY_CHARS {
+        return Err(AppError::Validation("search text is too long".into()));
+    }
+    let Some(expr) = text::fts_query(&input.query, input.titles_only) else {
+        return Ok(Vec::new());
+    };
+    let limit = input.limit.unwrap_or(30).clamp(1, MAX_LIMIT);
+    let offset = input.offset.unwrap_or(0).max(0);
+    let since = input.modified_within_days.filter(|d| *d > 0).map(|d| {
+        (chrono::Utc::now() - chrono::Duration::days(d))
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    });
+
+    let sql = format!(
+        "SELECT d.page_id, d.block_id, p.title, pp.title, p.updated_at,
+                snippet(search_fts, -1, '{MARK_START}', '{MARK_END}', '…', {SNIPPET_TOKENS}), d.key
+         FROM search_fts
+         JOIN search_doc d ON d.id = search_fts.rowid
+         JOIN page p ON p.id = d.page_id
+         LEFT JOIN page pp ON pp.id = p.parent_page_id
+         WHERE search_fts MATCH ?1 AND d.workspace_id = ?2 AND p.deleted_at IS NULL
+           AND (?3 IS NULL OR p.updated_at >= ?3)
+         ORDER BY bm25(search_fts, 10.0, 1.0), (d.block_id IS NOT NULL), p.updated_at DESC
+         LIMIT ?4 OFFSET ?5"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(
+        params![expr, input.workspace_id, since, limit, offset],
+        |r| {
+            let block_id: Option<String> = r.get(1)?;
+            let key: String = r.get(6)?;
+            Ok(SearchHit {
+                // Titles are "p:" documents; block text and record property text are both content.
+                kind: if key.starts_with("p:") {
+                    "page"
+                } else {
+                    "block"
+                },
+                page_id: r.get(0)?,
+                block_id,
+                page_title: r.get(2)?,
+                parent_title: r.get(3)?,
+                snippet: r.get(5)?,
+                updated_at: r.get(4)?,
+            })
+        },
+    )?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Backlink {
+    pub source_page_id: String,
+    pub source_page_title: String,
+    pub parent_title: Option<String>,
+    pub source_block_id: String,
+    pub snippet: String,
+}
+
+/// Pages that mention or link to `page_id`, with the text around each reference.
+pub fn backlinks(conn: &Connection, page_id: &str) -> AppResult<Vec<Backlink>> {
+    validate_id(page_id, "page")?;
+    let mut stmt = conn.prepare(
+        "SELECT r.source_page_id, sp.title, pp.title, r.source_block_id, b.type, b.schema_version, b.data_json
+         FROM page_reference r
+         JOIN page sp ON sp.id = r.source_page_id AND sp.deleted_at IS NULL
+         JOIN block b ON b.id = r.source_block_id
+         LEFT JOIN page pp ON pp.id = sp.parent_page_id
+         WHERE r.target_page_id = ?1 AND r.source_page_id <> ?1
+         ORDER BY sp.updated_at DESC, b.position
+         LIMIT 200",
+    )?;
+    let rows = stmt.query_map([page_id.to_ascii_lowercase()], |r| {
+        let text = text::plain_text(&r.get::<_, String>(4)?, r.get(5)?, &r.get::<_, String>(6)?);
+        Ok(Backlink {
+            source_page_id: r.get(0)?,
+            source_page_title: r.get(1)?,
+            parent_title: r.get(2)?,
+            source_block_id: r.get(3)?,
+            snippet: text.chars().take(160).collect(),
+        })
+    })?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageTitle {
+    pub id: String,
+    pub title: String,
+    pub icon: Option<String>,
+    pub deleted: bool,
+}
+
+/// Titles for many ids at once (mention chips). Unknown ids are simply absent from the result.
+pub fn page_titles(conn: &Connection, ids: &[String]) -> AppResult<Vec<PageTitle>> {
+    if ids.len() > 200 {
+        return Err(AppError::Validation("too many pages requested".into()));
+    }
+    let mut stmt =
+        conn.prepare("SELECT id, title, icon, deleted_at IS NOT NULL FROM page WHERE id = ?1")?;
+    let mut out = Vec::new();
+    for id in ids {
+        validate_id(id, "page")?;
+        if let Some(t) = stmt
+            .query_row([id], |r| {
+                Ok(PageTitle {
+                    id: r.get(0)?,
+                    title: r.get(1)?,
+                    icon: r.get(2)?,
+                    deleted: r.get(3)?,
+                })
+            })
+            .optional()?
+        {
+            out.push(t);
+        }
+    }
+    Ok(out)
+}

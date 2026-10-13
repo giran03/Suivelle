@@ -1,0 +1,19 @@
+.app-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.app-frame > .shell { flex: 1; min-height: 0; height: auto; }
+.app-titlebar { position: relative; display: flex; flex: 0 0 34px; height: 34px; background: var(--toolbar-background); color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); user-select: none; }
+.app-titlebar-drag { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 12px; font-size: .75rem; }
+.app-titlebar-drag > * { pointer-events: none; }
+.app-titlebar[data-focused="false"] .app-titlebar-drag { color: var(--text-secondary); }
+.app-window-controls { display: flex; flex: none; }
+.app-window-controls button { display: grid; place-items: center; width: 46px; height: 100%; cursor: default; }
+.app-window-controls button:hover { background: var(--surface-hover); }
+.app-window-controls button:active { background: var(--surface-active); }
+.app-window-controls button:focus-visible { outline-offset: -3px; }
+.app-window-controls svg { fill: none; stroke: currentColor; stroke-width: 1; }
+.app-window-controls .app-window-close:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, var(--toolbar-background)); }
+.app-window-controls .app-window-close:active { background: color-mix(in srgb, var(--danger) 24%, var(--toolbar-background)); }
+.app-titlebar-error { position: absolute; z-index: 100; top: 100%; right: 8px; max-width: min(420px, calc(100vw - 16px)); padding: 8px 12px; background: var(--surface-2); color: var(--danger); border: 1px solid var(--border-strong); border-radius: var(--r-sm); font-size: .8125rem; user-select: text; }
+@media (forced-colors: active) {
+  .app-titlebar { background: Canvas; color: CanvasText; border-color: ButtonBorder; }
+  .app-window-controls button:hover, .app-window-controls .app-window-close:hover { background: Highlight; color: HighlightText; }
+}

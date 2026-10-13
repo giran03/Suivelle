@@ -1,0 +1,16 @@
+.find-bar { position: absolute; z-index: 35; top: calc(var(--topbar-h) + 8px); right: 20px; display: flex; flex-direction: column; gap: 6px; width: min(420px, calc(100% - 32px)); padding: 8px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--menu-shadow); animation: panel-in var(--duration-fast) var(--ease-smooth-out); }
+/* With the tab strip showing (it sits just before this bar), start below it. */
+.tabbar:not(.tabbar-drop) ~ .find-bar { top: calc(var(--topbar-h) + var(--tabbar-h) + 8px); }
+.find-row { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
+.find-row input { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--field); color: var(--fg); outline: 0; }
+.find-row input:focus { border-color: var(--focus-ring); }
+.find-row input[aria-invalid="true"] { border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.find-count { flex: none; min-width: 58px; padding: 0 4px; color: var(--text-muted); font-size: 0.75rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.find-count.none { color: var(--danger); }
+.find-aa { font-size: 0.75rem; font-weight: 600; letter-spacing: -0.02em; }
+.find-word { padding: 0 2px; border-bottom: 2px solid currentColor; line-height: 1.1; }
+.find-row .btn { height: 28px; padding: 0 10px; }
+
+/* Highlights inside the page (the editor adds these as decorations). */
+.doc .find-match { border-radius: 2px; background: color-mix(in srgb, var(--accent-ui) 26%, transparent); }
+.doc .find-current { background: color-mix(in srgb, var(--accent-ui) 55%, transparent); box-shadow: 0 0 0 1px var(--accent-ui); }

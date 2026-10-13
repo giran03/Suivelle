@@ -1,0 +1,55 @@
+/*
+ * Windows High Contrast (forced colors). The browser replaces our colours with the user's system
+ * palette and drops background tints and shadows, so anything that shows state only through a tint
+ * (selected rows, the open tab, a switch that is on, search matches) needs an edge or an outline.
+ */
+@media (forced-colors: active) {
+  :focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+
+  /* "Selected" and "on" states */
+  .node.selected, .foot-btn.active, .palette-item.active, .chip.on, .seg button.on, .row.ticked .cell, .toc-item:hover, .dbv-pick:hover {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .tab.on { box-shadow: none; border-bottom: 3px solid Highlight; }
+  .set-nav [role="tab"][aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .tab.dragging { outline: 2px dashed Highlight; }
+  .node.drop-before::before, .node.drop-after::after { background: Highlight; }
+  .node.drop-inside { outline-color: Highlight; }
+
+  /* Switches: the track and thumb are backgrounds, which would both turn to the same colour */
+  .switch-track { border: 2px solid ButtonText; }
+  .switch-track::after { background: ButtonText; }
+  .switch input:checked + .switch-track { background: Highlight; border-color: Highlight; }
+  .switch input:checked + .switch-track::after { background: HighlightText; }
+
+  /* Buttons */
+  .btn.primary { border: 2px solid Highlight; }
+  .bulk-btn:hover:not(:disabled), .cbar-btn:hover:not(:disabled) { outline: 1px solid Highlight; }
+
+  /* Find in page */
+  .doc .find-match { background: Mark; color: MarkText; }
+  .doc .find-current { outline: 2px solid Highlight; }
+
+  /* Edges and handles */
+  .sidebar-resizer::after { background: Highlight; opacity: 1; }
+  .dbv-resize::after { background: ButtonText; }
+  .row-check { opacity: 1; }
+
+  /* Colour is the content here: keep the user's chosen cover and gradients as they are */
+  .cover-swatch, .cover-fill, .page-cover, .theme-swatch, .theme-preview { forced-color-adjust: none; }
+  .t-tt { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+  .t-tt-keys { border-color: CanvasText; color: CanvasText; }
+}
+
+@media (forced-colors: active) {
+  .save-state.saving .t-swap-text { background: none; -webkit-text-fill-color: currentColor; animation: none; }
+  .t-matrix i { background: GrayText; }
+  .t-matrix i.is-still { background: GrayText; }
+  .seg[data-pill]::before, .tabbar[data-pill]::before { background: Highlight; forced-color-adjust: none; }
+  .seg[data-pill] > .on, .seg[data-pill] > [aria-pressed="true"], .seg[data-pill] > [aria-selected="true"] { color: HighlightText; }
+  .view-tabs[data-pill]::before { background: Highlight; }
+  input[type="checkbox"] { border: 2px solid ButtonText; background: Canvas; }
+  input[type="checkbox"]:checked { background: Highlight; border-color: Highlight; }
+  input[type="checkbox"]::after { background: HighlightText; forced-color-adjust: none; }
+}

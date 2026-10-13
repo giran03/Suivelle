@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Suivelle",
+  "mainBinaryName": "Suivelle",
+  "version": "0.1.2",
+  "identifier": "app.suivelle.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1430",
+    "beforeBuildCommand": "node scripts/check-release.mjs && npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Suivelle",
+        "decorations": false,
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: attachment: http://attachment.localhost; media-src 'self' attachment: http://attachment.localhost; frame-src attachment: http://attachment.localhost; connect-src ipc: http://ipc.localhost",
+      "devCsp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "compression": "lzma",
+        "installMode": "currentUser",
+        "installerHooks": "installer/directory.nsh"
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      },
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQwN0U2RDgwMTc1QkEyRUQKUldUdG9sc1hnRzErUUpTQjhjTVp2S2tBZGtIaHdIeld5QkVaNTFDV0E3ZVZTelNDS0kwZUNjbCsK",
+      "endpoints": [
+        "https://github.com/giran03/Suivelle/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

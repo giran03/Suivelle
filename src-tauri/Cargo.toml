@@ -1,0 +1,49 @@
+[package]
+name = "suivelle"
+version = "0.1.2"
+edition = "2021"
+
+[lib]
+name = "suivelle_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "Suivelle"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+arboard = { version = "3", default-features = false, features = ["image-data"] }
+dirs = "6"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+tauri = { version = "2.12.1", features = ["image-png", "tray-icon"] }
+tauri-plugin-dialog = "2.8.1"
+tauri-plugin-notification = "2"
+tauri-plugin-global-shortcut = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+csv = "1"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.27.0", features = ["v7"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+semver = "1"
+
+# Compact release binaries; debug/development builds keep their existing settings.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+[target."cfg(windows)".dependencies]
+winreg = "0.55"

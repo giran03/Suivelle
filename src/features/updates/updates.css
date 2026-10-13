@@ -1,0 +1,20 @@
+.updates-section h3:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+.update-explanation { margin-block: calc(10px * var(--density)); }
+.update-available { padding-block: calc(12px * var(--density)); border-bottom: 1px solid var(--border-subtle); }
+.update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--density)); margin-block: calc(10px * var(--density)); }
+.update-progress { display: grid; gap: calc(6px * var(--density)); margin-block: calc(12px * var(--density)); font-size: 0.875rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.update-progress progress { width: 100%; height: 8px; accent-color: var(--accent); }
+.palette.changelog { width: min(680px, calc(100vw - 32px)); }
+.palette.update-preparing { width: min(420px, calc(100vw - 32px)); }
+.changelog-body { overflow-y: auto; min-height: 0; padding: calc(12px * var(--density)) calc(20px * var(--density)); }
+.changelog-meta { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: calc(20px * var(--density)); }
+.changelog-notes { max-width: 70ch; font-size: 0.9375rem; line-height: 1.65; overflow-wrap: anywhere; }
+.changelog-notes h3 { margin: calc(20px * var(--density)) 0 calc(8px * var(--density)); font-size: 1rem; font-weight: 600; }
+.changelog-notes h3:first-child { margin-top: 0; }
+.changelog-notes p { margin-block: calc(8px * var(--density)); }
+.changelog-notes ul { list-style: disc; padding-inline-start: calc(20px * var(--density)); margin-block: calc(8px * var(--density)); }
+.changelog-notes li { margin-block: calc(8px * var(--density)); }
+.changelog-footer { display: flex; justify-content: flex-end; padding: calc(12px * var(--density)) calc(20px * var(--density)); border-top: 1px solid var(--border-subtle); }
+.update-notice { bottom: calc(60px * var(--density)); max-width: calc(100vw - 32px); flex-wrap: wrap; }
+.update-notice .icon-btn { color: var(--text-secondary); }
+@media (max-width: 520px) { .updates-section > .set-row { flex-direction: column; align-items: flex-start; } }

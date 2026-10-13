@@ -1,0 +1,313 @@
+/* Motion tokens: the transitions.dev scale, run through four multipliers so Settings > Motion is one dial.
+     --k-time   durations        --k-dist  travel distances
+     --k-blur   blur radii       --k-scale how far a scale departs from 1
+     --k-loops  1 runs looping effects (matrix loader, shimmer), 0 shows them still
+   System is full motion, and falls back to Reduced when Windows asks for less. Subtle trims everything and drops
+   blur. Reduced keeps short fades so a state change or confirmation never goes silent, but nothing moves.
+   src/lib/motion.ts holds the same table for script-driven effects; motion.test.ts keeps the two in step. */
+:root {
+  --k-time: 1;
+  --k-dist: 1;
+  --k-blur: 1;
+  --k-scale: 1;
+  --k-loops: 1;
+}
+:root[data-motion="subtle"] {
+  --k-time: 0.65;
+  --k-dist: 0.6;
+  --k-blur: 0;
+  --k-scale: 0.5;
+  --k-loops: 1;
+  --toggle-ease: cubic-bezier(0.34, 1.12, 0.64, 1);
+}
+:root[data-motion="reduced"] {
+  --k-time: 0.45;
+  --k-dist: 0;
+  --k-blur: 0;
+  --k-scale: 0;
+  --k-loops: 0;
+  --toggle-ease: var(--ease-smooth-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) {
+    --k-time: 0.45;
+    --k-dist: 0;
+    --k-blur: 0;
+    --k-scale: 0;
+    --k-loops: 0;
+    --toggle-ease: var(--ease-smooth-out);
+  }
+}
+
+:root {
+  /* Durations */
+  --duration-stagger: calc(40ms * var(--k-time));
+  --duration-micro: calc(80ms * var(--k-time));
+  --duration-quick: calc(150ms * var(--k-time));
+  --duration-fast: calc(250ms * var(--k-time));
+  --duration-medium: calc(350ms * var(--k-time));
+  --duration-slow: calc(400ms * var(--k-time));
+  --duration-very-slow: calc(500ms * var(--k-time));
+  /* Easings. --ease-out stays the app's own smooth curve (styles.css); the skill's plain ease-out is --ease-plain. */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-plain: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  /* Distances, scales, blur */
+  --distance-micro: calc(4px * var(--k-dist));
+  --distance-small: calc(6px * var(--k-dist));
+  --distance-base: calc(8px * var(--k-dist));
+  --distance-medium: calc(12px * var(--k-dist));
+  --distance-large: calc(30px * var(--k-dist));
+  --scale-large: calc(1 - 0.04 * var(--k-scale));
+  --scale-medium: calc(1 - 0.03 * var(--k-scale));
+  --scale-small: calc(1 - 0.02 * var(--k-scale));
+  --scale-tiny: calc(1 - 0.01 * var(--k-scale));
+  --blur-small: calc(2px * var(--k-blur));
+  --blur-medium: calc(3px * var(--k-blur));
+  --blur-large: calc(8px * var(--k-blur));
+
+  /* The names the app already used for its two durations */
+  --t-fast: calc(120ms * var(--k-time));
+  --t-menu: calc(180ms * var(--k-time));
+
+  /* Modal and menus */
+  --modal-open-dur: var(--duration-fast);
+  --modal-close-dur: var(--duration-quick);
+  --modal-scale: var(--scale-large);
+  --dropdown-open-dur: var(--duration-fast);
+  --dropdown-close-dur: var(--duration-quick);
+  --dropdown-pre-scale: var(--scale-medium);
+  --dropdown-closing-scale: var(--scale-tiny);
+  --panel-open-dur: var(--duration-slow);
+  --panel-close-dur: var(--duration-medium);
+  --panel-blur: var(--blur-small);
+  /* Card resize, accordion, toast */
+  --resize-dur: calc(300ms * var(--k-dist));
+  --acc-rows: calc(250ms * var(--k-dist));
+  --acc-expand: var(--duration-fast);
+  --acc-collapse: var(--duration-fast);
+  --acc-chevron: var(--duration-fast);
+  --toast-open: var(--duration-medium);
+  --toast-close: calc(250ms * var(--k-time));
+  --toast-distance: calc(16px * var(--k-dist));
+  --toast-blur: var(--blur-small);
+  --toast-scale: var(--scale-medium);
+  /* Controls */
+  --toggle-dur: calc(350ms * var(--k-time));
+  --toggle-ease: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --check-box: calc(150ms * var(--k-time));
+  --check-draw: calc(350ms * var(--k-time));
+  --tabs-dur: calc(250ms * var(--k-dist));
+  --icon-swap-dur: var(--duration-fast);
+  --icon-swap-blur: var(--blur-small);
+  --icon-swap-start-scale: calc(1 - 0.75 * var(--k-scale));
+  --text-swap-dur: var(--duration-quick);
+  --text-swap-translate-y: var(--distance-micro);
+  --text-swap-blur: var(--blur-small);
+  /* Page slides and reveals */
+  --page-slide-dur: var(--duration-fast);
+  --page-slide-distance: var(--distance-base);
+  --page-blur: var(--blur-medium);
+  --stagger-dur: var(--duration-very-slow);
+  --stagger-distance: var(--distance-medium);
+  --stagger-stagger: var(--duration-stagger);
+  --stagger-blur: var(--blur-medium);
+  --reveal-dur: var(--duration-slow);
+  --reveal-blur: var(--blur-small);
+  /* Looping and feedback */
+  --shimmer-dur: calc(2000ms / max(var(--k-loops), 0.0001));
+  --matrix-cycle: 1200ms;
+  --pulse-dur: 1000ms;
+  --shake-distance: var(--distance-small);
+  --shake-overshoot: calc(4px * var(--k-dist));
+  --shake-dur-a: var(--duration-micro);
+  --shake-dur-b: calc(60ms * var(--k-time));
+  --revert-hold: 3000ms;
+  --revert-dur: calc(280ms * var(--k-time));
+  --check-opacity-dur: var(--duration-very-slow);
+  --check-path-dur: var(--duration-very-slow);
+  --check-path-delay: var(--duration-micro);
+  --check-y-amount: calc(40px * var(--k-dist));
+}
+
+/* ---- Checkbox check (transitions.dev): the box fills, then the tick is drawn across it ---- */
+:where(input[type="checkbox"]) {
+  appearance: none;
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid var(--text-muted);
+  border-radius: var(--r-xs);
+  background: transparent;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--check-box) var(--ease-smooth-out), border-color var(--check-box) var(--ease-smooth-out);
+}
+:where(input[type="checkbox"])::after {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  background: var(--on-accent);
+  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.9 2.9L12 5.2' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask: var(--tick) center / 100% 100% no-repeat;
+  mask: var(--tick) center / 100% 100% no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--check-box) var(--ease-smooth-out);
+}
+:where(input[type="checkbox"]:checked) { background: var(--accent); border-color: var(--accent); }
+:where(input[type="checkbox"]:checked)::after {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--check-draw) var(--ease-smooth-out);
+}
+:where(input[type="checkbox"]:disabled) { opacity: 0.5; cursor: default; }
+:where(input[type="checkbox"]:focus-visible) { outline: 2px solid color-mix(in srgb, var(--focus-ring) 75%, transparent); outline-offset: 2px; }
+
+/* ---- Accordion expand (transitions.dev): see components/Collapse.tsx ---- */
+.t-acc-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--acc-rows) var(--ease-smooth-out); }
+.t-acc-panel[data-open="true"] { grid-template-rows: 1fr; }
+.t-acc-panel-inner { min-height: 0; overflow: hidden; opacity: 0; filter: blur(var(--blur-small)); transition: opacity var(--acc-collapse) var(--ease-smooth-out), filter var(--acc-collapse) var(--ease-smooth-out); }
+.t-acc-panel[data-open="true"] > .t-acc-panel-inner { opacity: 1; filter: blur(0); transition-duration: var(--acc-expand); }
+
+/* ---- Tabs sliding (transitions.dev): one highlight travels to the selected item; see features/motion/pills.ts ---- */
+.seg, .view-tabs, .tabbar:not(.tabbar-drop) { position: relative; isolation: isolate; }
+.seg[data-pill]::before, .view-tabs[data-pill]::before, .tabbar[data-pill]::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: 0;
+  width: var(--pill-w);
+  height: var(--pill-h);
+  translate: var(--pill-x) var(--pill-y);
+  border-radius: var(--r-sm);
+  background: var(--surface-hover);
+  pointer-events: none;
+}
+.seg[data-pill="on"]::before, .view-tabs[data-pill="on"]::before, .tabbar[data-pill="on"]::before {
+  transition: translate var(--tabs-dur) var(--ease-smooth-out), width var(--tabs-dur) var(--ease-smooth-out), height var(--tabs-dur) var(--ease-smooth-out);
+}
+.seg[data-pill] > .on, .seg[data-pill] > [aria-pressed="true"], .seg[data-pill] > [aria-selected="true"] { background: transparent; }
+/* Database view tabs: the highlight is the underline. */
+.view-tabs[data-pill]::before { height: 2px; translate: var(--pill-x) calc(var(--pill-y) + var(--pill-h) - 2px); border-radius: 1px; background: var(--accent-ui); }
+.view-tabs[data-pill] > .vtab.on { border-bottom-color: transparent; }
+/* Open pages: the selected tab's surface and accent edge slide between tabs. */
+.tabbar[data-pill]::before { border-radius: var(--r-md) var(--r-md) 0 0; background: var(--surface-1); box-shadow: inset 0 -2px 0 var(--accent-ui); top: auto; bottom: 0; translate: var(--pill-x) 0; }
+.tabbar[data-pill] > .tab.on { background: transparent; box-shadow: none; }
+.tabbar[data-pill] > .tab:hover:not(.on) { background: var(--surface-hover); }
+
+/* ---- Icon swap and text states swap (transitions.dev): see components/Swap.tsx ---- */
+.t-swap { position: relative; display: inline-grid; align-items: center; justify-items: start; }
+.t-swap-icon { justify-items: center; }
+.t-swap-layer { grid-area: 1 / 1; display: inline-flex; align-items: center; }
+.t-swap-icon > .t-swap-layer.in { animation: swap-icon-in var(--icon-swap-dur) var(--ease-in-out) both; }
+.t-swap-icon > .t-swap-layer.out { animation: swap-icon-out var(--icon-swap-dur) var(--ease-in-out) both; }
+.t-swap-text > .t-swap-layer.in { animation: swap-text-in var(--text-swap-dur) var(--ease-in-out) both; }
+.t-swap-text > .t-swap-layer.out { animation: swap-text-out var(--text-swap-dur) var(--ease-in-out) both; }
+@keyframes swap-icon-in { from { opacity: 0; filter: blur(var(--icon-swap-blur)); scale: var(--icon-swap-start-scale); } }
+@keyframes swap-icon-out { to { opacity: 0; filter: blur(var(--icon-swap-blur)); scale: var(--icon-swap-start-scale); } }
+@keyframes swap-text-in { from { opacity: 0; filter: blur(var(--text-swap-blur)); translate: 0 var(--text-swap-translate-y); } }
+@keyframes swap-text-out { to { opacity: 0; filter: blur(var(--text-swap-blur)); translate: 0 calc(var(--text-swap-translate-y) * -1); } }
+
+/* ---- Matrix dot loader (transitions.dev): a 4x4 grid of dots; see components/Loading.tsx ---- */
+.t-matrix {
+  --matrix-base: color-mix(in srgb, var(--text-muted) 38%, transparent);
+  --matrix-active: var(--accent-ui);
+  display: inline-grid;
+  grid-template-columns: repeat(4, 3px);
+  grid-auto-rows: 3px;
+  gap: 2px;
+  vertical-align: middle;
+}
+.t-matrix i { display: block; border-radius: 1px; background: var(--matrix-base); animation: matrix-pulse var(--matrix-cycle) ease-in-out infinite; animation-delay: calc(var(--d, 0) * 1ms); }
+.t-matrix i.is-gap { visibility: hidden; animation: none; }
+.t-matrix i.is-still { animation: none; }
+@keyframes matrix-pulse { 0%, 45%, 100% { background-color: var(--matrix-base); } 15% { background-color: var(--matrix-active); } }
+.loading { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---- Shimmer text (transitions.dev): a highlight sweeps across a status line while it works ---- */
+.save-state.saving .t-swap-text {
+  background: linear-gradient(90deg, var(--text-muted) 0 40%, var(--text-primary) 50%, var(--text-muted) 60% 100%) 100% 0 / 400% 100% no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-sweep var(--shimmer-dur) linear infinite;
+}
+@keyframes shimmer-sweep { to { background-position: 0 0; } }
+
+/* Loops stand still when motion is reduced (anything that runs forever has to). */
+:root[data-motion="reduced"] .t-matrix i, :root[data-motion="reduced"] .media-pending { animation: none; }
+:root[data-motion="reduced"] .save-state.saving .t-swap-text { animation: none; background: none; -webkit-text-fill-color: currentColor; }
+:root[data-motion="reduced"] .block-flash { animation: none; background: color-mix(in srgb, var(--accent-ui) 18%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .t-matrix i, :root:not([data-motion]) .media-pending { animation: none; }
+  :root:not([data-motion]) .save-state.saving .t-swap-text { animation: none; background: none; -webkit-text-fill-color: currentColor; }
+}
+
+/* ---- Skeleton loader and reveal (transitions.dev): placeholders breathe, loaded cards ease in ---- */
+.skeleton, .skel { animation: skeleton-pulse var(--pulse-dur) ease-in-out infinite; }
+@keyframes skeleton-pulse { 50% { opacity: 0.28; } }
+.gal-card:not(.skeleton), .feed-card:not(.skeleton) { animation: content-reveal var(--reveal-dur) var(--ease-in-out) both; }
+@keyframes content-reveal { from { opacity: 0; translate: 0 var(--distance-micro); } }
+:root[data-motion="reduced"] .skeleton, :root[data-motion="reduced"] .skel { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion]) .skeleton, :root:not([data-motion]) .skel { animation: none; } }
+
+/* ---- Input clear with dissolve (transitions.dev): see components/SearchField.tsx and features/motion/dissolve.ts ---- */
+.sf { position: relative; display: flex; align-items: center; min-width: 0; border-radius: var(--r-md); }
+.sf > input { flex: 1 1 auto; min-width: 0; width: 100%; }
+.sf.sf-grow { flex: 1 1 0; }
+.sf > input[type="search"]::-webkit-search-cancel-button { display: none; appearance: none; }
+.sf-clear { position: absolute; right: 4px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-xs); color: var(--text-muted); }
+.sf-clear:hover { background: var(--surface-hover); color: var(--fg); }
+
+/* ---- Error state shake (transitions.dev): a field that turns invalid shakes once and settles ---- */
+:where([aria-invalid="true"]):not(.no-shake) { animation: field-shake calc(var(--shake-dur-a) * 3 + var(--shake-dur-b) * 2) var(--ease-smooth-out); }
+@keyframes field-shake {
+  20% { translate: calc(var(--shake-distance) * -1) 0; }
+  45% { translate: var(--shake-distance) 0; }
+  65% { translate: calc(var(--shake-overshoot) * -1) 0; }
+  85% { translate: calc(var(--shake-overshoot) * 0.5) 0; }
+}
+.field-error, .error-text[role="alert"] { animation: content-reveal var(--duration-fast) var(--ease-smooth-out) both; }
+
+/* ---- Success check (transitions.dev): see components/Feedback.tsx ---- */
+.t-success-check { display: inline-block; transform-origin: center; opacity: 0; --check-rotate-from: calc(80deg * var(--k-dist)); --check-blur-from: calc(10px * var(--k-blur)); }
+.t-success-check svg { display: block; overflow: visible; }
+.t-success-check svg path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+.t-success-check[data-state="in"] {
+  animation:
+    check-fade var(--check-opacity-dur) var(--ease-smooth-out) forwards,
+    check-rotate var(--check-opacity-dur) var(--ease-smooth-out) forwards,
+    check-blur var(--check-opacity-dur) var(--ease-smooth-out) forwards,
+    check-bob var(--check-opacity-dur) cubic-bezier(0.34, 1.35, 0.64, 1) forwards;
+}
+.t-success-check[data-state="in"] svg path { animation: check-draw var(--check-path-dur) var(--ease-smooth-out) var(--check-path-delay) forwards; }
+@keyframes check-fade { to { opacity: 1; } }
+@keyframes check-rotate { from { rotate: var(--check-rotate-from); } to { rotate: 0deg; } }
+@keyframes check-blur { from { filter: blur(var(--check-blur-from)); } to { filter: blur(0); } }
+@keyframes check-bob { from { translate: 0 calc(var(--check-y-amount) * 0.25); } to { translate: 0 0; } }
+@keyframes check-draw { to { stroke-dashoffset: 0; } }
+
+/* ---- Number pop-in (transitions.dev): characters that changed rise in with a short stagger ---- */
+.t-digits { display: inline-flex; font-variant-numeric: tabular-nums; }
+.t-digit.pop { animation: digit-pop var(--duration-very-slow) cubic-bezier(0.34, 1.45, 0.64, 1) both; animation-delay: calc(var(--n, 0) * 70ms * var(--k-time)); }
+@keyframes digit-pop { from { opacity: 0; translate: 0 var(--distance-base); filter: blur(var(--blur-small)); } }
+
+/* ---- Page side-by-side (transitions.dev): see components/PageSlide.tsx ---- */
+.t-page[data-dir] { animation: page-in var(--page-slide-dur) var(--ease-smooth-out) both; }
+.t-page[data-dir="prev"] { animation-name: page-in-prev; }
+@keyframes page-in { from { opacity: 0; translate: var(--page-slide-distance) 0; filter: blur(var(--page-blur)); } }
+@keyframes page-in-prev { from { opacity: 0; translate: calc(var(--page-slide-distance) * -1) 0; filter: blur(var(--page-blur)); } }
+
+/* ---- Texts reveal (transitions.dev): an empty state's lines rise in one after another when it appears ---- */
+.empty-start > * { animation: lines-in var(--stagger-dur) var(--ease-smooth-out) both; }
+.empty-start > :nth-child(2) { animation-delay: calc(var(--stagger-stagger) * 1); }
+.empty-start > :nth-child(3) { animation-delay: calc(var(--stagger-stagger) * 2); }
+.empty-start > :nth-child(4) { animation-delay: calc(var(--stagger-stagger) * 3); }
+.empty-start > :nth-child(5) { animation-delay: calc(var(--stagger-stagger) * 4); }
+.empty-start > :nth-child(n + 6) { animation-delay: calc(var(--stagger-stagger) * 5); }
+@keyframes lines-in { from { opacity: 0; translate: 0 var(--stagger-distance); filter: blur(var(--stagger-blur)); } }
