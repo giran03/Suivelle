@@ -1,4 +1,4 @@
-//! Backups: one verified `.takobak` file holding a consistent copy of the database plus every
+//! Backups: one verified `.suibk` file holding a consistent copy of the database plus every
 //! attachment, with a manifest that can be read without unpacking anything.
 //!
 //! Layout of a file: the 8-byte magic `TAKOBAK1`, then entries (`1`, name length u16, name,
@@ -25,8 +25,16 @@ use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+// The original format signature stays unchanged so existing backups remain readable.
 const MAGIC: &[u8; 8] = b"TAKOBAK1";
-pub const EXTENSION: &str = "takobak";
+pub const EXTENSION: &str = "suibk";
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[EXTENSION, "takobak"];
+
+fn has_backup_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| SUPPORTED_EXTENSIONS.contains(&extension))
+}
 pub const KEEP_AUTO: usize = 3;
 const MAX_NAME: usize = 200;
 const CHUNK: usize = 256 * 1024;
@@ -440,7 +448,7 @@ pub fn list(paths: &Paths) -> Vec<BackupInfo> {
     };
     let mut out: Vec<BackupInfo> = dir
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x == EXTENSION))
+        .filter(|e| has_backup_extension(&e.path()))
         .filter_map(|e| {
             let manifest = read_manifest(&e.path()).ok()?;
             let size = e.metadata().ok()?.len();
@@ -465,7 +473,7 @@ pub fn app_backup_path(paths: &Paths, name: &str) -> AppResult<PathBuf> {
     let ok = !name.is_empty()
         && name.len() <= MAX_NAME
         && !name.starts_with('.')
-        && name.ends_with(&format!(".{EXTENSION}"))
+        && has_backup_extension(Path::new(name))
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
@@ -583,7 +591,7 @@ pub fn copy_to_mirror(paths: &Paths, info: &BackupInfo, keep: usize) -> AppResul
     let mut autos: Vec<String> = fs::read_dir(&folder)?
         .filter_map(Result::ok)
         .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| n.starts_with("auto-") && n.ends_with(&format!(".{EXTENSION}")))
+        .filter(|n| n.starts_with("auto-") && has_backup_extension(Path::new(n)))
         .collect();
     autos.sort_unstable_by(|a, b| b.cmp(a));
     for old in autos.iter().skip(keep.max(1)) {

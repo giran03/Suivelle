@@ -99,7 +99,7 @@ it("does not switch or clear data when deletion or its safety copy fails", async
   expect(useWorkspace.getState().workspace?.id).toBe("a"); expect(useWorkspace.getState().workspaces).toHaveLength(2);
 });
 it("moves to a survivor after deleting the active workspace", async () => {
-  await useWorkspace.getState().init(); vi.spyOn(ipc, "workspaceDelete").mockResolvedValue("safety.takobak"); vi.mocked(ipc.workspaceList).mockResolvedValue([b]);
+  await useWorkspace.getState().init(); vi.spyOn(ipc, "workspaceDelete").mockResolvedValue("safety.suibk"); vi.mocked(ipc.workspaceList).mockResolvedValue([b]);
   await useWorkspace.getState().deleteWorkspace("a", "Personal"); expect(useWorkspace.getState().workspace?.id).toBe("b"); expect(useWorkspace.getState().selectedPageId).toBe("pb"); expect(useWorkspace.getState().workspaces).toEqual([b]);
 });
 it("strict flush propagates failures while existing best-effort callers stay compatible", async () => {

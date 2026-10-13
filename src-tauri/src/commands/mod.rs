@@ -484,9 +484,7 @@ pub async fn backup_export(app: tauri::AppHandle) -> AppResult<Option<crate::bac
         let mut dest = dest
             .into_path()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        if dest.extension().is_none() {
-            dest.set_extension(crate::backup::EXTENSION);
-        }
+        dest.set_extension(crate::backup::EXTENSION);
         let t = std::time::Instant::now();
         let res = (|| {
             let pending = {
@@ -520,7 +518,7 @@ pub async fn backup_pick(
         let Some(picked) = app
             .dialog()
             .file()
-            .add_filter("Suivelle backup", &[crate::backup::EXTENSION])
+            .add_filter("Suivelle backup", crate::backup::SUPPORTED_EXTENSIONS)
             .blocking_pick_file()
         else {
             return Ok(None);

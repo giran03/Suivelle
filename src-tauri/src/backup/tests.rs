@@ -91,7 +91,7 @@ fn a_backup_holds_the_database_and_attachments_and_reads_back() {
     page(&e, "Two");
     let hash = attach(&e, b"hello attachment");
     let info = create_in_app(&e.conn, &e.paths, "manual").unwrap();
-    assert!(info.name.starts_with("manual-") && info.name.ends_with(".takobak"));
+    assert!(info.name.starts_with("manual-") && info.name.ends_with(".suibk"));
     let m = &info.manifest;
     assert_eq!(
         (
@@ -124,6 +124,25 @@ fn a_backup_holds_the_database_and_attachments_and_reads_back() {
     );
     staged.push("workspace.db");
     assert!(staged.exists());
+}
+
+#[test]
+fn legacy_backups_remain_listed_and_restore_with_new_safety_backups() {
+    let e = env();
+    page(&e, "Original");
+    let info = create_in_app(&e.conn, &e.paths, "manual").unwrap();
+    let legacy_name = info.name.replace(".suibk", ".takobak");
+    let legacy_path = e.paths.backups().join(&legacy_name);
+    fs::rename(e.paths.backups().join(&info.name), &legacy_path).unwrap();
+    assert_eq!(list(&e.paths)[0].name, legacy_name);
+    assert_eq!(app_backup_path(&e.paths, &legacy_name).unwrap(), legacy_path);
+    page(&e, "Later");
+    let restored = restore(&e.conn, &e.paths, &legacy_path).unwrap();
+    assert_eq!(titles(&e), ["Original"]);
+    assert!(restored.safety_backup.ends_with(".suibk"));
+    let backups = list(&e.paths);
+    assert!(backups.iter().any(|backup| backup.name == legacy_name));
+    assert!(backups.iter().any(|backup| backup.name == restored.safety_backup));
 }
 
 #[test]
@@ -492,7 +511,8 @@ fn a_second_folder_receives_copies_and_keeps_only_the_newest() {
     for i in 0..3 {
         let mut info = create_in_app(&e.conn, &e.paths, "auto").unwrap();
         // Distinct names regardless of how fast the backups are made.
-        let renamed = format!("auto-2026010{i}-000000.{EXTENSION}");
+        let extension = if i == 0 { "takobak" } else { EXTENSION };
+        let renamed = format!("auto-2026010{i}-000000.{extension}");
         fs::rename(
             e.paths.backups().join(&info.name),
             e.paths.backups().join(&renamed),
