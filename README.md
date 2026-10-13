@@ -17,8 +17,6 @@
   </h2>
 </div>
 
-https://github.com/user-attachments/assets/e32ecc50-2de8-4d35-b7d2-f530ffe424b2
-
 <p align="center"><strong>Suivelle in motion</strong></p>
 
 <p align="center">
