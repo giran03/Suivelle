@@ -261,7 +261,15 @@ export const useWorkspace = create<State>((set, get) => {
       if (initialization) return initialization;
       initialization = guard(async () => {
         let workspaces = orderedWorkspaces(await ipc.workspaceList());
-        if (!workspaces.length) workspaces = [await ipc.workspaceCreate("My Workspace")];
+        if (!workspaces.length) {
+          // A brand-new installation opens on a short Getting started checklist.
+          const created = await ipc.workspaceCreate("My Workspace");
+          workspaces = [created];
+          try {
+            const { seedGettingStarted } = await import("../features/onboarding/gettingStarted");
+            rememberPage(created.id, (await seedGettingStarted(created.id)).id);
+          } catch { /* An empty workspace is still a working start. */ }
+        }
         set({ workspaces });
         const id = rememberedWorkspace();
         await activate(workspaces.some((w) => w.id === id) ? id! : workspaces[0].id);
