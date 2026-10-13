@@ -12,7 +12,7 @@ Primary, Middle, Secondary, Back and Forward mouse buttons are supported when de
 
 Bindings are saved per device across workspaces. Page-tree selection, tab controls, database grid commands, and writing actions retain their own contexts. Normal text entry, focus movement, modal cancellation, Markdown input rules, dragging and resizing remain built-in.
 
-The desktop app supports configurable **Quick capture from any program** and **Focus Suivelle from any program** keyboard shortcuts. Use each action's Enabled checkbox. Settings distinguish the requested binding from its active registration and show registration errors. Replacements restore previous bindings if registration or persistence fails. Recording temporarily releases Suivelle's global shortcuts and restores them afterward. Global mouse hooks are not installed.
+The desktop app supports configurable **Quick capture from any program** and **Focus Suivelle from any program** keyboard shortcuts. Use each action's **Enable** or **Disable** button; enabling one with no keys assigned restores its default keys. Settings distinguish the requested binding from its active registration and show registration errors. Replacements restore previous bindings if registration or persistence fails. Recording temporarily releases Suivelle's global shortcuts and restores them afterward. Global mouse hooks are not installed.
 
 Keyboard hints in the palette, sidebar, toolbar, editor formatting controls, context menus and reference sheet update with your bindings. Context menus show separate keycaps for an applicable input; pressing a listed shortcut while the menu is open acts on its captured item. Actions without an applicable shortcut have no hint. Browser/showcase builds support local settings and identify global shortcuts as desktop-only.
 
@@ -22,3 +22,14 @@ Automated tests cover binding matching, context conflicts, typing/IME protection
 
 
 When focus is in the page hierarchy, Ctrl/Cmd+C copies the picked pages, or the focused page if none are picked. Switch workspaces, focus a destination page and press Ctrl/Cmd+V to paste inside it. Focus the hierarchy's blank space or tree controls to paste at the top level, or use the Paste pages at top level button/menu action; this also works in empty workspaces. These two page shortcuts can be rebound. The clipboard stays available for repeated copies within the running app. Nested ordinary pages are included; selecting a parent and its child copies that subtree once. Databases and dashboards cannot be copied by this page copier yet, and skipped nested items are reported. Editor text copy/paste retains its normal behavior.
+
+## New in 0.1.4
+
+| Action | Default |
+| --- | --- |
+| Open today's note | Ctrl+Alt+D |
+| Outline and word count | Ctrl+Shift+O |
+| Reopen closed tab | Ctrl+Shift+T |
+
+All three can be rebound like any other workspace action. Shift+click a page mention or link to open it in the side peek.
+
