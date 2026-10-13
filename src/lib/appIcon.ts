@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import type { ThemeSetting } from "../types";
-import { APP_ICON_PNG } from "./appIconData";
 
 type Theme = "dark" | "light";
 
@@ -12,21 +11,23 @@ export function resolveTheme(setting: ThemeSetting): Theme {
   return typeof matchMedia === "function" && matchMedia(DARK_QUERY).matches ? "dark" : "light";
 }
 
-const dataUrl = (theme: Theme) => `data:image/png;base64,${APP_ICON_PNG[theme]}`;
+/** The icon PNGs (about 44 kB of base64) load after first paint instead of with the startup bundle. */
+const iconPng = async (theme: Theme) => (await import("./appIconData")).APP_ICON_PNG[theme];
 
 /** Gives the window (and with it the taskbar button and title bar) the icon for `theme`. Does nothing outside the desktop app. */
 async function setWindowIcon(theme: Theme): Promise<void> {
   if (!("__TAURI_INTERNALS__" in window)) return;
-  const [{ getCurrentWindow }, { Image }] = await Promise.all([import("@tauri-apps/api/window"), import("@tauri-apps/api/image")]);
-  const bytes = Uint8Array.from(atob(APP_ICON_PNG[theme]), (c) => c.charCodeAt(0));
+  const [{ getCurrentWindow }, { Image }, png] = await Promise.all([import("@tauri-apps/api/window"), import("@tauri-apps/api/image"), iconPng(theme)]);
+  const bytes = Uint8Array.from(atob(png), (c) => c.charCodeAt(0));
   await getCurrentWindow().setIcon(await Image.fromBytes(bytes));
 }
 
-function setFavicon(theme: Theme): void {
+async function setFavicon(theme: Theme): Promise<void> {
   const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!link) return;
+  const png = await iconPng(theme);
   link.type = "image/png";
-  link.href = dataUrl(theme);
+  link.href = `data:image/png;base64,${png}`;
 }
 
 /**
@@ -38,7 +39,7 @@ export function useAppIcon(setting: ThemeSetting): void {
   useEffect(() => {
     const apply = () => {
       const theme = resolveTheme(setting);
-      setFavicon(theme);
+      void setFavicon(theme).catch(() => undefined);
       void setWindowIcon(theme).catch(() => undefined);
     };
     apply();

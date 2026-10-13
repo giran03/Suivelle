@@ -5,7 +5,7 @@ import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { copyText } from "../../components/editingMenu";
 import { useWorkspace } from "../../stores/workspace";
 import { toAppError } from "../../lib/ipc";
-import { useWorkspaceDialog } from "./WorkspaceDialog";
+import { useWorkspaceDialog } from "./store";
 import { WorkspaceList } from "./WorkspaceList";
 import { WorkspaceBadge } from "./WorkspaceBadge";
 import { workspaceOptions } from "./model";

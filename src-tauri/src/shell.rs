@@ -96,7 +96,45 @@ pub fn show_window(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        set_background(app, false);
     }
+}
+
+/// While the window is minimized or in the tray, asks WebView2 to trim the memory it keeps for
+/// fast redraws; the normal target returns as soon as the window is back. Background work such
+/// as automations and backups runs in Rust and is unaffected.
+fn set_background(app: &AppHandle, background: bool) {
+    static BACKGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if BACKGROUND.swap(background, std::sync::atomic::Ordering::SeqCst) == background {
+        return;
+    }
+    #[cfg(windows)]
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.with_webview(move |wv| {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+            };
+            use windows_core::Interface;
+            let level = if background {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+            } else {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+            };
+            // SAFETY: `with_webview` runs this on the thread that owns the WebView2 objects.
+            let result = unsafe {
+                wv.controller()
+                    .CoreWebView2()
+                    .and_then(|core| core.cast::<ICoreWebView2_19>())
+                    .and_then(|core| core.SetMemoryUsageTargetLevel(level))
+            };
+            if let Err(error) = result {
+                tracing::debug!(%error, "could not change the webview memory target");
+            }
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = app;
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -149,6 +187,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     if started_by_system && b.launch_at_startup && b.start_minimized {
         if let Some(w) = app.get_webview_window("main") {
             let _ = w.hide();
+            set_background(app, true);
         }
     }
     Ok(())
@@ -162,17 +201,24 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     if window.label() != "main" {
         return;
     }
-    let b = window.app_handle().state::<ShellState>().get();
+    let app = window.app_handle();
+    let b = app.state::<ShellState>().get();
     match event {
         WindowEvent::CloseRequested { api, .. }
             if b.close_to_tray && !crate::updates::preparing() =>
         {
             api.prevent_close();
             let _ = window.hide();
+            set_background(app, true);
         }
-        WindowEvent::Resized(_) if b.minimize_to_tray && window.is_minimized().unwrap_or(false) => {
-            let _ = window.hide();
+        WindowEvent::Resized(_) => {
+            let minimized = window.is_minimized().unwrap_or(false);
+            if minimized && b.minimize_to_tray {
+                let _ = window.hide();
+            }
+            set_background(app, minimized || !window.is_visible().unwrap_or(true));
         }
+        WindowEvent::Focused(true) => set_background(app, false),
         _ => {}
     }
 }

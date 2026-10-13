@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { exportWorkspaceArchive } from "../transfer/transfer";
 import { useTransferDialog } from "../transfer/store";
-import { create } from "zustand";
+import { useWorkspaceDialog, type WorkspaceDialogMode } from "./store";
 import { EmojiPicker } from "../../components/LazyEmojiPicker";
 import { Icon } from "../../components/Icon";
 import { ipc, toAppError } from "../../lib/ipc";
@@ -18,8 +18,7 @@ import { rememberColor, rgbToHex } from "../../lib/color";
 import { radioKeys } from "../settings/radioKeys";
 import "./workspaces.css";
 
-type Mode = "manage" | "create" | "delete";
-export const useWorkspaceDialog = create<{ open: boolean; mode: Mode; show: (mode?: Mode) => void; hide: () => void }>((set) => ({ open: false, mode: "manage", show: (mode = "manage") => set({ open: true, mode }), hide: () => set({ open: false }) }));
+type Mode = WorkspaceDialogMode;
 
 function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { mode: Mode; selectedId: string | undefined; onSelect: (id: string) => void; onDirty: (dirty: boolean) => void; onBusy: (busy: boolean) => void; close: () => void; cancel: () => void }) {
   const workspaces = useWorkspace((s) => s.workspaces);

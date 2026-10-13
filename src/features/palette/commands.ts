@@ -1,6 +1,6 @@
 import { ACTIONS, label } from "../shortcuts/bindings";
 import { useShortcuts } from "../shortcuts/store";
-import { useWorkspaceDialog } from "../workspaces/WorkspaceDialog";
+import { useWorkspaceDialog } from "../workspaces/store";
 import { READ_ONLY, READ_ONLY_COMMANDS } from "../../lib/access";
 import { canBack, canForward } from "../../lib/history";
 import { ipc, toAppError } from "../../lib/ipc";

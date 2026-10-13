@@ -149,7 +149,9 @@ pub fn run() {
         // block the window.
         .register_asynchronous_uri_scheme_protocol("attachment", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
-            std::thread::spawn(move || responder.respond(files::protocol::respond(&app, &request)));
+            files::protocol::spawn(move || {
+                responder.respond(files::protocol::respond(&app, &request))
+            });
         })
         .setup(|app| {
             // Disable WebView2's browser menu, including embedded documents and media.

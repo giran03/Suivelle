@@ -8,6 +8,36 @@ use tauri::{
     AppHandle, Manager,
 };
 
+type Job = Box<dyn FnOnce() + Send>;
+
+/// Runs attachment requests on a small fixed pool, off the webview thread. A gallery that asks
+/// for hundreds of thumbnails at once queues them instead of starting a thread for each.
+pub fn spawn(job: impl FnOnce() + Send + 'static) {
+    static QUEUE: std::sync::OnceLock<std::sync::mpsc::Sender<Job>> = std::sync::OnceLock::new();
+    let queue = QUEUE.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<Job>();
+        let rx = std::sync::Arc::new(std::sync::Mutex::new(rx));
+        let workers = std::thread::available_parallelism().map_or(2, |n| n.get().clamp(2, 4));
+        for i in 0..workers {
+            let rx = rx.clone();
+            let _ = std::thread::Builder::new()
+                .name(format!("attachment-{i}"))
+                .spawn(move || loop {
+                    // The lock is held only while taking the next job, never while running it.
+                    let next = rx.lock().unwrap_or_else(|e| e.into_inner()).recv();
+                    match next {
+                        Ok(job) => job(),
+                        Err(_) => break,
+                    }
+                });
+        }
+        tx
+    });
+    if let Err(std::sync::mpsc::SendError(job)) = queue.send(Box::new(job)) {
+        job();
+    }
+}
+
 pub fn respond(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     match serve(app, req) {
         Ok(r) => r,
@@ -32,7 +62,11 @@ fn serve(app: &AppHandle, req: &Request<Vec<u8>>) -> Result<Response<Vec<u8>>, u
             .ok_or(404u16)?
     };
     // `?thumb=<edge>` asks for a small copy of an image; anything else gets the original.
-    if let Some(value) = req.uri().query().and_then(|q| q.split('&').find_map(|s| s.strip_prefix("crop="))) {
+    if let Some(value) = req
+        .uri()
+        .query()
+        .and_then(|q| q.split('&').find_map(|s| s.strip_prefix("crop=")))
+    {
         let v: Vec<f64> = value.split(',').filter_map(|s| s.parse().ok()).collect();
         if v.len() != 4 || !mime.starts_with("image/") {
             return Err(400);
@@ -49,8 +83,16 @@ fn serve(app: &AppHandle, req: &Request<Vec<u8>>) -> Result<Response<Vec<u8>>, u
         let image = super::image_edit::render(&super::blob_path(&store.root, hash), Some(crop))
             .map_err(|_| 422u16)?;
         let mut bytes = std::io::Cursor::new(Vec::new());
-        image.write_to(&mut bytes, image::ImageFormat::Png).map_err(|_| 500u16)?;
-        return Response::builder().status(200u16).header(header::CONTENT_TYPE, "image/png").header("Access-Control-Allow-Origin", "*").header(header::CACHE_CONTROL, "public, max-age=31536000, immutable").body(bytes.into_inner()).map_err(|_| 500u16);
+        image
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .map_err(|_| 500u16)?;
+        return Response::builder()
+            .status(200u16)
+            .header(header::CONTENT_TYPE, "image/png")
+            .header("Access-Control-Allow-Origin", "*")
+            .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .body(bytes.into_inner())
+            .map_err(|_| 500u16);
     }
     if let Some(edge) =
         super::thumb::size_param(req.uri().query()).filter(|_| mime.starts_with("image/"))
@@ -91,4 +133,32 @@ fn serve(app: &AppHandle, req: &Request<Vec<u8>>) -> Result<Response<Vec<u8>>, u
         builder = builder.header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{size}"));
     }
     builder.body(body).map_err(|_| 500u16)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{mpsc, Arc};
+
+    #[test]
+    fn a_burst_of_requests_runs_on_a_bounded_pool() {
+        let (running, peak) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+        let (done, finished) = mpsc::channel();
+        for _ in 0..64 {
+            let (running, peak, done) = (running.clone(), peak.clone(), done.clone());
+            super::spawn(move || {
+                let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(now, Ordering::SeqCst);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+                running.fetch_sub(1, Ordering::SeqCst);
+                done.send(()).unwrap();
+            });
+        }
+        for _ in 0..64 {
+            finished
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .unwrap();
+        }
+        assert!((1..=4).contains(&peak.load(Ordering::SeqCst)));
+    }
 }
