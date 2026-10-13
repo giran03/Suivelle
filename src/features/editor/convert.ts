@@ -1,3 +1,4 @@
+import { embedData } from "./embedModel";
 /**
  * Maps between the ProseMirror document and the flat `block` rows stored in SQLite.
  *
@@ -146,6 +147,9 @@ export function blocksToDoc(rows: BlockRow[]): JSONContent {
           if (parentType === "columns") out.push({ type: "column", attrs, content: kids.length ? kids : [{ type: "paragraph" }] });
           else out.push(...kids);
           continue;
+        case "embed":
+          out.push({ type: "embed", attrs: { ...attrs, ...embedData(data) } });
+          break;
         case "table_of_contents":
           out.push({ type: "tableOfContents", attrs });
           break;
@@ -287,6 +291,9 @@ function collect(n: JSONContent, out: Desc[]): void {
       break;
     case "column":
       out.push({ id: idOf(n), type: "column", data: {}, children: content });
+      break;
+    case "embed":
+      out.push({ id: idOf(n), type: "embed", data: { ...embedData(n.attrs ?? {}) }, children: [] });
       break;
     case "tableOfContents":
       out.push({ id: idOf(n), type: "table_of_contents", data: {}, children: [] });

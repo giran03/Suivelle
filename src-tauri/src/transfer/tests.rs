@@ -2,6 +2,75 @@ use super::blocks::*;
 use super::markdown::{self, Ctx};
 
 #[test]
+fn web_embed_roundtrips_html_and_archive_with_portable_markdown() {
+    let data = serde_json::json!({"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title":"Video <reference>", "caption":"Research notes", "width":75, "height":400, "align":"center", "mode":"embed"});
+    let block = Blk {
+        embed: Some(data.clone()),
+        ..Blk::new("embed")
+    };
+    let html = super::html::render_document(
+        "Embed",
+        std::slice::from_ref(&block),
+        &Ctx {
+            asset: &|_| None,
+            title: &|_| None,
+            link: &|_| None,
+        },
+    );
+    assert!(!html.contains("<iframe"));
+    assert!(html.contains("Video &lt;reference&gt;"));
+    let back = super::html::parse(&html);
+    let parsed = back.blocks.iter().find(|b| b.kind == "embed").unwrap();
+    assert_eq!(parsed.data(), data);
+    let md = render(std::slice::from_ref(&block));
+    assert!(md.contains("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+    assert!(md.contains("Research notes"));
+
+    let (mut conn, ws, store) = workspace();
+    let page = services::page::create(
+        &mut conn,
+        PageCreate {
+            workspace_id: ws.clone(),
+            title: Some("Embed page".into()),
+            parent_page_id: None,
+            icon: None,
+        },
+    )
+    .unwrap();
+    services::block::apply_batch(
+        &mut conn,
+        crate::domain::BlockBatch {
+            page_id: page.id.clone(),
+            upserts: flatten(&[block]),
+            delete_ids: vec![],
+        },
+    )
+    .unwrap();
+    let rows = repo::block::list(&conn, &page.id).unwrap();
+    assert_eq!(tree_from_rows(&rows)[0].data(), data);
+    assert!(
+        crate::search::text::plain_text("embed", 2, &data.to_string()).contains("Research notes")
+    );
+    let dest = store.join("embed.zip");
+    archive::export_workspace(&conn, &store, &ws, &dest).unwrap();
+    let (mut other, other_ws, other_store) = workspace();
+    let staged = import::stage_archive(&dest).unwrap();
+    import::apply(
+        &mut other,
+        &other_store,
+        &other_ws,
+        &staged,
+        &HashMap::new(),
+    )
+    .unwrap();
+    let restored: String = other.query_row("SELECT b.data_json FROM block b JOIN page p ON p.id = b.page_id WHERE p.workspace_id = ?1 AND b.type = 'embed'", [&other_ws], |r| r.get(0)).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&restored).unwrap(),
+        data
+    );
+}
+
+#[test]
 fn image_html_and_markdown_preserve_layout_but_omit_private_notes() {
     let wrapped = super::html::parse(
         "<div align=\"right\"><img src=\"assets/photo.png\" width=\"75%\" alt=\"A view\"></div>",

@@ -7,10 +7,12 @@ import { Icon } from "../../components/Icon";
 import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
 import type { WorkspaceStats } from "../../types";
+import { WorkspaceList } from "./WorkspaceList";
 import { WorkspaceBadge } from "./WorkspaceBadge";
 import { workspaceOptions, WORKSPACE_COLORS, WORKSPACE_SYMBOLS } from "./model";
 import { syncDialog } from "../../lib/dialog";
 import { SearchField } from "../../components/SearchField";
+import { Popover, anchorOf, type Anchor } from "../../components/Popover";
 import { ColorPicker } from "../../components/ColorPicker";
 import { rememberColor, rgbToHex } from "../../lib/color";
 import { radioKeys } from "../settings/radioKeys";
@@ -25,8 +27,17 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   const workspaceBusy = useWorkspace((s) => s.workspaceBusy);
   const options = workspaceOptions(workspace);
   const creating = mode === "create";
-  const initial = { name: creating ? "" : workspace?.name ?? "", icon: creating ? null : workspace?.icon ?? null, description: creating ? "" : options.description, accent: creating ? "violet" as const : options.accent, sidebarDensity: creating ? "comfortable" : options.sidebarDensity };
+  const initial = { image: null as File | null, name: creating ? "" : workspace?.name ?? "", icon: creating ? null : workspace?.icon ?? null, description: creating ? "" : options.description, accent: creating ? "violet" as const : options.accent, sidebarDensity: creating ? "comfortable" : options.sidebarDensity };
   const [draft, setDraft] = useState(initial);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [imagePreview, setImagePreview] = useState<string | undefined>();
+  useEffect(() => {
+    if (!draft.image) { setImagePreview(undefined); return; }
+    const url = URL.createObjectURL(draft.image);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [draft.image]);
+  const imageSelected = !!draft.image || !!draft.icon?.startsWith("image:");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -35,6 +46,7 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   const [statsEpoch, setStatsEpoch] = useState(0);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchAnchor, setSearchAnchor] = useState<Anchor | null>(null);
   const [pickerColor, setPickerColor] = useState<string | null>(null);
   const dirty = mode !== "delete" && JSON.stringify(draft) !== JSON.stringify(initial);
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
@@ -47,11 +59,12 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   }, [mode, workspace?.id, statsEpoch]);
   const locked = busy || workspaceBusy;
   useEffect(() => onBusy(locked), [locked, onBusy]);
-  const patch = (p: Partial<typeof draft>) => { setDraft((d) => ({ ...d, ...p })); setMessage(null); };
+  const patch = (p: Partial<typeof draft>) => { setDraft((d) => ({ ...d, ...("icon" in p ? { image: null } : {}), ...p })); setMessage(null); };
   const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); setMessage(null); try { await fn(); } catch (e) { setError(toAppError(e).message); } finally { setBusy(false); } };
   const exportWorkspace = () => run(async () => { if (workspace) { const result = await exportWorkspaceArchive(workspace.id); if (result) setMessage(`Workspace exported to ${result.fileName || "an archive"}.`); } });
   const uploadIcon = () => run(async () => {
-    if (!workspace || creating) return;
+    if (creating) { fileInput.current?.click(); return; }
+    if (!workspace) return;
     const image = await ipc.attachmentImport(workspace.id, "image");
     if (image) patch({ icon: `image:${image.hash}` });
   });
@@ -75,36 +88,45 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   </div>;
 
   return <div className="ws-manager">
-    {!creating && <section className="ws-directory" aria-label="Workspaces on this computer">
-      <h3>Your workspaces</h3>
-      {workspaces.length > 5 && <SearchField type="search" className="ws-search" placeholder="Find a workspace…" aria-label="Find a workspace" value={search} onChange={(e) => setSearch(e.target.value)} />}
-      <ul>{workspaces.filter((w) => w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map((w) => <li key={w.id}>
-        <button type="button" className={`ws-directory-row${w.id === workspace?.id ? " current" : ""}`} disabled={locked || dirty} aria-current={w.id === workspace?.id ? "true" : undefined} onClick={() => onSelect(w.id)}>
-          <WorkspaceBadge workspace={w} /><span className="ws-directory-name">{w.name}<small>{workspaceOptions(w).description || "Local workspace"}</small></span>{w.id === workspace?.id && <Icon name="check" size={14} />}
+    {!creating && <section className="ws-directory ws-icon-rail" aria-label="Workspaces on this computer">
+      <h3 className="sr-only">Your workspaces</h3>
+      {workspaces.length > 5 && <button type="button" className="icon-btn ws-rail-action" aria-label="Find a workspace" title="Find a workspace" aria-haspopup="dialog" aria-expanded={!!searchAnchor} onClick={(e) => setSearchAnchor(anchorOf(e.currentTarget))}><Icon name="search" size={18} /></button>}
+      {searchAnchor && <Popover anchor={searchAnchor} label="Find a workspace" className="ws-rail-search" onClose={() => { setSearchAnchor(null); setSearch(""); }}>
+        <SearchField autoFocus type="search" className="ws-search" placeholder="Find a workspace…" aria-label="Find a workspace" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {workspaces.every((w) => !w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())) && <p className="picker-muted" role="status">No matching workspace.</p>}
+      </Popover>}
+      <WorkspaceList disabled={locked || dirty || !!search} workspaces={workspaces.filter((w) => w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))}>{(w) => <>
+        <button type="button" className={`ws-directory-row${w.id === workspace?.id ? " current" : ""}`} aria-label={w.name} title={dirty ? `${w.name} — save your changes before selecting another workspace` : w.name} disabled={locked || dirty} aria-current={w.id === workspace?.id ? "true" : undefined} onClick={() => onSelect(w.id)}>
+          <WorkspaceBadge workspace={w} />
         </button>
-      </li>)}</ul>
-      {workspaces.every((w) => !w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())) && <p className="picker-muted">No matching workspace.</p>}
-      <button type="button" className="btn ws-new" disabled={locked || dirty} onClick={() => useWorkspaceDialog.getState().show("create")}><Icon name="plus" size={14} /> New workspace</button>
-      {dirty && <p className="picker-muted">Save your changes before selecting another workspace.</p>}
+      </>}</WorkspaceList>
+      <button type="button" className="icon-btn ws-rail-action ws-new" aria-label="New workspace" title="New workspace" disabled={locked || dirty} onClick={() => useWorkspaceDialog.getState().show("create")}><Icon name="plus" size={18} /></button>
+      {dirty && <p className="sr-only" role="status">Save your changes before selecting another workspace.</p>}
     </section>}
     <form className="ws-profile" data-unsaved={dirty} onSubmit={(e) => { e.preventDefault(); if (locked || !draft.name.trim()) return; void run(async () => {
       const profile = { description: draft.description.trim(), accent: draft.accent, sidebarDensity: draft.sidebarDensity };
-      if (creating) { await useWorkspace.getState().createWorkspace(draft.name.trim(), draft.icon?.trim() || null, profile); rememberColor(draft.accent); close(); }
+      if (creating) { await useWorkspace.getState().createWorkspace(draft.name.trim(), draft.icon?.trim() || null, profile, draft.image ?? undefined); rememberColor(draft.accent); close(); }
       else if (workspace) { await useWorkspace.getState().updateWorkspaceProfile(workspace.id, draft.name.trim(), draft.icon?.trim() || null, profile); rememberColor(draft.accent); setDraft((d) => ({ ...d, name: d.name.trim(), icon: d.icon?.trim() || null, description: d.description.trim() })); setMessage("Changes saved."); }
     }); }}>
       <fieldset disabled={locked}>
-        <div className="ws-profile-heading"><WorkspaceBadge workspace={{ icon: draft.icon, settingsJson: JSON.stringify({ accent: draft.accent }) }} /><div><h3>{creating ? "Make a space of your own" : "Workspace details"}</h3><p className="picker-muted">{creating ? "Keep a project, work or personal notes together." : "Identify this space at a glance."}</p></div></div>
+        <div className="ws-profile-heading"><WorkspaceBadge imageSrc={imagePreview} workspace={{ icon: draft.icon, settingsJson: JSON.stringify({ accent: draft.accent }) }} /><div><h3>{creating ? "Make a space of your own" : "Workspace details"}</h3><p className="picker-muted">{creating ? "Keep a project, work or personal notes together." : "Identify this space at a glance."}</p></div></div>
         <label className="field"><span>Name</span><input autoFocus required maxLength={200} value={draft.name} placeholder="e.g. Personal, Studio, Research" onChange={(e) => patch({ name: e.target.value })} /></label>
         <label className="field"><span>Description <small className="picker-muted">Optional</small></span><textarea maxLength={280} rows={2} value={draft.description} placeholder="What belongs in this workspace?" onChange={(e) => patch({ description: e.target.value })} /></label>
         <div className="field"><span>Icon</span><div className="ws-icon-choices" role="group" aria-label="Workspace icon">
           <button type="button" className="ws-icon-choice" aria-label="Use the Suivelle icon" aria-pressed={!draft.icon} onClick={() => patch({ icon: null })}><WorkspaceBadge workspace={null} /></button>
           {WORKSPACE_SYMBOLS.map((symbol) => <button type="button" className="ws-icon-choice" key={symbol} aria-label={`Use ${symbol} icon`} aria-pressed={draft.icon === `symbol:${symbol}`} onClick={() => patch({ icon: `symbol:${symbol}` })}><Icon name={symbol} size={18} /></button>)}
-        </div><input className="ws-custom-field" maxLength={64} aria-label="Custom workspace icon" placeholder="Or an emoji or short text" value={draft.icon?.startsWith("symbol:") || draft.icon?.startsWith("image:") ? "" : draft.icon ?? ""} onChange={(e) => patch({ icon: e.target.value || null })} />
+        </div><input className="ws-custom-field" maxLength={64} aria-label="Custom workspace icon" placeholder="Or an emoji or short text" value={draft.image || draft.icon?.startsWith("symbol:") || draft.icon?.startsWith("image:") ? "" : draft.icon ?? ""} onChange={(e) => patch({ icon: e.target.value || null })} />
         <details className="ws-emoji-picker" onToggle={(event) => setEmojiOpen(event.currentTarget.open)}><summary>Choose an emoji</summary>
           {emojiOpen && <EmojiPicker value={draft.icon} disabled={locked} onSelect={(icon) => patch({ icon })} />}
         </details>
-        <div className="ws-image-upload">{draft.icon?.startsWith("image:") && <WorkspaceBadge workspace={{ icon: draft.icon, settingsJson: "{}" }} />}<div><div className="ws-image-actions"><button type="button" className="btn" disabled={creating || locked} onClick={() => void uploadIcon()}><Icon name="image" size={14} />{busy ? "Choosing image…" : draft.icon?.startsWith("image:") ? "Replace image…" : "Upload image…"}</button>{draft.icon?.startsWith("image:") && <button type="button" className="btn" onClick={() => patch({ icon: null })}>Remove image</button>}</div><p className="picker-muted">{creating ? "Create this workspace, then upload an icon in its settings." : "Images fill the icon. Animated GIF, WebP and APNG keep playing."}</p></div></div></div>
-        <div className="field"><span>Icon color</span><div className="ws-color-choices" role="group" aria-label="Workspace icon color">{WORKSPACE_COLORS.map((color) => <button type="button" key={color} className="ws-color-choice" style={{ "--workspace-color": `var(--tone-${color})` } as CSSProperties} aria-label={color} aria-pressed={draft.accent === color} onClick={() => patch({ accent: color })}>{draft.accent === color && <Icon name="check" size={14} />}</button>)}<button type="button" className="btn ws-custom-color" aria-label="Choose custom icon color" aria-haspopup="dialog" onClick={openColorPicker}>{draft.accent.startsWith("#") && <span style={{ background: draft.accent }} />}{draft.accent.startsWith("#") ? draft.accent : "Custom…"}</button></div>{draft.icon?.startsWith("image:") && <p className="picker-muted ws-color-note">Color applies to symbols; uploaded images keep their original colors.</p>}</div>
+        <input ref={fileInput} type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.avif,.bmp,.svg,.apng" hidden onChange={(e) => {
+          const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
+          if (!file) return;
+          if (!/\.(png|jpe?g|gif|webp|avif|bmp|svg|apng)$/i.test(file.name) || !file.size || file.size > 10 * 1024 * 1024) { setError("Choose a supported image up to 10 MB."); return; }
+          setError(null); patch({ image: file, icon: null });
+        }} />
+        <div className="ws-image-upload">{imageSelected && <WorkspaceBadge imageSrc={imagePreview} workspace={{ icon: draft.icon, settingsJson: "{}" }} />}<div><div className="ws-image-actions"><button type="button" className="btn" disabled={locked} onClick={() => void uploadIcon()}><Icon name="image" size={14} />{busy ? "Choosing image…" : imageSelected ? "Replace image…" : "Upload image…"}</button>{imageSelected && <button type="button" className="btn" onClick={() => patch({ icon: null })}>Remove image</button>}</div><p className="picker-muted">{creating ? "Choose an image up to 10 MB. Animated GIF, WebP and APNG keep playing." : "Images fill the icon. Animated GIF, WebP and APNG keep playing."}</p></div></div></div>
+        <div className="field"><span>Icon color</span><div className="ws-color-choices" role="group" aria-label="Workspace icon color">{WORKSPACE_COLORS.map((color) => <button type="button" key={color} className="ws-color-choice" style={{ "--workspace-color": `var(--tone-${color})` } as CSSProperties} aria-label={color} aria-pressed={draft.accent === color} onClick={() => patch({ accent: color })}>{draft.accent === color && <Icon name="check" size={14} />}</button>)}<button type="button" className="btn ws-custom-color" aria-label="Choose custom icon color" aria-haspopup="dialog" onClick={openColorPicker}>{draft.accent.startsWith("#") && <span style={{ background: draft.accent }} />}{draft.accent.startsWith("#") ? draft.accent : "Custom…"}</button></div>{imageSelected && <p className="picker-muted ws-color-note">Color applies to symbols; uploaded images keep their original colors.</p>}</div>
         <div className="field"><span id="workspace-spacing-label">Sidebar spacing</span><div className="seg ws-spacing" role="radiogroup" aria-labelledby="workspace-spacing-label" onKeyDown={radioKeys}>{(["compact", "normal", "comfortable"] as const).map((spacing, i) => <button type="button" key={spacing} role="radio" aria-checked={draft.sidebarDensity === spacing} tabIndex={draft.sidebarDensity === spacing ? 0 : -1} className={draft.sidebarDensity === spacing ? "on" : ""} onClick={() => patch({ sidebarDensity: spacing })}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">{[12 - (i + 1) * 3, 12, 12 + (i + 1) * 3].map(y => <path key={y} d={`M5 ${y}h14`} />)}</svg><span>{spacing === "compact" ? "Compact" : spacing === "normal" ? "Normal" : "Comfortable"}</span></button>)}</div></div>
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}{message && <p className="ws-saved" role="status"><Icon name="check" size={14} />{message}</p>}

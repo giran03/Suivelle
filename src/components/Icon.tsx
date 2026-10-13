@@ -72,6 +72,7 @@ const PATHS = {
   function: <path d="M10.5 3.2c-1.6-.5-2.6.4-2.9 1.9L6.4 11c-.3 1.5-1.2 2.4-2.9 1.9M4.5 7.5h5" />,
   layers: <path d="M8 2.5l6 3-6 3-6-3zM2 8.5l6 3 6-3M2 11.2l6 3 6-3" />,
   download: <path d="M8 2.5v7.5M5 7l3 3 3-3M3 10.5v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" />,
+  upload: <path d="M8 10V2.5M5 5.5l3-3 3 3M3 10.5v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" />,
   play: <path d="M5 3.5v9l7.5-4.5z" />,
   bolt: <path d="M9 2 3.5 9H8l-1 5L12.5 7H8z" />,
   chart: <path d="M3.5 13V8.5M8 13V3.5M12.5 13V6M2 13.5h12" />,

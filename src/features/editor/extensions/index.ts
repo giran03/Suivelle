@@ -20,6 +20,7 @@ import { BlockFlash } from "./flash";
 import { FindExtension } from "./find";
 import { Intake } from "./intake";
 import { PageMention } from "./mention";
+import { EmbedBlock } from "./embed";
 import { MediaNodes } from "./media";
 import { Quote } from "./quote";
 import { Slash } from "./slash";
@@ -57,6 +58,7 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
     TableOfContents,
     ...(options.nested ? [] : [SyncedBlock]),
     ...MediaNodes,
+    EmbedBlock,
     PageMention,
     TaskList,
     TaskItem.configure({ nested: true }),

@@ -111,3 +111,29 @@ it("normalizes legacy workspace preferences without dropping raw settings", () =
   expect(workspaceOptions({ settingsJson: '{"sidebarDensity":"compact","accent":"green","description":"Lab","extra":7}' })).toMatchObject({ sidebarDensity: "compact", accent: "green", description: "Lab", raw: { extra: 7 } });
   expect(workspaceOptions({ settingsJson: '{"sidebarDensity":"normal"}' }).sidebarDensity).toBe("normal");
 });
+
+it("persists workspace order across refresh and startup, appending newly discovered workspaces", async () => {
+  await useWorkspace.getState().init();
+  useWorkspace.getState().reorderWorkspace("b", "a");
+  expect(useWorkspace.getState().workspaces.map((w) => w.id)).toEqual(["b", "a"]);
+  expect(useWorkspace.getState().workspace?.id).toBe("a");
+  vi.mocked(ipc.workspaceList).mockResolvedValue([a, b, { ...a, id: "c" }]);
+  await useWorkspace.getState().refreshWorkspaces();
+  expect(useWorkspace.getState().workspaces.map((w) => w.id)).toEqual(["b", "a", "c"]);
+  useWorkspace.setState(original, true);
+  await useWorkspace.getState().init();
+  expect(useWorkspace.getState().workspaces.map((w) => w.id)).toEqual(["b", "a", "c"]);
+});
+it("creates an initial image through the atomic command and preserves the draft workspace on failure", async () => {
+  await useWorkspace.getState().init();
+  const bytes = new Uint8Array([1, 2, 3]).buffer;
+  const image = { name: "icon.gif", arrayBuffer: async () => bytes } as File;
+  const create = vi.spyOn(ipc, "workspaceCreateWithImage").mockRejectedValueOnce(new Error("Disk full")).mockResolvedValueOnce(b);
+  const plainCreate = vi.spyOn(ipc, "workspaceCreate");
+  await expect(useWorkspace.getState().createWorkspace("Studio", null, { accent: "blue" }, image)).rejects.toThrow("Disk full");
+  expect(useWorkspace.getState().workspace?.id).toBe("a");
+  expect(useWorkspace.getState().workspaces).toEqual([a, b]);
+  await useWorkspace.getState().createWorkspace("Studio", null, { accent: "blue" }, image);
+  expect(create).toHaveBeenLastCalledWith("Studio", '{"accent":"blue"}', "icon.gif", bytes);
+  expect(plainCreate).not.toHaveBeenCalled();
+});

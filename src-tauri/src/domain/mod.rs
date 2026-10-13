@@ -1,6 +1,7 @@
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+pub mod embed;
 
 pub const MAX_TITLE_LEN: usize = 500;
 pub const MAX_NAME_LEN: usize = 200;
@@ -32,6 +33,7 @@ pub const BLOCK_TYPES: &[&str] = &[
     "video",
     "file",
     "pdf",
+    "embed",
     "columns",
     "column",
     "database_view",
@@ -255,7 +257,12 @@ pub fn validate_json_object(json: &str, what: &str, max_bytes: usize) -> AppResu
         return Err(AppError::Validation(format!("{what} is too large")));
     }
     match serde_json::from_str::<serde_json::Value>(json) {
-        Ok(value @ serde_json::Value::Object(_)) => { if what == "block data" { image::validate(&value)?; } Ok(()) },
+        Ok(value @ serde_json::Value::Object(_)) => {
+            if what == "block data" {
+                image::validate(&value)?;
+            }
+            Ok(())
+        }
         _ => Err(AppError::Validation(format!(
             "{what} must be a JSON object"
         ))),

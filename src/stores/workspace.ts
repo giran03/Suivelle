@@ -1,4 +1,4 @@
-import { rememberedWorkspace, rememberWorkspace, rememberedPage, rememberPage } from "../features/workspaces/model";
+import { rememberedWorkspace, rememberWorkspace, rememberedPage, rememberPage, orderedWorkspaces, rememberWorkspaceOrder } from "../features/workspaces/model";
 import { create } from "zustand";
 import { usePreferences } from "./preferences";
 import { flushAllEditors } from "../features/editor/flushRegistry";
@@ -42,7 +42,8 @@ interface State {
   workspaceBusy: boolean;
   refreshWorkspaces: () => Promise<void>;
   switchWorkspace: (id: string) => Promise<void>;
-  createWorkspace: (name: string, icon: string | null, settings: Record<string, unknown>) => Promise<void>;
+  createWorkspace: (name: string, icon: string | null, settings: Record<string, unknown>, image?: File) => Promise<void>;
+  reorderWorkspace: (id: string, targetId: string) => void;
   updateWorkspaceProfile: (id: string, name: string, icon: string | null, settings: Record<string, unknown>) => Promise<void>;
   deleteWorkspace: (id: string, confirmation: string) => Promise<void>;
   settings: Settings;
@@ -202,11 +203,20 @@ export const useWorkspace = create<State>((set, get) => {
     workspace: null,
     workspaces: [],
     workspaceBusy: false,
-    refreshWorkspaces: () => guard(async () => { set({ workspaces: await ipc.workspaceList() }); }),
+    refreshWorkspaces: () => guard(async () => { set({ workspaces: orderedWorkspaces(await ipc.workspaceList()) }); }),
+    reorderWorkspace: (id, targetId) => {
+      const workspaces = [...get().workspaces];
+      const from = workspaces.findIndex((w) => w.id === id), to = workspaces.findIndex((w) => w.id === targetId);
+      if (get().workspaceBusy || from < 0 || to < 0 || from === to) return;
+      const [moved] = workspaces.splice(from, 1);
+      workspaces.splice(to, 0, moved);
+      rememberWorkspaceOrder(workspaces);
+      set({ workspaces });
+    },
     switchWorkspace: (id) => transition(async () => { await leave(); await activate(id); }),
-    createWorkspace: (name, icon, settings) => transition(async () => {
+    createWorkspace: (name, icon, settings, image) => transition(async () => {
       await leave();
-      const workspace = await ipc.workspaceCreate(name, icon, JSON.stringify(settings));
+      const workspace = image ? await ipc.workspaceCreateWithImage(name, JSON.stringify(settings), image.name, await image.arrayBuffer()) : await ipc.workspaceCreate(name, icon, JSON.stringify(settings));
       set({ workspaces: [...get().workspaces, workspace] });
       await activate(workspace.id);
       pushToast(`Created “${workspace.name}”`);
@@ -224,7 +234,7 @@ export const useWorkspace = create<State>((set, get) => {
       const remaining = get().workspaces.filter((w) => w.id !== id);
       set({ workspaces: remaining });
       if (get().workspace?.id === id && remaining[0]) { applyWorkspace(remaining[0]); await activate(remaining[0].id); }
-      try { set({ workspaces: await ipc.workspaceList() }); } catch { /* Local survivors remain usable. */ }
+      try { set({ workspaces: orderedWorkspaces(await ipc.workspaceList()) }); } catch { /* Local survivors remain usable. */ }
       pushToast("Workspace deleted. A safety backup is available in Backups.");
     }),
     settings: { theme: "system", autoBackup: true, backupKeep: 3 },
@@ -248,7 +258,7 @@ export const useWorkspace = create<State>((set, get) => {
     init: () => {
       if (initialization) return initialization;
       initialization = guard(async () => {
-        let workspaces = await ipc.workspaceList();
+        let workspaces = orderedWorkspaces(await ipc.workspaceList());
         if (!workspaces.length) workspaces = [await ipc.workspaceCreate("My Workspace")];
         set({ workspaces });
         const id = rememberedWorkspace();

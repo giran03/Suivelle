@@ -63,8 +63,13 @@ pub mod workspace {
         if value.get("autoBackup").is_some_and(|v| !v.is_boolean()) {
             return Err(AppError::Validation("autoBackup must be a boolean".into()));
         }
-        if value.get("backupKeep").is_some_and(|v| !v.as_u64().is_some_and(|n| (1..=1000).contains(&n))) {
-            return Err(AppError::Validation("keep between 1 and 1000 automatic backups".into()));
+        if value
+            .get("backupKeep")
+            .is_some_and(|v| !v.as_u64().is_some_and(|n| (1..=1000).contains(&n)))
+        {
+            return Err(AppError::Validation(
+                "keep between 1 and 1000 automatic backups".into(),
+            ));
         }
         Ok(())
     }
@@ -81,6 +86,42 @@ pub mod workspace {
         }
         let tx = conn.transaction()?;
         let w = create_in(&tx, input)?;
+        tx.commit()?;
+        Ok(w)
+    }
+
+    pub fn create_with_image(
+        conn: &mut Connection,
+        root: &std::path::Path,
+        input: WorkspaceCreate,
+        file_name: &str,
+        bytes: &[u8],
+    ) -> AppResult<Workspace> {
+        if bytes.is_empty() || bytes.len() > 10 * 1024 * 1024 {
+            return Err(AppError::Validation(
+                "choose an image between 1 byte and 10 MB".into(),
+            ));
+        }
+        let name = crate::files::manage::clean_name(file_name);
+        let mime = crate::files::mime_for(&name);
+        if !mime.starts_with("image/") {
+            return Err(AppError::Validation("choose a supported image file".into()));
+        }
+        let tx = conn.transaction()?;
+        let mut w = create_in(
+            &tx,
+            WorkspaceCreate {
+                icon: None,
+                ..input
+            },
+        )?;
+        let (hash, size) = crate::files::store_reader(root, &mut &bytes[..], 10 * 1024 * 1024)?;
+        crate::files::insert_attachment_in(&tx, &w.id, &hash, &name, mime, size)?;
+        w.icon = Some(format!("image:{hash}"));
+        tx.execute(
+            "UPDATE workspace SET icon = ?1 WHERE id = ?2",
+            rusqlite::params![w.icon, w.id],
+        )?;
         tx.commit()?;
         Ok(w)
     }
@@ -203,9 +244,15 @@ pub mod workspace {
         set_backup_policy(conn, Some(enabled), None)
     }
 
-    pub fn set_backup_policy(conn: &mut Connection, enabled: Option<bool>, keep: Option<usize>) -> AppResult<Vec<Workspace>> {
+    pub fn set_backup_policy(
+        conn: &mut Connection,
+        enabled: Option<bool>,
+        keep: Option<usize>,
+    ) -> AppResult<Vec<Workspace>> {
         if keep.is_some_and(|n| !(1..=1000).contains(&n)) {
-            return Err(AppError::Validation("keep between 1 and 1000 automatic backups".into()));
+            return Err(AppError::Validation(
+                "keep between 1 and 1000 automatic backups".into(),
+            ));
         }
         let tx = conn.transaction()?;
         for w in repo::workspace::list(&tx)? {
@@ -535,6 +582,7 @@ pub mod block {
         validate_block_type(&input.block_type)?;
         let data_json = input.data_json.unwrap_or_else(|| "{}".into());
         validate_json_object(&data_json, "block data", MAX_BLOCK_DATA_BYTES)?;
+        crate::domain::embed::validate_block(&input.block_type, &data_json)?;
 
         let tx = conn.transaction()?;
         require_live_page(&tx, &input.page_id)?;
@@ -609,6 +657,7 @@ pub mod block {
             block.position = p;
         }
         block.updated_at = now();
+        crate::domain::embed::validate_block(&block.block_type, &block.data_json)?;
         repo::block::update(&tx, &block)?;
         index_block(&tx, &block.page_id, &block)?;
         block.revision += 1;
@@ -632,6 +681,7 @@ pub mod block {
             }
             validate_block_type(&u.block_type)?;
             validate_json_object(&u.data_json, "block data", MAX_BLOCK_DATA_BYTES)?;
+            crate::domain::embed::validate_block(&u.block_type, &u.data_json)?;
             validate_position(u.position)?;
             if !(1..=BLOCK_SCHEMA_VERSION).contains(&u.schema_version) {
                 return Err(AppError::Validation(
@@ -753,6 +803,65 @@ pub mod block {
 mod tests {
     use super::*;
     use crate::database::open_in_memory;
+
+    #[test]
+    fn create_with_image_is_atomic_and_owns_its_attachment() {
+        let mut conn = open_in_memory().unwrap();
+        let root = std::env::temp_dir().join(format!("suivelle-icon-{}", new_id()));
+        let w = workspace::create_with_image(
+            &mut conn,
+            &root,
+            WorkspaceCreate {
+                name: "Studio".into(),
+                ..Default::default()
+            },
+            "icon.gif",
+            b"GIF89a",
+        )
+        .unwrap();
+        let hash: String = conn
+            .query_row(
+                "SELECT hash FROM attachment WHERE workspace_id = ?1",
+                [&w.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(w.icon, Some(format!("image:{hash}")));
+        assert_eq!(
+            repo::workspace::get(&conn, &w.id).unwrap().unwrap().icon,
+            w.icon
+        );
+        // A write failure rolls back workspace creation too.
+        let blocked = root.join("blocked");
+        std::fs::write(&blocked, b"file").unwrap();
+        assert!(workspace::create_with_image(
+            &mut conn,
+            &blocked,
+            WorkspaceCreate {
+                name: "Failed".into(),
+                ..Default::default()
+            },
+            "icon.png",
+            b"png"
+        )
+        .is_err());
+        assert!(workspace::create_with_image(
+            &mut conn,
+            &root,
+            WorkspaceCreate {
+                name: "Invalid".into(),
+                ..Default::default()
+            },
+            "icon.txt",
+            b"text"
+        )
+        .is_err());
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM workspace", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn setup() -> (Connection, Workspace) {
         let mut conn = open_in_memory().unwrap();
@@ -1002,7 +1111,7 @@ mod tests {
         };
         // Cloned inputs so `conn` can be reborrowed.
         assert!(matches!(
-            block::create(&mut conn, bad("embed", None)),
+            block::create(&mut conn, bad("not_a_block", None)),
             Err(AppError::Validation(_))
         ));
         assert!(matches!(
@@ -1621,7 +1730,7 @@ mod tests {
             Err(AppError::Validation(_))
         ));
         let mut bad = upsert(&new_id(), None, 0.0, "x");
-        bad.block_type = "embed".into();
+        bad.block_type = "not_a_block".into();
         assert!(matches!(
             block::apply_batch(&mut conn, batch(&p, vec![bad], &[])),
             Err(AppError::Validation(_))
@@ -1648,7 +1757,7 @@ mod tests {
         let p = new_page(&mut conn, &ws, None, "P");
         let good = new_id();
         let mut bad = upsert(&new_id(), None, 1.0, "x");
-        bad.block_type = "embed".into();
+        bad.block_type = "not_a_block".into();
         assert!(block::apply_batch(
             &mut conn,
             batch(&p, vec![upsert(&good, None, 0.0, "g"), bad], &[])

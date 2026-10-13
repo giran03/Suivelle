@@ -1141,6 +1141,25 @@ fn render_block(b: &Blk, ctx: &Ctx, number: usize) -> Option<String> {
             lines.extend(rows.iter().skip(1).map(line));
             lines.join("\n")
         }
+        "embed" => {
+            let data = b.embed.as_ref()?;
+            let url = data["url"].as_str().unwrap_or("");
+            let title = data["title"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(url);
+            let caption = data["caption"].as_str().unwrap_or("");
+            format!(
+                "[{}](<{}>){}",
+                escape(title, false),
+                url.replace('<', "%3C").replace('>', "%3E"),
+                if caption.is_empty() {
+                    String::new()
+                } else {
+                    format!("\n\n{caption}")
+                }
+            )
+        }
         k if is_media(k) => {
             let m = b.media.as_ref()?;
             let path = (ctx.asset)(m)?;

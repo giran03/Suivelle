@@ -614,6 +614,16 @@ pub(crate) fn blocks_of(nodes: &[Node], depth: usize, hook: Option<Hook>) -> Vec
             continue;
         }
         flush(&mut run, &mut out);
+        if let Some(json) = attr(attrs, "data-suivelle-embed") {
+            if let Ok(data) = serde_json::from_str::<serde_json::Value>(json) {
+                if data.is_object() && crate::domain::embed::validate(&data).is_ok() {
+                    let mut b = Blk::new("embed");
+                    b.embed = Some(data);
+                    out.push(b);
+                    continue;
+                }
+            }
+        }
         match tag.as_str() {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 // Levels are clamped after the whole document is known (see `parse`).
@@ -1135,6 +1145,14 @@ fn blocks_html(blocks: &[Blk], ctx: &Ctx, out: &mut String) {
                         out.push_str("</tr>");
                     }
                     out.push_str("</tbody></table>");
+                }
+            }
+            "embed" => {
+                if let Some(data) = &b.embed {
+                    let url = data["url"].as_str().unwrap_or("");
+                    let title = data["title"].as_str().filter(|s| !s.is_empty()).unwrap_or(url);
+                    let caption = data["caption"].as_str().unwrap_or("");
+                    out.push_str(&format!("<figure data-suivelle-embed=\"{}\"><a href=\"{}\">{}</a><figcaption>{}</figcaption></figure>", esc(&data.to_string()), href(url), esc(title), esc(caption)));
                 }
             }
             k if is_media(k) => {

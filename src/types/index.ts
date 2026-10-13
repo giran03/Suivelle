@@ -65,7 +65,8 @@ export type BlockType =
   | "audio"
   | "video"
   | "file"
-  | "pdf";
+  | "pdf"
+  | "embed";
 
 export type AttachmentKind = "image" | "audio" | "video" | "file" | "pdf";
 

@@ -40,6 +40,7 @@ describe("editor schema", () => {
       ["divider", {}], ["code", { language: "rust", text: "let x = 1;" }], ["equation", { latex: "x^2" }],
       ["image", { attachment: null }], ["audio", { attachment: null }], ["video", { attachment: null }],
       ["file", { attachment: null }], ["pdf", { attachment: null }],
+      ["embed", { url: "https://youtu.be/dQw4w9WgXcQ", title: "Reference", caption: "Keep this", width: 75, height: 360, align: "center", mode: "embed" }],
     ].map(([type, data], i) => ({
       id: `00000000-0000-7000-8000-${String(i).padStart(12, "0")}`,
       parentBlockId: null, type: type as BlockRow["type"], position: i, dataJson: JSON.stringify(data), schemaVersion: 2,

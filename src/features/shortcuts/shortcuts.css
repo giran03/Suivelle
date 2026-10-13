@@ -9,6 +9,7 @@
 .shortcut-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-block: calc(10px * var(--density)); border-block-end: 1px solid var(--border-subtle); }
 .shortcut-action { flex: 1 1 180px; min-inline-size: 0; font-size: 0.875rem; }
 .shortcut-action small { display: block; margin-block-start: 4px; color: var(--text-muted); }
+.shortcut-row-actions .shortcut-toggle { min-inline-size: 68px; }
 .shortcut-bindings { display: flex; flex: 1 1 200px; flex-wrap: wrap; gap: 6px; min-inline-size: 0; }
 .shortcut-chip { display: inline-flex; max-inline-size: 100%; align-items: center; padding: 4px; border-radius: var(--r-md); }
 .shortcut-chip:hover:not(:disabled) { background: var(--surface-hover); }

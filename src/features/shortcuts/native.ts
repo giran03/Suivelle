@@ -2,7 +2,7 @@ import { usePreferences } from "../../stores/preferences";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import { ipc, toAppError } from "../../lib/ipc";
-import { overlaps, type Binding } from "./bindings";
+import { ACTIONS, overlaps, type Binding } from "./bindings";
 export interface GlobalConfig { capture: Binding[]; focus: Binding[]; captureEnabled: boolean; focusEnabled: boolean }
 export interface GlobalState { config: GlobalConfig; active: { capture: boolean; focus: boolean }; errors: Record<string, string> }
 export const useGlobalShortcuts = create<{ state: GlobalState | null; error: string | null }>(() => ({ state: null, error: null }));
@@ -32,7 +32,11 @@ export async function resetGlobalBindings() {
 export async function enableGlobalBinding(id: string, enabled: boolean) {
   const state = useGlobalShortcuts.getState().state;
   if (!state) throw new Error("Global shortcuts have not loaded.");
-  try { useGlobalShortcuts.setState({ state: await ipc.shortcutsSet({ ...state.config, [id === "global-capture" ? "captureEnabled" : "focusEnabled"]: enabled }), error: null }); }
+  const bindingKey = id === "global-capture" ? "capture" : "focus";
+  const bindings = state.config[bindingKey];
+  const config = { ...state.config, [id === "global-capture" ? "captureEnabled" : "focusEnabled"]: enabled,
+    [bindingKey]: enabled && !bindings.length ? ACTIONS.find(a => a.id === id)!.defaults : bindings };
+  try { useGlobalShortcuts.setState({ state: await ipc.shortcutsSet(config), error: null }); }
   catch (e) { await loadGlobalShortcuts(); throw new Error(toAppError(e).message); }
 }
 let recordingQueue: Promise<unknown> = Promise.resolve();

@@ -67,6 +67,7 @@ pub struct Blk {
     /// Rows of cells of inline text; the first row is the header.
     pub table: Option<Table>,
     pub media: Option<Media>,
+    pub embed: Option<Value>,
     /// For a synced block or an embedded database: the page it points at.
     pub target: Option<String>,
     pub children: Vec<Blk>,
@@ -87,6 +88,7 @@ impl Blk {
             tone: "note".into(),
             table: None,
             media: None,
+            embed: None,
             target: None,
             children: vec![],
         }
@@ -299,6 +301,7 @@ impl Blk {
             "tab_panel" => json!({ "label": self.label }),
             "callout" => json!({ "content": content(), "tone": self.tone }),
             "divider" => json!({}),
+            "embed" => self.embed.clone().unwrap_or_else(|| json!({})),
             "synced_block" | "database_view" => json!({ "pageId": self.target }),
             "code" => json!({ "language": self.language, "text": self.text }),
             "equation" => json!({ "latex": self.latex }),
@@ -368,6 +371,9 @@ impl Blk {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        if kind == "embed" && crate::domain::embed::validate(&data).is_ok() {
+            b.embed = Some(data.clone());
+        }
         if matches!(kind, "synced_block" | "database_view") {
             b.target = data.get("pageId").and_then(Value::as_str).map(String::from);
         }

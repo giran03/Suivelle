@@ -1,0 +1,35 @@
+.web-embed { position: relative; max-width: 100%; min-width: min(240px, 100%); margin-block: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--surface-1); }
+.web-embed[data-align="center"] { margin-inline: auto; }
+.web-embed[data-align="right"] { margin-left: auto; }
+.web-embed.is-selected { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.embed-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 0; }
+.embed-head > strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .875rem; }
+.embed-head > svg { flex: none; color: var(--text-muted); }
+.embed-frame { position: relative; min-height: 160px; background: var(--surface-2); }
+.embed-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.embed-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; position: absolute; inset: 0; padding: 20px; text-align: center; color: var(--text-secondary); }
+.doc .embed-placeholder p, .doc .embed-caption { margin: 0; font-size: .875rem; }
+.embed-interact { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 16px; color: var(--text-primary); }
+.embed-interact > span { padding: 8px 12px; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.embed-resize { position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 32px; height: 32px; background: var(--surface-1); color: var(--text-muted); border-radius: var(--r-sm); cursor: ns-resize; touch-action: none; -webkit-user-select: none; user-select: none; }
+.embed-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 8px 12px; font-size: .875rem; }
+.embed-actions small { color: var(--text-muted); }
+.doc .embed-caption { padding: 10px 12px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.embed-link-card { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px; }
+.embed-link-card > span { flex: 1 1 180px; overflow-wrap: anywhere; color: var(--text-secondary); font-size: .875rem; }
+.embed-editor { display: grid; gap: 12px; padding: 16px; }
+.doc .embed-editor p { margin: 0; font-size: .875rem; }
+.doc .embed-editor p:not(.field-error) { color: var(--text-secondary); }
+.embed-editor label, .embed-menu label { display: grid; gap: 6px; font-size: .875rem; }
+.embed-editor small { color: var(--text-muted); }
+.embed-editor :is(input, textarea), .embed-menu select { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px; font: inherit; background: var(--field); color: var(--text-primary); }
+.embed-editor textarea { resize: vertical; }
+.embed-editor .embed-actions { padding: 0; }
+.embed-preview { display: grid; gap: 10px; color: var(--text-secondary); font-size: .875rem; }
+.embed-preview > .btn { justify-self: start; }
+.embed-menu { position: relative; flex: none; }
+.embed-menu summary { display: grid; place-items: center; list-style: none; width: 32px; height: 32px; cursor: pointer; border-radius: var(--r-sm); }
+.embed-menu summary::-webkit-details-marker { display: none; }
+.embed-menu summary:hover { background: var(--surface-hover); }
+.embed-menu > div { position: absolute; right: 0; top: 36px; z-index: 5; display: grid; gap: 10px; width: min(240px, 70vw); padding: 12px; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-md); }
+.web-embed > .field-error { padding: 8px 12px; }

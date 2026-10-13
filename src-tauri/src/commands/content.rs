@@ -67,6 +67,40 @@ pub fn attachment_import_bytes(
     logged("attachment_import_bytes", t, res)
 }
 
+/// Creates the workspace and registers its initial icon in one transaction.
+#[tauri::command(async)]
+pub fn workspace_create_with_image(
+    db: State<'_, Db>,
+    store: State<'_, AttachmentStore>,
+    request: Request<'_>,
+) -> AppResult<crate::domain::Workspace> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(AppError::Validation("expected the image's bytes".into()));
+    };
+    let header = |name: &str| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(percent_decode)
+            .unwrap_or_default()
+    };
+    let input =
+        serde_json::from_str::<crate::domain::WorkspaceCreate>(&header("x-workspace-profile"))
+            .map_err(|_| AppError::Validation("invalid workspace profile".into()))?;
+    let t = std::time::Instant::now();
+    let res = lock(&db).and_then(|mut c| {
+        crate::services::workspace::create_with_image(
+            &mut c,
+            &store.root,
+            input,
+            &header("x-file-name"),
+            bytes,
+        )
+    });
+    logged("workspace_create_with_image", t, res)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkSet {

@@ -191,6 +191,13 @@ export const ipc = {
   viewDuplicate: (id: string) => call<DbView>("view_duplicate", { id }),
   viewDelete: (id: string) => call<void>("view_delete", { id }),
   workspaceCreate: (name: string, icon: string | null = null, settingsJson?: string) => call<Workspace>("workspace_create", { input: { name, icon, settingsJson } }),
+  workspaceCreateWithImage: async (name: string, settingsJson: string, fileName: string, bytes: ArrayBuffer): Promise<Workspace> => {
+    const pending = invoke<Workspace>("workspace_create_with_image", bytes, {
+      headers: { "x-workspace-profile": encodeURIComponent(JSON.stringify({ name, settingsJson })), "x-file-name": encodeURIComponent(fileName) },
+    });
+    pendingIpc.add(pending);
+    try { return await pending; } catch (e) { throw toAppError(e); } finally { pendingIpc.delete(pending); }
+  },
   workspaceUpdate: (id: string, name?: string, profile?: { icon?: string | null; settingsJson?: string }) => call<Workspace>("workspace_update", { input: { id, name, icon: profile?.icon ?? undefined, clearIcon: profile?.icon === null, settingsJson: profile?.settingsJson } }),
   workspaceUpdateSettings: (id: string, settingsJson: string) =>
     call<Workspace>("workspace_update_settings", { input: { id, settingsJson } }),

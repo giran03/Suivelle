@@ -44,6 +44,13 @@ pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> Str
     };
     match block_type {
         "code" | "equation" | "divider" => String::new(),
+        "embed" => squash(
+            &["title", "caption", "url"]
+                .iter()
+                .filter_map(|key| data.get(key).and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
         "image" | "audio" | "video" | "pdf" | "file" => data
             .pointer("/attachment/name")
             .and_then(Value::as_str)

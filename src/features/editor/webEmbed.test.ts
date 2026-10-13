@@ -1,0 +1,33 @@
+// @vitest-environment jsdom
+import { Editor } from "@tiptap/core";
+import { closeHistory } from "@tiptap/pm/history";
+import { afterEach, expect, it } from "vitest";
+import { buildExtensions } from "./extensions";
+import { BLOCK_KINDS } from "./blockKinds";
+import { docToBlocks } from "./convert";
+import { duplicateBlock, selectBlockAt } from "./commands";
+import { jsonToMarkdown } from "./markdown";
+let editor: Editor | undefined;
+afterEach(() => editor?.destroy());
+it("inserts from the catalog, survives HTML clipboard, duplication, and undo", () => {
+  editor = new Editor({ extensions: buildExtensions(), content: "<p></p>" });
+  BLOCK_KINDS.find(k => k.id === "embed")!.apply(editor);
+  expect(editor.getJSON().content?.[0].type).toBe("embed");
+  selectBlockAt(editor, 0);
+  const attrs = { url: "https://youtu.be/dQw4w9WgXcQ", title: "Video", caption: "Reference", width: 75, height: 400, align: "right", mode: "link" };
+  editor.commands.updateAttributes("embed", attrs);
+  const html = editor.getHTML();
+  const copy = new Editor({ extensions: buildExtensions(), content: html });
+  expect(copy.getJSON().content?.[0].attrs).toMatchObject(attrs);
+  copy.destroy();
+  editor.view.dispatch(closeHistory(editor.state.tr));
+  duplicateBlock(editor);
+  const embeds = editor.getJSON().content!.filter(n => n.type === "embed");
+  expect(embeds).toHaveLength(2);
+  expect(embeds[0].attrs?.blockId).not.toBe(embeds[1].attrs?.blockId);
+  expect(docToBlocks(editor.getJSON()).filter(b => b.type === "embed").map(b => JSON.parse(b.dataJson))).toEqual([attrs, attrs]);
+  expect(jsonToMarkdown(embeds)).toContain("[Video](<https://youtu.be/dQw4w9WgXcQ>)\n\nReference");
+  editor.commands.undo();
+  expect(editor.getJSON().content?.filter(n => n.type === "embed")).toHaveLength(1);
+  expect(editor.getJSON().content?.[0].attrs).toMatchObject(attrs);
+});

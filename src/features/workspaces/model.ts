@@ -11,6 +11,16 @@ export function workspaceOptions(workspace: Pick<Workspace, "settingsJson"> | nu
 }
 export const workspaceColor = (color: WorkspaceColor) => color.startsWith("#") ? color : `var(--tone-${color})`;
 const ACTIVE = "suivelle.workspace";
+const ORDER = "suivelle.workspaceOrder";
+export function orderedWorkspaces(workspaces: Workspace[]) {
+  let ids: string[] = [];
+  try { const value: unknown = JSON.parse(localStorage.getItem(ORDER) ?? "[]"); if (Array.isArray(value)) ids = value.filter((id): id is string => typeof id === "string"); } catch { /* Default backend order. */ }
+  const rank = new Map(ids.map((id, index) => [id, index]));
+  return [...workspaces].sort((a, b) => (rank.get(a.id) ?? ids.length) - (rank.get(b.id) ?? ids.length));
+}
+export function rememberWorkspaceOrder(workspaces: Workspace[]) {
+  localStorage.setItem(ORDER, JSON.stringify(workspaces.map((w) => w.id)));
+}
 export function rememberedWorkspace() { try { return localStorage.getItem(ACTIVE); } catch { return null; } }
 export function rememberWorkspace(id: string) { try { localStorage.setItem(ACTIVE, id); } catch { /* Convenience only. */ } }
 export function rememberedPage(id: string) { try { return localStorage.getItem(`suivelle.page.${id}`); } catch { return null; } }

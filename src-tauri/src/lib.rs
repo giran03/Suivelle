@@ -208,6 +208,7 @@ pub fn run() {
             commands::export_page_preview,
             commands::export_shape,
             commands::workspace_create,
+            commands::content::workspace_create_with_image,
             commands::workspace_update,
             commands::workspace_delete,
             commands::workspace_update_settings,

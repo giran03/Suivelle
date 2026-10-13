@@ -28,6 +28,7 @@ export const ID_TYPES = [
   "video",
   "file",
   "pdf",
+  "embed",
 ];
 
 const LIST_ITEMS = new Set(["listItem", "taskItem"]);

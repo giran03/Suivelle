@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: attachment: http://attachment.localhost; media-src 'self' attachment: http://attachment.localhost; frame-src attachment: http://attachment.localhost; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: attachment: http://attachment.localhost; media-src 'self' attachment: http://attachment.localhost; frame-src attachment: http://attachment.localhost https://www.youtube-nocookie.com https://www.google.com; connect-src ipc: http://ipc.localhost",
       "devCsp": null
     }
   },

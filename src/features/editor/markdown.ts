@@ -1,3 +1,4 @@
+import { embedData, embedTarget } from "./embedModel";
 import type { JSONContent } from "@tiptap/core";
 
 /**
@@ -124,6 +125,14 @@ function block(n: JSONContent, opts: Options): string {
     case "column":
       // Markdown has no columns: read them left to right, one after another.
       return (n.content ?? []).map((c) => block(c, opts)).filter(Boolean).join("\n\n");
+    case "embed": {
+      const data = embedData(n.attrs ?? {});
+      try {
+        const target = embedTarget(data.url);
+        const title = (data.title || target.provider).replace(/[\[\]\\]/g, "\\$&");
+        return `[${title}](<${target.source.replace(/</g, "%3C").replace(/>/g, "%3E")}>)${data.caption ? `\n\n${data.caption}` : ""}`;
+      } catch { return data.caption; }
+    }
     case "databaseView":
       return "";
     case "image":

@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { useShortcuts } from "./store";
-import { key } from "./bindings";
+import { ipc } from "../../lib/ipc";
+import { useGlobalShortcuts, type GlobalState } from "./native";
+import { ACTIONS, key } from "./bindings";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
-afterEach(async () => { await act(async () => root?.unmount()); useShortcuts.setState({ overrides: {}, recording: false }); document.body.replaceChildren(); });
+afterEach(async () => { await act(async () => root?.unmount()); useShortcuts.setState({ overrides: {}, recording: false }); document.body.replaceChildren(); vi.restoreAllMocks(); delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__; useGlobalShortcuts.setState({ state: null, error: null }); });
 it("renders individual keycaps without inline close controls and retains removal in the editor", async () => {
   useShortcuts.setState({ overrides: { search: [key("k", "Control"), key("j", "Control")] } });
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -21,4 +23,35 @@ it("renders individual keycaps without inline close controls and retains removal
   expect(remove).toBeDefined();
   await act(async () => remove.click());
   expect(useShortcuts.getState().overrides.search).toEqual([key("j", "Control")]);
+});
+
+it("uses one reversible Enable/Disable control and keeps custom keys", async () => {
+  Object.defineProperty(window, "__TAURI_INTERNALS__", { value: {}, configurable: true });
+  const custom = [key("q", "Control", "Alt")];
+  const state: GlobalState = { config: { capture: custom, focus: [], captureEnabled: true, focusEnabled: true }, active: { capture: true, focus: false }, errors: {} };
+  vi.spyOn(ipc, "shortcutsGet").mockResolvedValue(state);
+  vi.spyOn(ipc, "shortcutsRecording").mockResolvedValue(undefined);
+  const save = vi.spyOn(ipc, "shortcutsSet").mockImplementation(async config => ({ config, active: { capture: config.captureEnabled, focus: config.focusEnabled }, errors: {} }));
+  const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root.render(<ShortcutSettings />));
+  const row = (title: string) => [...host.querySelectorAll<HTMLElement>(".shortcut-row")].find(el => el.querySelector(".shortcut-action > span")?.textContent === title)!;
+  const capture = row("Quick capture from any program");
+  const button = () => capture.querySelector<HTMLButtonElement>(".shortcut-toggle")!;
+  expect(capture.querySelector('input[type="checkbox"]')).toBeNull();
+  expect(button().textContent).toBe("Disable");
+  await act(async () => button().click());
+  expect(save).toHaveBeenLastCalledWith({ ...state.config, captureEnabled: false });
+  expect(button().textContent).toBe("Enable");
+  expect(capture.querySelector(".shortcut-action small")?.textContent).toBe("Disabled");
+  expect(capture.querySelector(".shortcut-bindings")?.textContent).toContain("Q");
+  expect([...capture.querySelectorAll("button")].some(b => b.textContent === "Reset")).toBe(true);
+  await act(async () => button().click());
+  expect(useGlobalShortcuts.getState().state?.config.capture).toEqual(custom);
+  expect(button().textContent).toBe("Disable");
+  const focus = row("Focus Suivelle from any program");
+  const enable = focus.querySelector<HTMLButtonElement>(".shortcut-toggle")!;
+  expect(enable.textContent).toBe("Enable");
+  await act(async () => enable.click());
+  expect(useGlobalShortcuts.getState().state?.config.focus).toEqual(ACTIONS.find(a => a.id === "global-focus")!.defaults);
+  expect(enable.textContent).toBe("Disable");
 });
