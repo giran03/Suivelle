@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["src/**", "scripts/**/*.mjs", "showcase/**/*.ts", "!showcase/dist"] },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "useSemanticElements": "off",
+        "noAutofocus": "off",
+        "useButtonType": "off",
+        "noStaticElementInteractions": "off",
+        "useKeyWithClickEvents": "off",
+        "noNoninteractiveTabindex": "warn",
+        "noNoninteractiveElementToInteractiveRole": "warn",
+        "noInteractiveElementToNoninteractiveRole": "warn",
+        "useFocusableInteractive": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useAriaPropsForRole": "warn",
+        "noLabelWithoutControl": "warn",
+        "useMediaCaption": "warn",
+        "noSvgWithoutTitle": "off",
+        "noRedundantAlt": "warn"
+      },
+      "correctness": { "useExhaustiveDependencies": "warn", "useJsxKeyInIterable": "warn" },
+      "suspicious": { "noArrayIndexKey": "off", "noExplicitAny": "off", "useIterableCallbackReturn": "off", "noAssignInExpressions": "off" },
+      "security": { "noDangerouslySetInnerHtml": "warn" },
+      "style": { "noNonNullAssertion": "off", "noDescendingSpecificity": "off" },
+      "complexity": { "noImportantStyles": "off", "noCommaOperator": "off" }
+    }
+  }
+}

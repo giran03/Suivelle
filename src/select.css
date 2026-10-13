@@ -39,6 +39,7 @@ select:not([multiple]):not([size]):disabled { opacity: 0.5; cursor: default; }
   select:not([multiple]):not([size]):open::picker(select) {
     block-size: auto;
     /* Clamp the interpolation target too, so a long list reveals at the same speed. */
+    /* biome-ignore lint/suspicious/noDuplicateProperties: block-size: auto above is the fallback without calc-size(). */
     block-size: calc-size(auto, min(size, 320px, calc(100dvh - 24px)));
     opacity: 1; filter: blur(0);
   }

@@ -6,7 +6,7 @@
 .imp-done { display: flex; align-items: center; gap: 6px; margin: 0; overflow-wrap: anywhere; }
 .imp-done svg { color: var(--accent-ui); }
 .imp-warn { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--tone-orange) 16%, transparent); font-size: 0.875rem; display: grid; gap: calc(3px * var(--density)); }
-.imp-tree { overflow-x: hidden; margin: 0; padding: 0; list-style: none; max-height: 300px; overflow: auto; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.imp-tree { margin: 0; padding: 0; list-style: none; max-height: 300px; overflow: auto; overflow-x: hidden; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .imp-row { display: flex; align-items: center; gap: 8px; padding: calc(var(--row-pad) - 1px) 4px; min-width: 0; }
 .imp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imp-cols { width: 100%; table-layout: fixed; margin: 0 0 8px; border-collapse: collapse; font-size: 0.875rem; }

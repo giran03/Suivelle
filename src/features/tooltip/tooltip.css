@@ -16,8 +16,6 @@
 
 .t-tt {
   position: fixed;
-  top: 0;
-  left: 0;
   inset: 0 auto auto 0;
   margin: 0;
   box-sizing: border-box;
