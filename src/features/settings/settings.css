@@ -1,6 +1,8 @@
 .palette.settings { container-type: inline-size; width: min(980px, calc(100vw - 32px)); height: min(760px, calc(var(--app-viewport-height, 100dvh) - 64px)); max-height: calc(var(--app-viewport-height, 100dvh) - 64px); margin: max(24px, calc((var(--app-viewport-height, 100dvh) - 760px) / 2)) auto auto; }
 .set-control { max-width: 100%; }
 .set-control .seg { flex-wrap: wrap; justify-content: flex-end; }
+.set-window-corners .seg { flex-wrap: nowrap; }
+.set-window-corners .seg button { display: inline-flex; align-items: center; gap: 6px; }
 .set-scale { display: grid; gap: 8px; }
 .set-scale-custom { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; font-size: 0.875rem; }
 .set-scale-field { display: flex; align-items: center; gap: 4px; }

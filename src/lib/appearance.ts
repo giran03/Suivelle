@@ -38,9 +38,9 @@ export function useAppearance(): void {
   const config = useThemes((s) => s.preview ?? s.config);
   useEffect(() => {
     if ("__TAURI_INTERNALS__" in window) {
-      void ipc.windowSetCorners(choices.windowCorners, choices.corners).catch((error) => console.warn("Could not apply window corners", error));
+      void ipc.windowSetCorners(choices.windowCorners).catch((error) => console.warn("Could not apply window corners", error));
     }
-  }, [choices.windowCorners, choices.corners]);
+  }, [choices.windowCorners]);
   const signature = KEYS.map((k) => choices[k]).join("|");
   useEffect(() => {
     applyAppearance(choices, config);

@@ -243,7 +243,7 @@ export const ipc = {
   quickCaptureShortcut: (enabled: boolean) => call<boolean>("quick_capture_shortcut", { enabled }),
   /** Applies the tray, close, minimize and start-with-computer choices. Fails with a readable reason when the system refuses. */
   shellSetBehavior: (behavior: import("../stores/preferences").ShellChoices) => call<import("../stores/preferences").ShellChoices>("shell_set_behavior", { behavior }),
-  windowSetCorners: (enabled: boolean, corners: string) => call<boolean>("window_set_corners", { enabled, corners }),
+  windowSetCorners: (corners: string) => call<boolean>("window_set_corners", { corners }),
   shellGetBehavior: () => call<import("../stores/preferences").ShellChoices>("shell_get_behavior"),
   /** Sets one property on many records in one all-or-nothing step. */
   recordBulkSet: (propertyId: string, recordIds: string[], value: unknown) =>

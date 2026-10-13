@@ -1,4 +1,7 @@
 const PATHS = {
+  "corner-sharp": <path d="M3 13V3h10" />,
+  "corner-default": <path d="M3 13V6a3 3 0 0 1 3-3h7" />,
+  "corner-round": <path d="M3 13V9a6 6 0 0 1 6-6h4" />,
   alignLeft: <path d="M2.5 3h11M2.5 6.3h7M2.5 9.7h11M2.5 13h7" />,
   alignCenter: <path d="M2.5 3h11M4.5 6.3h7M2.5 9.7h11M4.5 13h7" />,
   alignRight: <path d="M2.5 3h11M6.5 6.3h7M2.5 9.7h11M6.5 13h7" />,

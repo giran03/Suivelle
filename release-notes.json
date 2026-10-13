@@ -1,5 +1,5 @@
 {
   "version": "0.1.4",
   "date": "2026-10-13",
-  "notes": "## Unreleased\nChanges for 0.1.4 will be recorded here before publication."
+  "notes": "## Improved\n- Replaced the window-corner toggle with independent Sharp, Default and Round icon buttons. Sharp explicitly keeps the window square; the choice is remembered and no longer follows interface corner changes."
 }

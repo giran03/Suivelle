@@ -1262,10 +1262,9 @@ pub struct WorkspaceExported {
 #[tauri::command]
 pub fn window_set_corners(
     window: tauri::WebviewWindow,
-    enabled: bool,
     corners: String,
 ) -> AppResult<bool> {
-    let preference = corner_preference(enabled, &corners)?;
+    let preference = corner_preference(&corners)?;
     #[cfg(windows)]
     {
         #[link(name = "dwmapi")]
@@ -1277,7 +1276,9 @@ pub fn window_set_corners(
                 size: u32,
             ) -> i32;
         }
-        let hwnd = window.hwnd().map_err(|e| AppError::Internal(e.to_string()))?;
+        let hwnd = window
+            .hwnd()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // DWM owns the radius and automatically removes rounding while maximized/snapped.
         let result = unsafe {
             DwmSetWindowAttribute(
@@ -1296,25 +1297,24 @@ pub fn window_set_corners(
     }
 }
 
-fn corner_preference(enabled: bool, corners: &str) -> AppResult<u32> {
+fn corner_preference(corners: &str) -> AppResult<u32> {
     let preference = match corners {
         "sharp" => 1,
         "default" => 0,
         "round" => 2,
         _ => return Err(AppError::Validation("Unknown window corner style".into())),
     };
-    Ok(if enabled { preference } else { 0 })
+    Ok(preference)
 }
 
 #[cfg(test)]
 mod corner_tests {
     #[test]
-    fn corners_follow_the_choice_only_when_enabled() {
+    fn sharp_explicitly_disables_rounding_and_default_follows_windows() {
         use super::corner_preference;
         for (choice, expected) in [("sharp", 1), ("default", 0), ("round", 2)] {
-            assert_eq!(corner_preference(true, choice).unwrap(), expected);
-            assert_eq!(corner_preference(false, choice).unwrap(), 0);
+            assert_eq!(corner_preference(choice).unwrap(), expected);
         }
-        assert!(corner_preference(true, "invalid").is_err());
+        assert!(corner_preference("invalid").is_err());
     }
 }
