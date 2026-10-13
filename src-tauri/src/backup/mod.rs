@@ -515,12 +515,15 @@ pub fn auto_backup(conn: &Mutex<Connection>, paths: &Paths) -> AppResult<Option<
     }
     let info = create_in_app(conn, paths, "auto")?;
     let keep = {
-        let conn = conn.lock().map_err(|_| AppError::Internal("database lock poisoned".into()))?;
+        let conn = conn
+            .lock()
+            .map_err(|_| AppError::Internal("database lock poisoned".into()))?;
         crate::repositories::workspace::get_first(&conn)?
             .and_then(|w| serde_json::from_str::<serde_json::Value>(&w.settings_json).ok())
             .and_then(|v| v.get("backupKeep").and_then(serde_json::Value::as_u64))
             .filter(|n| (1..=1000).contains(n))
-            .map(|n| n as usize).unwrap_or(KEEP_AUTO)
+            .map(|n| n as usize)
+            .unwrap_or(KEEP_AUTO)
     };
     rotate(paths, keep);
     Ok(Some(info))

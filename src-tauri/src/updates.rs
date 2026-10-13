@@ -488,7 +488,7 @@ pub fn update_open_releases() -> AppResult<()> {
                 "https://github.com/giran03/Suivelle/releases",
             ])
             .spawn()?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(windows))]
     Err(invalid(

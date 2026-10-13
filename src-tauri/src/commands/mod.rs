@@ -1260,10 +1260,7 @@ pub struct WorkspaceExported {
 
 /// Applies only to the calling window. Unsupported platforms keep their system appearance.
 #[tauri::command]
-pub fn window_set_corners(
-    window: tauri::WebviewWindow,
-    corners: String,
-) -> AppResult<bool> {
+pub fn window_set_corners(window: tauri::WebviewWindow, corners: String) -> AppResult<bool> {
     let preference = corner_preference(&corners)?;
     #[cfg(windows)]
     {
@@ -1282,13 +1279,13 @@ pub fn window_set_corners(
         // DWM owns the radius and automatically removes rounding while maximized/snapped.
         let result = unsafe {
             DwmSetWindowAttribute(
-                hwnd.0 as *mut std::ffi::c_void,
+                hwnd.0,
                 33, // DWMWA_WINDOW_CORNER_PREFERENCE
                 &preference as *const u32 as *const std::ffi::c_void,
                 std::mem::size_of::<u32>() as u32,
             )
         };
-        return Ok(result >= 0);
+        Ok(result >= 0)
     }
     #[cfg(not(windows))]
     {

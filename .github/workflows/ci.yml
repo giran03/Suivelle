@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck and build
+        run: npm run build
+      - name: Bundle budget
+        run: node scripts/bundle-budget.mjs
+      - name: Tests
+        run: npm test
+
+  rust:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      # tauri::generate_context! embeds the frontend, so the dist folder must exist.
+      - name: Placeholder frontend
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force ../dist | Out-Null; Set-Content ../dist/index.html '<!doctype html>'
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --lib --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --lib

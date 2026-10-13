@@ -401,7 +401,10 @@ impl Archive {
     /// Checks the manifest and counts what is inside.
     pub fn info(&mut self) -> AppResult<Info> {
         let m = self.json("manifest.json")?;
-        if !matches!(m.get("format").and_then(Value::as_str), Some(FORMAT) | Some(crate::legacy::ARCHIVE_FORMAT)) {
+        if !matches!(
+            m.get("format").and_then(Value::as_str),
+            Some(FORMAT) | Some(crate::legacy::ARCHIVE_FORMAT)
+        ) {
             return bad("this is not a Suivelle archive");
         }
         let version = m.get("version").and_then(Value::as_u64).unwrap_or(0);
