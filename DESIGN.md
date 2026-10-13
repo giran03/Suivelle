@@ -369,6 +369,13 @@ A centred column: the mark at 64px inside a constellation of seven stars joined 
 - **Rows:** settings-style rows are a label and hint on the left and one control on the right, separated by subtle hairlines; they stack at 520px and below.
 - **Focus:** opening moves focus into the dialog, Escape closes it (or asks to discard when there are unsaved edits), and focus returns to the control that opened it.
 
+### Side surfaces (0.1.4)
+- **Outline:** a floating card (232px, 12px from the right edge, below the topbar) on Night Floating with a hairline and Float shadow. Headings indent 14px per level; the section in view is full-strength and semibold, the rest muted. A hairline-separated footer gives words, characters and reading time in tabular figures. It stays clear of the side peek.
+- **Side peek:** a full-height panel from the right (46vw, 340 to 640px) on the canvas colour with a hairline left edge and Float shadow. Its header holds the page glyph, the title, Open in the main view and Close. Below 960px wide it covers the page instead of squeezing it.
+- **Explore dialog:** one native dialog for reminders, tags and the link graph, sized like the palette (560px) and widened to 960px for the graph. Rows reuse the palette's row shape; tags are pill chips with a muted count, the chosen one on Sapphire Wash. The graph draws on a bordered canvas in theme colours (hairline links, muted nodes, the current page in accent) and always offers a list view.
+- **Storage health:** a definition grid of sizes and counts (auto-fill columns of at least 170px) followed by a wrapping row of actions; destructive or writing actions are disabled when the app is read-only.
+- **Safe-mode banner:** a full-width strip at the top of the main area on a 12% warning wash, with the reason in plain words and two actions (Export workspace, Backups). It never hides content.
+
 ### Editor
 
 The slash catalog and both block context menus share Toggle list, Toggle headings 1–4, and Tabs. Toggle conversions retain rich summary text and nested content. Tabs use themed selected washes, a keyboard navigable tab strip, editable labels, and one visible content panel. Turning a block into Tabs preserves it in the first panel; exported documents read all panels in order.
