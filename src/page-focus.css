@@ -1,0 +1,13 @@
+/* Page surfaces keep keyboard focus without drawing a frame around their contents. */
+@media (forced-colors: none) {
+  body :is([role="tabpanel"], main[tabindex], section[tabindex], .main-scroll, .set-body, .grid-scroll, .tl-scroll, .media-viewer-body, .export-preview pre):focus {
+    outline: none;
+  }
+
+  /* Page navigation uses the same tint as selection instead of an outer focus ring. */
+  body :is(.node[role="treeitem"], .tab-main[role="tab"], .set-nav button[role="tab"], .editor-tab-bar button[role="tab"]):focus-visible {
+    outline: none;
+    background-color: var(--accent-soft);
+    color: var(--accent-ui);
+  }
+}

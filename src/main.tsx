@@ -7,6 +7,7 @@ import "./motion.css";
 import "./styles.css";
 import "./features/tooltip/tooltip.css";
 import "./forced-colors.css";
+import "./page-focus.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
