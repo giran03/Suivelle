@@ -31,6 +31,39 @@ use tauri::Manager;
 /// The file marking a running session, removed on clean exit.
 struct SessionMarker(std::path::PathBuf);
 
+/// suivelle:// links that started the app, kept until the page is ready to open them.
+#[derive(Default)]
+struct PendingLinks(Mutex<Vec<String>>);
+
+/// Links opened while the app runs go straight to the page; one that launched it waits for the
+/// page to ask (see `deep_link_take`).
+fn install_deep_links(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_deep_link::DeepLinkExt;
+    // Installed builds get the scheme from the installer; development builds register themselves.
+    #[cfg(debug_assertions)]
+    let _ = app.deep_link().register_all();
+    let pending = PendingLinks::default();
+    if let Ok(Some(urls)) = app.deep_link().get_current() {
+        *pending.0.lock().unwrap_or_else(|e| e.into_inner()) =
+            urls.into_iter().map(|u| u.to_string()).collect();
+    }
+    app.manage(pending);
+    let handle = app.handle().clone();
+    app.deep_link().on_open_url(move |event| {
+        shell::show_window(&handle);
+        for url in event.urls() {
+            let _ = tauri::Emitter::emit(&handle, "open-link", url.as_str());
+        }
+    });
+    Ok(())
+}
+
+/// The links that launched the app, handed over once.
+#[tauri::command]
+fn deep_link_take(state: tauri::State<'_, PendingLinks>) -> Vec<String> {
+    std::mem::take(&mut *state.0.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
 /// Why the workspace opened read-only, if it did.
 pub struct SafeMode(pub Option<String>);
 
@@ -195,6 +228,8 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             shell::show_window(app);
         }))
+        // Registered right after single-instance, which forwards links to the running window.
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -271,6 +306,7 @@ pub fn run() {
                 spawn_automation(app.handle().clone());
             }
             app.manage(SafeMode(safe_mode));
+            install_deep_links(app)?;
             app.manage(files::AttachmentStore {
                 root: data_dir.join("attachments"),
             });
@@ -278,6 +314,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_safe_mode,
+            deep_link_take,
             shortcuts::shortcuts_get,
             shortcuts::shortcuts_migrate,
             shortcuts::shortcuts_set,
@@ -320,6 +357,7 @@ pub fn run() {
             commands::content::quick_capture_shortcut,
             shell::shell_set_behavior,
             shell::shell_get_behavior,
+            shell::tray_set_recent,
             commands::content::attachment_list,
             commands::content::attachment_delete_unused,
             commands::content::markdown_to_blocks,

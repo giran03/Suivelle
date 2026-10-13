@@ -12,6 +12,8 @@ import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
 import { usePeek } from "../features/peek/store";
 import { installReminderToasts } from "../features/explore/events";
+import { installTrayRecent } from "../features/session/trayRecent";
+import { installDeepLinks } from "../features/session/deepLinks";
 import { registerFlusher } from "../features/editor/flushRegistry";
 import { AppContextMenu } from "../components/AppContextMenu";
 import { Titlebar } from "../components/Titlebar";
@@ -296,6 +298,8 @@ export function App() {
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
   useEffect(() => installReminderToasts(), []);
+  useEffect(() => installTrayRecent(), []);
+  useEffect(() => installDeepLinks(), []);
 
   // The global shortcut opens a separate jot window; saves use this workspace and editor.
   useEffect(() => {

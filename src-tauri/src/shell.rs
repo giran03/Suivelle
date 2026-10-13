@@ -137,10 +137,65 @@ fn set_background(app: &AppHandle, background: bool) {
     let _ = app;
 }
 
+/// A recently opened page offered in the tray menu.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RecentPage {
+    pub id: String,
+    pub title: String,
+}
+
+const RECENT_PREFIX: &str = "recent:";
+const MAX_RECENT: usize = 5;
+
+/// The tray menu: open, the latest pages, quit.
+fn tray_menu(app: &AppHandle, recent: &[RecentPage]) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::new(app)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "open",
+        "Open Suivelle",
+        true,
+        None::<&str>,
+    )?)?;
+    if !recent.is_empty() {
+        menu.append(&tauri::menu::PredefinedMenuItem::separator(app)?)?;
+        for page in recent.iter().take(MAX_RECENT) {
+            let title = page.title.trim();
+            let mut label: String = if title.is_empty() {
+                "Untitled".into()
+            } else {
+                title.chars().take(40).collect()
+            };
+            if title.chars().count() > 40 {
+                label.push('…');
+            }
+            menu.append(&MenuItem::with_id(
+                app,
+                format!("{RECENT_PREFIX}{}", page.id),
+                label,
+                true,
+                None::<&str>,
+            )?)?;
+        }
+    }
+    menu.append(&tauri::menu::PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?)?;
+    Ok(menu)
+}
+
+/// Puts the latest pages in the tray menu so they can be opened straight from the taskbar.
+#[tauri::command]
+pub fn tray_set_recent(app: AppHandle, pages: Vec<RecentPage>) -> AppResult<()> {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return Ok(());
+    };
+    let menu = tray_menu(&app, &pages).map_err(|e| AppError::Internal(e.to_string()))?;
+    tray.set_menu(Some(menu))
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Suivelle", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = tray_menu(app, &[])?;
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Suivelle")
         .menu(&menu)
@@ -148,7 +203,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_window(app),
             "quit" => app.exit(0),
-            _ => {}
+            id => {
+                if let Some(page_id) = id.strip_prefix(RECENT_PREFIX) {
+                    show_window(app);
+                    let _ = tauri::Emitter::emit(app, "open-page", page_id);
+                }
+            }
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {

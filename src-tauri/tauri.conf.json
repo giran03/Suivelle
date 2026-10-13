@@ -58,6 +58,13 @@
       "endpoints": [
         "https://github.com/giran03/Suivelle/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "suivelle"
+        ]
+      }
     }
   }
 }

@@ -252,6 +252,7 @@ export const ipc = {
   tagPages: (workspaceId: string, tag: string) => call<PageTitle[]>("tag_pages", { workspaceId, tag }),
   linkGraph: (workspaceId: string) => call<LinkGraph>("link_graph", { workspaceId }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
+  traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>

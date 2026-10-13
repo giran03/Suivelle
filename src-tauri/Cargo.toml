@@ -37,7 +37,8 @@ uuid = { version = "1.27.0", features = ["v7"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 semver = "1"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
 
 # Compact release binaries; debug/development builds keep their existing settings.
 [profile.release]
