@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { DiagnosticsButton } from "../components/DiagnosticsButton";
 
 /** Keeps one failing component from blanking the whole window. */
 export class ErrorBoundary extends Component<{ children: ReactNode; label?: string }, { error: Error | null }> {
@@ -20,6 +21,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; label?: stri
           {this.props.label ?? "Something went wrong."} {this.state.error.message}
         </span>
         <button onClick={() => this.setState({ error: null })}>Try again</button>
+        <DiagnosticsButton error={this.state.error} />
       </div>
     );
   }

@@ -21,7 +21,8 @@ test('all content mutations and unknown commands are rejected without changing t
     'property_create', 'property_update', 'property_delete', 'view_create', 'view_delete', 'dashboard_create',
     'dashboard_save', 'attachment_import_bytes', 'attachment_delete_unused', 'import_pick', 'import_apply',
     'export_write', 'backup_create', 'backup_restore', 'backup_set_auto', 'automation_run_now', 'button_press',
-    'quick_capture', 'history_restore', 'search_rebuild', 'future_write_command',
+    'quick_capture', 'history_restore', 'search_rebuild', 'maintenance_sweep', 'maintenance_compact',
+    'maintenance_check', 'backup_mirror_choose', 'backup_mirror_clear', 'future_write_command',
   ]) await expect(read(cmd, { input: {} })).rejects.toMatchObject({ code: 'read_only' });
   await read('page_touch', { id: 'pg_home' });
   await read('history_checkpoint', { pageId: 'pg_home' });

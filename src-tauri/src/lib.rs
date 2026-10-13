@@ -9,6 +9,7 @@ pub mod errors;
 pub mod files;
 pub mod history;
 mod legacy;
+pub mod maintenance;
 pub mod queries;
 pub mod repositories;
 pub mod search;
@@ -19,17 +20,38 @@ pub mod transfer;
 pub mod updates;
 
 #[cfg(test)]
+mod fuzz;
+#[cfg(test)]
 mod performance;
 
 use std::sync::Mutex;
 use tauri::Manager;
 
+/// The file marking a running session, removed on clean exit.
+struct SessionMarker(std::path::PathBuf);
+
+/// Why the workspace opened read-only, if it did.
+pub struct SafeMode(pub Option<String>);
+
+/// The safe-mode reason, asked for before the page loads so every view starts read-only.
+#[tauri::command]
+fn app_safe_mode(state: tauri::State<'_, SafeMode>) -> Option<String> {
+    state.0.clone()
+}
+
+/// The log is started afresh past this size; the previous one is kept as suivelle.log.1.
+const LOG_LIMIT: u64 = 4 * 1024 * 1024;
+
 fn init_logging(dir: &std::path::Path) {
     let _ = std::fs::create_dir_all(dir);
+    let path = dir.join("suivelle.log");
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > LOG_LIMIT) {
+        let _ = std::fs::rename(&path, dir.join("suivelle.log.1"));
+    }
     let file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("suivelle.log"));
+        .open(&path);
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     let builder = tracing_subscriber::fmt()
@@ -40,6 +62,22 @@ fn init_logging(dir: &std::path::Path) {
         Ok(f) => builder.with_writer(Mutex::new(f)).init(),
         Err(_) => builder.init(),
     }
+    // A crash leaves its location in the log, so the next session's diagnostic report can show it.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let message: String = message.chars().take(300).collect();
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()));
+        tracing::error!(location = location.as_deref().unwrap_or("unknown"), %message, "panic");
+        default_hook(info);
+    }));
 }
 
 /// Whether the workspace allows automatic backups (on unless the setting says otherwise).
@@ -173,8 +211,23 @@ pub fn run() {
             let paths = backup::Paths::new(&data_dir);
             // Finish or undo a restore that was interrupted, before the database is opened.
             backup::recover(&paths);
-            let conn = database::open(&paths.db())?;
-            search::index::ensure_index(&conn)?;
+            // Present while the app runs; left behind only by a crash or forced shutdown.
+            let session = data_dir.join("session.open");
+            // Never refuse to open: a failed check or migration opens the data read-only instead.
+            let (conn, safe_mode) = match database::open_at_startup(&paths.db(), session.exists()) {
+                Ok(conn) => (conn, None),
+                Err(error) => {
+                    tracing::error!(%error, "opening the workspace read-only");
+                    let conn = database::open_read_only(&paths.db())
+                        .or_else(|_| database::open_in_memory())?;
+                    (conn, Some(error.to_string()))
+                }
+            };
+            let _ = std::fs::write(&session, b"");
+            app.manage(SessionMarker(session));
+            if safe_mode.is_none() {
+                search::index::ensure_index(&conn)?;
+            }
             tracing::info!("workspace database ready");
             app.manage(database::Db(Mutex::new(conn)));
             app.manage(paths);
@@ -182,14 +235,18 @@ pub fn run() {
             app.manage(commands::ImportSessions::default());
             updates::init(app.handle())?;
             shell::init(app.handle())?;
-            spawn_auto_backup(app.handle().clone());
-            spawn_automation(app.handle().clone());
+            if safe_mode.is_none() {
+                spawn_auto_backup(app.handle().clone());
+                spawn_automation(app.handle().clone());
+            }
+            app.manage(SafeMode(safe_mode));
             app.manage(files::AttachmentStore {
                 root: data_dir.join("attachments"),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            app_safe_mode,
             shortcuts::shortcuts_get,
             shortcuts::shortcuts_migrate,
             shortcuts::shortcuts_set,
@@ -237,6 +294,14 @@ pub fn run() {
             commands::content::markdown_to_blocks,
             commands::page_touch,
             commands::search_rebuild,
+            commands::maintenance::maintenance_health,
+            commands::maintenance::maintenance_sweep,
+            commands::maintenance::maintenance_compact,
+            commands::maintenance::maintenance_check,
+            commands::maintenance::diagnostics_report,
+            commands::backup_mirror_get,
+            commands::backup_mirror_choose,
+            commands::backup_mirror_clear,
             commands::database_create,
             commands::property_create,
             commands::property_update,
@@ -310,6 +375,19 @@ pub fn run() {
             queries::backup_list,
             queries::backup_preview,
         ])
-        .run(context)
-        .expect("error while running Suivelle");
+        .build(context)
+        .expect("error while building Suivelle")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let writable = app.try_state::<SafeMode>().is_some_and(|m| m.0.is_none());
+                if let Some(db) = app.try_state::<database::Db>().filter(|_| writable) {
+                    if let Ok(conn) = db.0.lock() {
+                        database::close_cleanly(&conn);
+                    }
+                }
+                if let Some(marker) = app.try_state::<SessionMarker>() {
+                    let _ = std::fs::remove_file(&marker.0);
+                }
+            }
+        });
 }

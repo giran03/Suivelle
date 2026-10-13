@@ -1,4 +1,6 @@
 import { useShortcut } from "../shortcuts/useShortcut";
+import { BackupMirror, HealthSection } from "./HealthSection";
+import { DiagnosticsButton } from "../../components/DiagnosticsButton";
 import { ShortcutSettings } from "../shortcuts/ShortcutSettings";
 import { useEffect, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
@@ -328,6 +330,9 @@ function SettingsBody() {
               Manage files…
             </button>
           </Row>
+          <Row title="Second copy" hint="Also save each automatic backup to another folder, such as an external drive. If it is unavailable, backups continue here.">
+            <BackupMirror />
+          </Row>
           <Row title="Backups" hint="Create, check or restore a backup.">
             <button
               className="btn"
@@ -338,6 +343,9 @@ function SettingsBody() {
               Open backups…
             </button>
           </Row>
+          <h3>Storage health</h3>
+          <p className="set-hint">Everything stored on this computer, across all workspaces.</p>
+          <HealthSection active={page === "data" && !query.trim()} />
         </SettingsPage>
 
         <SettingsPage id="keyboard" active={query.trim() ? "search" : page}>
@@ -356,6 +364,9 @@ function SettingsBody() {
               <div className="set-hint">{VERSION ? `Version ${VERSION}. ` : ""}Your notes and data stay on this computer.</div>
             </div>
           </div>
+          <Row title="Diagnostic report" hint="Versions, storage sizes and the recent log, to attach to a bug report. It never includes your notes.">
+            <DiagnosticsButton />
+          </Row>
         </SettingsPage>
       </div>
       </div>

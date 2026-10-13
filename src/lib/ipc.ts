@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
   Attachment,
+  Health,
+  Sweep,
   AttachmentKind,
   Action,
   Automation,
@@ -231,6 +233,15 @@ export const ipc = {
     call<Attachment | null>("attachment_import", { workspaceId, kind }),
   pageTouch: (id: string) => call<void>("page_touch", { id }),
   searchRebuild: (workspaceId: string) => call<number>("search_rebuild", { workspaceId }),
+  maintenanceHealth: () => call<Health>("maintenance_health"),
+  maintenanceSweep: () => call<Sweep>("maintenance_sweep"),
+  maintenanceCompact: () => call<[number, number]>("maintenance_compact"),
+  maintenanceCheck: () => call<string>("maintenance_check"),
+  /** Versions, sizes and the recent log (never document contents), for a bug report. */
+  diagnosticsReport: () => call<string>("diagnostics_report"),
+  backupMirrorGet: () => call<{ folder: string | null }>("backup_mirror_get"),
+  backupMirrorChoose: () => call<{ folder: string | null } | null>("backup_mirror_choose"),
+  backupMirrorClear: () => call<{ folder: string | null }>("backup_mirror_clear"),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>

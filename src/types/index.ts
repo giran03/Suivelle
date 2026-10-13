@@ -647,3 +647,26 @@ export interface DeletedFiles {
   skipped: number;
   freedBytes: number;
 }
+
+/** Files nothing uses: unrecorded blobs, their thumbnails and abandoned temporary files. */
+export interface Sweep { files: number; bytes: number }
+
+/** Sizes and counts for the whole installation, from Settings › Data. */
+export interface Health {
+  databaseBytes: number;
+  walBytes: number;
+  reclaimableBytes: number;
+  workspaces: number;
+  pages: number;
+  trashedPages: number;
+  blocks: number;
+  records: number;
+  attachments: number;
+  attachmentBytes: number;
+  thumbnailBytes: number;
+  searchDocuments: number;
+  backups: number;
+  backupBytes: number;
+  lastBackup: string | null;
+  leftovers: Sweep;
+}

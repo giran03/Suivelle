@@ -526,7 +526,70 @@ pub fn auto_backup(conn: &Mutex<Connection>, paths: &Paths) -> AppResult<Option<
             .unwrap_or(KEEP_AUTO)
     };
     rotate(paths, keep);
+    // An unplugged drive or full share must never fail the backup itself.
+    if let Err(error) = copy_to_mirror(paths, &info, keep) {
+        tracing::warn!(error = %error, "could not copy the backup to the second folder");
+    }
     Ok(Some(info))
+}
+
+/// A second folder, such as an external drive or a NAS share, that receives a copy of every
+/// automatic backup. Chosen per device, so it lives beside the data rather than in a workspace.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Mirror {
+    pub folder: Option<String>,
+}
+
+fn mirror_file(paths: &Paths) -> PathBuf {
+    paths.data.join("backup-mirror.json")
+}
+
+pub fn mirror(paths: &Paths) -> Mirror {
+    fs::read_to_string(mirror_file(paths))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+/// Remembers `folder` (or stops copying with `None`) after checking that it can be written to.
+pub fn set_mirror(paths: &Paths, folder: Option<&Path>) -> AppResult<Mirror> {
+    if let Some(folder) = folder {
+        let probe = folder.join(format!(".suivelle-probe-{}", new_token()));
+        fs::write(&probe, b"").map_err(|e| {
+            AppError::Validation(format!("Suivelle cannot save files in that folder: {e}"))
+        })?;
+        let _ = fs::remove_file(probe);
+    }
+    let mirror = Mirror {
+        folder: folder.map(|f| f.to_string_lossy().into_owned()),
+    };
+    fs::create_dir_all(&paths.data)?;
+    let json = serde_json::to_string(&mirror).map_err(|e| AppError::Internal(e.to_string()))?;
+    fs::write(mirror_file(paths), json)?;
+    Ok(mirror)
+}
+
+/// Copies `info` into the second folder, if one is set, and keeps only its newest `keep`
+/// automatic backups there. Files Suivelle did not name are never touched.
+pub fn copy_to_mirror(paths: &Paths, info: &BackupInfo, keep: usize) -> AppResult<Option<PathBuf>> {
+    let Some(folder) = mirror(paths).folder.map(PathBuf::from) else {
+        return Ok(None);
+    };
+    let partial = folder.join(format!(".{}.partial", info.name));
+    let dest = folder.join(&info.name);
+    fs::copy(paths.backups().join(&info.name), &partial)?;
+    fs::rename(&partial, &dest)?;
+    let mut autos: Vec<String> = fs::read_dir(&folder)?
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.starts_with("auto-") && n.ends_with(&format!(".{EXTENSION}")))
+        .collect();
+    autos.sort_unstable_by(|a, b| b.cmp(a));
+    for old in autos.iter().skip(keep.max(1)) {
+        let _ = fs::remove_file(folder.join(old));
+    }
+    Ok(Some(dest))
 }
 
 // ---------------------------------------------------------------------------------------------

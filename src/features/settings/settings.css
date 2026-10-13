@@ -146,3 +146,13 @@
   .settings .set-body { padding-block: 4px; }
   .settings .set-footer { padding: 4px 16px; }
 }
+
+.health-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px 20px; margin: 12px 0; }
+.health-stats div { min-width: 0; }
+.health-stats dt { color: var(--text-muted); font-size: 0.8125rem; }
+.health-stats dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.health-stats small { color: var(--text-muted); }
+.health-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.backup-mirror { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.backup-mirror-actions { display: flex; gap: 8px; }
+.backup-mirror-path { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: right; }

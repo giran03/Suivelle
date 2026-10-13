@@ -475,3 +475,52 @@ fn failed_safety_backup_does_not_delete_a_workspace() {
             .is_some()
     );
 }
+
+#[test]
+fn a_second_folder_receives_copies_and_keeps_only_the_newest() {
+    let e = env();
+    let mirror = e.paths.data.join("external-drive");
+    fs::create_dir_all(&mirror).unwrap();
+    fs::write(mirror.join("notes.txt"), b"not ours").unwrap();
+    assert_eq!(
+        set_mirror(&e.paths, Some(&mirror))
+            .unwrap()
+            .folder
+            .as_deref(),
+        Some(mirror.to_str().unwrap())
+    );
+    for i in 0..3 {
+        let mut info = create_in_app(&e.conn, &e.paths, "auto").unwrap();
+        // Distinct names regardless of how fast the backups are made.
+        let renamed = format!("auto-2026010{i}-000000.{EXTENSION}");
+        fs::rename(
+            e.paths.backups().join(&info.name),
+            e.paths.backups().join(&renamed),
+        )
+        .unwrap();
+        info.name = renamed;
+        copy_to_mirror(&e.paths, &info, 2).unwrap().unwrap();
+    }
+    let mut names: Vec<String> = fs::read_dir(&mirror)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            format!("auto-20260101-000000.{EXTENSION}"),
+            format!("auto-20260102-000000.{EXTENSION}"),
+            "notes.txt".into()
+        ]
+    );
+    // A missing folder is refused rather than remembered.
+    assert!(set_mirror(&e.paths, Some(&e.paths.data.join("missing"))).is_err());
+    assert_eq!(mirror_of(&e), Some(mirror.to_string_lossy().into_owned()));
+    set_mirror(&e.paths, None).unwrap();
+    assert_eq!(mirror_of(&e), None);
+}
+
+fn mirror_of(e: &Env) -> Option<String> {
+    super::mirror(&e.paths).folder
+}

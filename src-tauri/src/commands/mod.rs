@@ -2,6 +2,7 @@
 
 pub mod content;
 pub mod image;
+pub mod maintenance;
 pub mod worker;
 use worker::blocking;
 
@@ -122,6 +123,33 @@ pub async fn workspace_delete(
         services::workspace::delete_safely(&db.0, &paths, &id, &confirmation_name)
     })
     .await
+}
+
+/// The second folder that receives a copy of each automatic backup, if one is set.
+#[tauri::command]
+pub fn backup_mirror_get(app: tauri::AppHandle) -> crate::backup::Mirror {
+    crate::backup::mirror(&app.state::<crate::backup::Paths>())
+}
+
+/// Lets the user pick the second backup folder; `None` when the picker is cancelled.
+#[tauri::command]
+pub async fn backup_mirror_choose(
+    app: tauri::AppHandle,
+) -> AppResult<Option<crate::backup::Mirror>> {
+    worker::dialog("backup_mirror_choose", move || {
+        use tauri_plugin_dialog::DialogExt;
+        let Some(folder) = app.dialog().file().blocking_pick_folder() else {
+            return Ok(None);
+        };
+        let paths = app.state::<crate::backup::Paths>();
+        crate::backup::set_mirror(&paths, Some(&path_of(folder)?)).map(Some)
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn backup_mirror_clear(app: tauri::AppHandle) -> AppResult<crate::backup::Mirror> {
+    crate::backup::set_mirror(&app.state::<crate::backup::Paths>(), None)
 }
 
 #[tauri::command]

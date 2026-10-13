@@ -1,13 +1,19 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { App } from "./app/App";
-import { ErrorBoundary } from "./app/ErrorBoundary";
-import { CaptureWindow } from "./features/capture/CaptureWindow";
+import { loadSafeMode } from "./lib/safeMode";
 import "./motion.css";
 import "./styles.css";
 import "./features/tooltip/tooltip.css";
 import "./forced-colors.css";
 import "./page-focus.css";
+
+// Safe mode decides READ_ONLY, which modules read once as they load, so ask before importing them.
+globalThis.__SUIVELLE_SAFE_MODE__ ??= await loadSafeMode();
+const [{ App }, { ErrorBoundary }, { CaptureWindow }] = await Promise.all([
+  import("./app/App"),
+  import("./app/ErrorBoundary"),
+  import("./features/capture/CaptureWindow"),
+]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

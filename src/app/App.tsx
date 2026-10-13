@@ -5,8 +5,9 @@ import { useFilesDialog } from "../features/files/store";
 import { UpdatesRoot } from "../features/updates/Updates";
 import { isPreparing, useUpdates } from "../features/updates/store";
 import { READ_ONLY, READ_ONLY_COMMANDS } from "../lib/access";
+import { safeModeReason } from "../lib/safeMode";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { WorkspaceDialog } from "../features/workspaces/WorkspaceDialog";
+import { useWorkspaceDialog } from "../features/workspaces/store";
 import { registerFlusher } from "../features/editor/flushRegistry";
 import { AppContextMenu } from "../components/AppContextMenu";
 import { Titlebar } from "../components/Titlebar";
@@ -17,7 +18,6 @@ import { useHistoryPanel } from "../features/history/store";
 import { usePalette } from "../features/palette/store";
 import { Sidebar } from "../features/pages/Sidebar";
 import { Topbar } from "../features/pages/Topbar";
-import { RecordProperties } from "../features/database/RecordProperties";
 import { TrashView } from "../features/pages/TrashView";
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
@@ -48,9 +48,11 @@ import { Loading } from "../components/Loading";
 import { PageTransferDialog, usePageTransfer } from "../features/pages/PageTransferDialog";
 
 // The editor (TipTap, KaTeX, syntax highlighting) is the heavy part; load it after the shell is up.
+const RecordProperties = lazy(() => import("../features/database/RecordProperties").then((m) => ({ default: m.RecordProperties })));
 const Editor = lazy(() => import("../features/editor/Editor").then((m) => ({ default: m.Editor })));
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
+const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
 const BackupsDialog = lazy(() => import("../features/backup/BackupsDialog").then((m) => ({ default: m.BackupsDialog })));
 const TransferDialog = lazy(() => import("../features/transfer/TransferDialog").then((m) => ({ default: m.TransferDialog })));
 const HistoryPanel = lazy(() => import("../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })));
@@ -61,6 +63,19 @@ const DatabaseView = lazy(() => import("../features/database/DatabaseView").then
 const DashboardView = lazy(() => import("../features/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
 
 /** Load a feature on first use, then keep its shell so dialog exit and focus restoration still run. */
+/** Shown when the workspace opened read-only because its check or upgrade failed. */
+function SafeModeBanner() {
+  const reason = safeModeReason();
+  if (!reason) return null;
+  return <div className="safe-mode-banner" role="alert">
+    <p><strong>Opened read-only to protect your data.</strong> {reason}. Nothing has been changed. Save a copy with Export, or restore an earlier backup.</p>
+    <div className="safe-mode-actions">
+      <button type="button" className="btn" onClick={() => useTransferDialog.getState().show("export", "workspace")}>Export workspace…</button>
+      <button type="button" className="btn" onClick={() => useBackupsDialog.getState().show()}>Backups…</button>
+    </div>
+  </div>;
+}
+
 function OnDemand({ open, children }: { open: boolean; children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(open);
   useEffect(() => { if (open) setLoaded(true); }, [open]);
@@ -158,8 +173,8 @@ function Content() {
     return (
       <>
         <PageTitle />
-        {kind === "record" && <RecordProperties key={`props-${selectedPageId}`} pageId={selectedPageId} />}
         <Suspense fallback={null}>
+          {kind === "record" && <RecordProperties key={`props-${selectedPageId}`} pageId={selectedPageId} />}
           <Editor key={`${selectedPageId}:${epoch}`} pageId={selectedPageId} />
         </Suspense>
       </>
@@ -237,6 +252,7 @@ export function App() {
   const updatePreparing = useUpdates((s) => isPreparing(s.phase));
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
+  const WorkspaceDialogOpen = useWorkspaceDialog((s) => s.open);
   const TransferDialogOpen = useTransferDialog((s) => s.open);
   const HistoryPanelOpen = useHistoryPanel((s) => s.open);
   const TemplateGalleryOpen = useTemplateGallery((s) => s.open);
@@ -374,6 +390,7 @@ export function App() {
       <Sidebar />
       {!collapsed && !focus && <SidebarResizer />}
       <main>
+        <SafeModeBanner />
         <Topbar />
         <TabBar />
         <div className="main-scroll" data-fill={isDatabase ? "" : undefined}>
@@ -402,7 +419,7 @@ export function App() {
       <OnDemand open={FilesDialogOpen}><FilesDialog /></OnDemand>
       <QuickCapture />
     </div>
-    <WorkspaceDialog />
+    <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
     <UpdatesRoot />
     {workspaceBusy && <div className="workspace-pending" role="status"><Loading variant="orbit" label="Saving changes and preparing workspace…" /></div>}
     </div>

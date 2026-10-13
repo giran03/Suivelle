@@ -72,6 +72,103 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     Ok(conn)
 }
 
+/// Opens the workspace database at start-up. The integrity check, whose cost grows with the
+/// database, runs only when the previous session did not close cleanly or a migration is about
+/// to run. Restores and backup verification keep using `open`, which always checks.
+pub fn open_at_startup(path: &Path, unclean_exit: bool) -> AppResult<Connection> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let mut conn = Connection::open(path)?;
+    configure(&conn)?;
+    conn.pragma_update(None, "journal_mode", "WAL")?;
+    let current = schema_version(&conn)?;
+    let pending = current != latest_version();
+    if unclean_exit || pending {
+        quick_check(&conn)?;
+    }
+    if pending && current > 0 {
+        snapshot_before_migration(&conn, path, current)?;
+    }
+    migrate(&mut conn)?;
+    // Lets SQLite refresh planner statistics cheaply for this long-lived connection.
+    conn.execute_batch("PRAGMA optimize = 0x10002")?;
+    Ok(conn)
+}
+
+/// Opens the workspace without the ability to change it, for safe mode: when the integrity check
+/// or a migration fails, the app still opens so the user can back up, export or restore.
+pub fn open_read_only(path: &Path) -> AppResult<Connection> {
+    let conn = Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    configure(&conn)?;
+    conn.query_row("SELECT COUNT(*) FROM sqlite_master", [], |r| {
+        r.get::<_, i64>(0)
+    })?;
+    Ok(conn)
+}
+
+/// The newest migration applied, or 0 for a database that has none yet.
+fn schema_version(conn: &Connection) -> AppResult<i64> {
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations')",
+        [],
+        |r| r.get(0),
+    )?;
+    if !exists {
+        return Ok(0);
+    }
+    Ok(conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+#[cfg(test)]
+fn migration_pending(conn: &Connection) -> AppResult<bool> {
+    Ok(schema_version(conn)? != latest_version())
+}
+
+/// How many pre-migration snapshots are kept beside the automatic backups.
+const MIGRATION_SNAPSHOTS: usize = 3;
+
+/// Copies the database before an upgrade changes its schema. If the copy cannot be made, the
+/// upgrade does not run and the app opens read-only instead.
+fn snapshot_before_migration(conn: &Connection, path: &Path, version: i64) -> AppResult<()> {
+    let dir = path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("backups")
+        .join("pre-migration");
+    std::fs::create_dir_all(&dir)?;
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S%3f");
+    let file = dir.join(format!("workspace-v{version}-{stamp}.db"));
+    conn.execute("VACUUM INTO ?1", [file.to_string_lossy()])?;
+    tracing::info!(version, file = %file.display(), "saved a copy before upgrading the database");
+    let mut kept: Vec<_> = std::fs::read_dir(&dir)?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "db"))
+        .collect();
+    kept.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    let excess = kept.len().saturating_sub(MIGRATION_SNAPSHOTS);
+    for old in kept.into_iter().take(excess) {
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(())
+}
+
+/// Clean-exit housekeeping: refresh planner statistics and fold the WAL back into the database
+/// so the next start has nothing to replay and the -wal file does not linger at its peak size.
+pub fn close_cleanly(conn: &Connection) {
+    if let Err(error) = conn.execute_batch("PRAGMA optimize; PRAGMA wal_checkpoint(TRUNCATE);") {
+        tracing::warn!(%error, "database shutdown maintenance failed");
+    }
+}
+
 pub fn open_in_memory() -> AppResult<Connection> {
     let mut conn = Connection::open_in_memory()?;
     configure(&conn)?;
@@ -82,7 +179,14 @@ pub fn open_in_memory() -> AppResult<Connection> {
 fn configure(conn: &Connection) -> AppResult<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.busy_timeout(Duration::from_millis(5000))?;
+    // Sorted database views build temporary candidate tables; keep them off the disk.
+    conn.pragma_update(None, "temp_store", "MEMORY")?;
     Ok(())
+}
+
+/// SQLite's quick integrity check: "ok", or a description of what is wrong.
+pub fn integrity(conn: &Connection) -> AppResult<String> {
+    Ok(conn.query_row("PRAGMA quick_check", [], |r| r.get(0))?)
 }
 
 fn quick_check(conn: &Connection) -> AppResult<()> {
@@ -208,6 +312,84 @@ mod tests {
             .unwrap();
         assert_eq!(name, "n");
         drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn startup_open_migrates_new_files_and_folds_the_wal_on_clean_close() {
+        let dir = std::env::temp_dir().join(format!("tako-test-{}", uuid::Uuid::now_v7()));
+        let path = dir.join("workspace.db");
+        let conn = open_at_startup(&path, false).unwrap();
+        assert!(!migration_pending(&conn).unwrap());
+        let temp: i64 = conn
+            .query_row("PRAGMA temp_store", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(temp, 2, "temporary tables stay in memory");
+        conn.execute(
+            "INSERT INTO workspace (id, name, created_at, updated_at) VALUES ('w','n','t','t')",
+            [],
+        )
+        .unwrap();
+        close_cleanly(&conn);
+        let wal = std::fs::metadata(dir.join("workspace.db-wal")).map_or(0, |m| m.len());
+        assert_eq!(wal, 0, "a clean close truncates the write-ahead log");
+        drop(conn);
+        // After an unclean exit the check runs and the data is still there.
+        let conn = open_at_startup(&path, true).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM workspace", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        drop(conn);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_only_open_reads_but_refuses_writes() {
+        let dir = std::env::temp_dir().join(format!("tako-test-{}", uuid::Uuid::now_v7()));
+        let path = dir.join("workspace.db");
+        let conn = open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO workspace (id, name, created_at, updated_at) VALUES ('w','n','t','t')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let ro = open_read_only(&path).unwrap();
+        let name: String = ro
+            .query_row("SELECT name FROM workspace", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "n");
+        assert!(ro.execute("DELETE FROM workspace", []).is_err());
+        drop(ro);
+        assert!(open_read_only(&dir.join("missing.db")).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    #[test]
+    fn upgrades_snapshot_the_database_first_and_keep_the_latest_three() {
+        let dir = std::env::temp_dir().join(format!("tako-test-{}", uuid::Uuid::now_v7()));
+        let path = dir.join("workspace.db");
+        let conn = open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO workspace (id, name, created_at, updated_at) VALUES ('w','kept','t','t')",
+            [],
+        )
+        .unwrap();
+        for _ in 0..5 {
+            snapshot_before_migration(&conn, &path, 9).unwrap();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let snapshots: Vec<_> = std::fs::read_dir(dir.join("backups/pre-migration"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert_eq!(snapshots.len(), MIGRATION_SNAPSHOTS);
+        let copy = Connection::open(&snapshots[0]).unwrap();
+        let name: String = copy
+            .query_row("SELECT name FROM workspace", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "kept");
+        drop((conn, copy));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -191,6 +191,7 @@ const READ_COMMANDS = new Set([
   "group_counts", "chart_data", "record_previews", "record_get", "record_lookup", "record_template_list",
   "automation_list", "automation_runs", "dashboard_get", "template_list", "backup_list", "attachment_list",
   "shell_get_behavior", "quick_capture_shortcut", "formula_preview", "export_shape",
+  "maintenance_health", "diagnostics_report", "backup_mirror_get", "app_safe_mode",
 ]);
 
 /** Only read commands and temporary display preferences cross the showcase boundary. */
@@ -368,6 +369,15 @@ function dispatch(cmd: string, a: any): unknown {
     case "dashboard_save": { db.dashboards[a.input.pageId] = a.input.layout; return a.input.layout; }
     case "template_list": return [];
     case "backup_list": return [];
+    case "maintenance_health": return {
+      databaseBytes: 1_843_200, walBytes: 0, reclaimableBytes: 0, workspaces: db.workspaces.length,
+      pages: db.pages.filter((p) => !p.deletedAt).length, trashedPages: db.pages.filter((p) => p.deletedAt).length,
+      blocks: db.blocks.length, records: db.records.length, attachments: 0, attachmentBytes: 0, thumbnailBytes: 0,
+      searchDocuments: db.pages.length, backups: 0, backupBytes: 0, lastBackup: null, leftovers: { files: 0, bytes: 0 },
+    };
+    case "diagnostics_report": return "Suivelle showcase (read-only mock)";
+    case "backup_mirror_get": return { folder: null };
+    case "app_safe_mode": return null;
     case "attachment_list": return [];
     case "shell_get_behavior": return { tray: false, closeToTray: false, minimizeToTray: false, startWithSystem: false, startMinimized: false };
     case "shell_set_behavior": return a.behavior;

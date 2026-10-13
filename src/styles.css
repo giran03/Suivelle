@@ -440,3 +440,7 @@ main { position: relative; display: flex; flex-direction: column; min-width: 0; 
 /* Toggle (transitions.dev): the thumb travels and settles with a small overshoot. */
 .switch input:checked + .switch-track::after { translate: 16px 0; background: var(--on-accent); }
 .switch input:focus-visible + .switch-track { outline: 2px solid color-mix(in srgb, var(--focus-ring) 75%, transparent); outline-offset: 2px; }
+
+.safe-mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--warning) 12%, var(--surface-1)); color: var(--fg); font-size: 0.875rem; }
+.safe-mode-banner p { margin: 0; flex: 1 1 320px; }
+.safe-mode-actions { display: flex; gap: 8px; }
