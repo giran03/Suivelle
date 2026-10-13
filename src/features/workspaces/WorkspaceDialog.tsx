@@ -62,12 +62,15 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   const patch = (p: Partial<typeof draft>) => { setDraft((d) => ({ ...d, ...("icon" in p ? { image: null } : {}), ...p })); setMessage(null); };
   const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); setMessage(null); try { await fn(); } catch (e) { setError(toAppError(e).message); } finally { setBusy(false); } };
   const exportWorkspace = () => run(async () => { if (workspace) { const result = await exportWorkspaceArchive(workspace.id); if (result) setMessage(`Workspace exported to ${result.fileName || "an archive"}.`); } });
-  const uploadIcon = () => run(async () => {
+  const uploadIcon = () => {
+    // A new workspace keeps the chosen file in the draft; the picker itself is not busy work.
     if (creating) { fileInput.current?.click(); return; }
-    if (!workspace) return;
-    const image = await ipc.attachmentImport(workspace.id, "image");
-    if (image) patch({ icon: `image:${image.hash}` });
-  });
+    return run(async () => {
+      if (!workspace) return;
+      const image = await ipc.attachmentImport(workspace.id, "image");
+      if (image) patch({ icon: `image:${image.hash}` });
+    });
+  };
   const openColorPicker = () => {
     const selected = document.querySelector<HTMLElement>('.ws-color-choice[aria-pressed="true"]');
     const rgb = selected && getComputedStyle(selected).backgroundColor.match(/[\d.]+/g);

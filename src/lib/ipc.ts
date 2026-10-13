@@ -60,8 +60,17 @@ const pendingIpc = new Set<Promise<unknown>>();
 export async function waitForPendingIpc(): Promise<void> {
   while (pendingIpc.size) await Promise.all([...pendingIpc]);
 }
+/** Sends `bytes` as the raw request body (not JSON); text parameters travel as encoded headers. */
+function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, string>): Promise<T> {
+  const encoded = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, encodeURIComponent(v)]));
+  return track(invoke<T>(cmd, bytes, { headers: encoded }));
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const pending = invoke<T>(cmd, args);
+  return track(invoke<T>(cmd, args));
+}
+
+async function track<T>(pending: Promise<T>): Promise<T> {
   pendingIpc.add(pending);
   try {
     return await pending;
@@ -191,13 +200,8 @@ export const ipc = {
   viewDuplicate: (id: string) => call<DbView>("view_duplicate", { id }),
   viewDelete: (id: string) => call<void>("view_delete", { id }),
   workspaceCreate: (name: string, icon: string | null = null, settingsJson?: string) => call<Workspace>("workspace_create", { input: { name, icon, settingsJson } }),
-  workspaceCreateWithImage: async (name: string, settingsJson: string, fileName: string, bytes: ArrayBuffer): Promise<Workspace> => {
-    const pending = invoke<Workspace>("workspace_create_with_image", bytes, {
-      headers: { "x-workspace-profile": encodeURIComponent(JSON.stringify({ name, settingsJson })), "x-file-name": encodeURIComponent(fileName) },
-    });
-    pendingIpc.add(pending);
-    try { return await pending; } catch (e) { throw toAppError(e); } finally { pendingIpc.delete(pending); }
-  },
+  workspaceCreateWithImage: (name: string, settingsJson: string, fileName: string, bytes: ArrayBuffer) =>
+    rawCall<Workspace>("workspace_create_with_image", bytes, { "x-workspace-profile": JSON.stringify({ name, settingsJson }), "x-file-name": fileName }),
   workspaceUpdate: (id: string, name?: string, profile?: { icon?: string | null; settingsJson?: string }) => call<Workspace>("workspace_update", { input: { id, name, icon: profile?.icon ?? undefined, clearIcon: profile?.icon === null, settingsJson: profile?.settingsJson } }),
   workspaceUpdateSettings: (id: string, settingsJson: string) =>
     call<Workspace>("workspace_update_settings", { input: { id, settingsJson } }),
@@ -229,19 +233,8 @@ export const ipc = {
   searchRebuild: (workspaceId: string) => call<number>("search_rebuild", { workspaceId }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
-  attachmentImportBytes: async (workspaceId: string, name: string, bytes: ArrayBuffer): Promise<Attachment> => {
-    const pending = invoke<Attachment>("attachment_import_bytes", bytes, {
-      headers: { "x-workspace-id": encodeURIComponent(workspaceId), "x-file-name": encodeURIComponent(name) },
-    });
-    pendingIpc.add(pending);
-    try {
-      return await pending;
-    } catch (e) {
-      throw toAppError(e);
-    } finally {
-      pendingIpc.delete(pending);
-    }
-  },
+  attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>
+    rawCall<Attachment>("attachment_import_bytes", bytes, { "x-workspace-id": workspaceId, "x-file-name": name }),
   /** Turns the system-wide quick-capture shortcut (Ctrl+Alt+N) on or off. */
   shortcutsMigrate: (captureEnabled: boolean) => call<GlobalState>("shortcuts_migrate", { captureEnabled }),
   shortcutsGet: () => call<GlobalState>("shortcuts_get"),

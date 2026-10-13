@@ -42,6 +42,16 @@ fn percent_decode(s: &str) -> String {
 
 /// Stores a file that was pasted or dropped. The bytes are the raw request body; the workspace id
 /// and (percent-encoded) file name travel in headers so large files avoid a JSON round trip.
+/// A percent-encoded text parameter sent beside a raw byte body.
+fn header(request: &Request<'_>, name: &str) -> String {
+    request
+        .headers()
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(percent_decode)
+        .unwrap_or_default()
+}
+
 #[tauri::command(async)]
 pub fn attachment_import_bytes(
     db: State<'_, Db>,
@@ -51,14 +61,7 @@ pub fn attachment_import_bytes(
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err(AppError::Validation("expected the file's bytes".into()));
     };
-    let header = |name: &str| {
-        request
-            .headers()
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .map(percent_decode)
-            .unwrap_or_default()
-    };
+    let header = |name: &str| header(&request, name);
     let workspace_id = header("x-workspace-id");
     let name = header("x-file-name");
     let t = std::time::Instant::now();
@@ -77,14 +80,7 @@ pub fn workspace_create_with_image(
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err(AppError::Validation("expected the image's bytes".into()));
     };
-    let header = |name: &str| {
-        request
-            .headers()
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .map(percent_decode)
-            .unwrap_or_default()
-    };
+    let header = |name: &str| header(&request, name);
     let input =
         serde_json::from_str::<crate::domain::WorkspaceCreate>(&header("x-workspace-profile"))
             .map_err(|_| AppError::Validation("invalid workspace profile".into()))?;

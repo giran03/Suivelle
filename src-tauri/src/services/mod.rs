@@ -103,8 +103,9 @@ pub mod workspace {
             ));
         }
         let name = crate::files::manage::clean_name(file_name);
-        let mime = crate::files::mime_for(&name);
-        if !mime.starts_with("image/") {
+        if !crate::files::mime_for(&name).starts_with("image/")
+            || !crate::files::manage::looks_like_image(bytes)
+        {
             return Err(AppError::Validation("choose a supported image file".into()));
         }
         let tx = conn.transaction()?;
@@ -115,8 +116,7 @@ pub mod workspace {
                 ..input
             },
         )?;
-        let (hash, size) = crate::files::store_reader(root, &mut &bytes[..], 10 * 1024 * 1024)?;
-        crate::files::insert_attachment_in(&tx, &w.id, &hash, &name, mime, size)?;
+        let hash = crate::files::manage::import_bytes_in(&tx, root, &w.id, &name, bytes)?.hash;
         w.icon = Some(format!("image:{hash}"));
         tx.execute(
             "UPDATE workspace SET icon = ?1 WHERE id = ?2",
@@ -842,7 +842,19 @@ mod tests {
                 ..Default::default()
             },
             "icon.png",
-            b"png"
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+        )
+        .is_err());
+        // A file that is not an image is refused even when its name says otherwise.
+        assert!(workspace::create_with_image(
+            &mut conn,
+            &root,
+            WorkspaceCreate {
+                name: "Disguised".into(),
+                ..Default::default()
+            },
+            "icon.png",
+            b"plain text pretending to be a picture"
         )
         .is_err());
         assert!(workspace::create_with_image(

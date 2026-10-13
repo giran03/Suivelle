@@ -53,14 +53,35 @@ pub fn import_bytes(
             "files over 256 MB cannot be pasted or dropped; use an Add file block instead".into(),
         ));
     }
-    let name = clean_name(raw_name);
-    let mime = mime_for(&name);
-    let mut input = bytes;
-    let (hash, size) = store_reader(root, &mut input, MAX_ATTACHMENT_BYTES)?;
     let tx = conn.transaction()?;
-    let att = insert_attachment_in(&tx, workspace_id, &hash, &name, mime, size)?;
+    let att = import_bytes_in(&tx, root, workspace_id, raw_name, bytes)?;
     tx.commit()?;
     Ok(att)
+}
+
+/// Stores `bytes` and records them for `workspace_id` inside the caller's transaction, so the
+/// attachment can be created together with whatever uses it.
+pub fn import_bytes_in(
+    tx: &Connection,
+    root: &Path,
+    workspace_id: &str,
+    raw_name: &str,
+    bytes: &[u8],
+) -> AppResult<Attachment> {
+    let name = clean_name(raw_name);
+    let mime = mime_for(&name);
+    let (hash, size) = store_reader(root, &mut &bytes[..], MAX_ATTACHMENT_BYTES)?;
+    insert_attachment_in(tx, workspace_id, &hash, &name, mime, size)
+}
+
+/// Whether `bytes` really are an image of a kind the app displays, whatever the file is called.
+pub fn looks_like_image(bytes: &[u8]) -> bool {
+    if image::guess_format(bytes).is_ok() || bytes.get(4..12) == Some(b"ftypavif") {
+        return true;
+    }
+    let head = String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]);
+    let head = head.trim_start_matches(|c: char| c.is_whitespace() || c as u32 == 0xFEFF);
+    head.starts_with('<') && head.contains("<svg")
 }
 
 #[derive(Debug, Serialize)]

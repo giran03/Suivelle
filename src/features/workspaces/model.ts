@@ -19,7 +19,7 @@ export function orderedWorkspaces(workspaces: Workspace[]) {
   return [...workspaces].sort((a, b) => (rank.get(a.id) ?? ids.length) - (rank.get(b.id) ?? ids.length));
 }
 export function rememberWorkspaceOrder(workspaces: Workspace[]) {
-  localStorage.setItem(ORDER, JSON.stringify(workspaces.map((w) => w.id)));
+  try { localStorage.setItem(ORDER, JSON.stringify(workspaces.map((w) => w.id))); } catch { /* The order still applies for this session. */ }
 }
 export function rememberedWorkspace() { try { return localStorage.getItem(ACTIVE); } catch { return null; } }
 export function rememberWorkspace(id: string) { try { localStorage.setItem(ACTIVE, id); } catch { /* Convenience only. */ } }
