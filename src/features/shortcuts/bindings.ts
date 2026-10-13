@@ -10,8 +10,10 @@ const action = (id: string, title: string, scope: Scope, ...defaults: Binding[])
 export const ACTIONS: Action[] = [
   action("search", "Search pages and commands", "workspace", key("k", "Primary")),
   action("new-page", "New page", "workspace", key("n", "Primary")),
+  action("daily-note", "Open today's note", "workspace", key("d", "Primary", "Alt")),
   action("sidebar", "Collapse or expand the sidebar", "workspace", key("\\", "Primary")),
   action("focus", "Focus mode", "workspace", key("\\", "Primary", "Shift")),
+  action("outline", "Outline and word count", "workspace", key("o", "Primary", "Shift")),
   action("shortcuts", "Shortcut reference", "workspace", key("/", "Primary"), key("?", "Shift")),
   action("capture", "Quick capture", "workspace", key("n", "Primary", "Shift")),
   action("find", "Find in page", "workspace", key("f", "Primary")),
@@ -22,6 +24,7 @@ export const ACTIONS: Action[] = [
   action("next-tab", "Next tab", "workspace", key("Tab", "Primary")),
   action("previous-tab", "Previous tab", "workspace", key("Tab", "Primary", "Shift")),
   action("close-tab", "Close current tab", "workspace", key("w", "Primary")),
+  action("reopen-tab", "Reopen closed tab", "workspace", key("t", "Primary", "Shift")),
   action("bold", "Bold", "editor", key("b", "Primary")),
   action("italic", "Italic", "editor", key("i", "Primary")),
   action("underline", "Underline", "editor", key("u", "Primary")),

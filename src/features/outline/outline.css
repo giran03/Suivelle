@@ -1,0 +1,8 @@
+.outline-panel { position: fixed; z-index: 20; top: 104px; right: 16px; width: 232px; max-height: calc(100vh - 140px); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--menu-shadow); font-size: 0.8125rem; }
+.outline-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 4px 12px; color: var(--text-muted); font-weight: 600; }
+.outline-list { overflow: auto; padding: 0 6px 6px; }
+.outline-item { display: block; width: 100%; padding-block: 4px; padding-inline-end: 8px; border: 0; border-radius: var(--r-sm, 4px); background: none; color: var(--text-secondary); text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.outline-item:hover { background: var(--surface-hover); color: var(--fg); }
+.outline-item.current { color: var(--fg); font-weight: 600; }
+.outline-empty { margin: 0; padding: 0 12px 8px; color: var(--text-muted); }
+.outline-stats { margin: 0; padding: 8px 12px; border-top: 1px solid var(--border-subtle, var(--border)); color: var(--text-muted); font-variant-numeric: tabular-nums; }

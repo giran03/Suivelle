@@ -1,7 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const ipc = vi.hoisted(() => ({ pageGet: vi.fn() }));
+vi.mock("../../lib/ipc", async (original) => ({ ...(await original<typeof import("../../lib/ipc")>()), ipc }));
 import { useWorkspace } from "../../stores/workspace";
 import type { Workspace } from "../../types";
-import { closeTab, cycleTab, dropTab, installTabs, moveTab, openInNewTab, useTabs } from "./tabs";
+import { closeTab, cycleTab, dropTab, installTabs, moveTab, openInNewTab, reopenClosedTab, useTabs } from "./tabs";
 
 const workspace = { id: "w1", name: "W" } as Workspace;
 let uninstall: () => void;
@@ -124,5 +127,19 @@ describe("moving tabs", () => {
     expect(ids()).toEqual(["A", "B"]);
     moveTab("nope", 0);
     expect(ids()).toEqual(["A", "B"]);
+  });
+});
+
+describe("reopening closed tabs", () => {
+  it("brings back the most recent closed tab whose page still exists", async () => {
+    await openInNewTab("B");
+    await openInNewTab("C");
+    await closeTab("B");
+    await closeTab("C");
+    ipc.pageGet.mockImplementation(async (id: string) => ({ id, deletedAt: id === "C" ? "trashed" : null }));
+    expect(await reopenClosedTab()).toBe(true);
+    expect(ids()).toContain("B");
+    expect(open()).toBe("B");
+    expect(await reopenClosedTab()).toBe(false);
   });
 });

@@ -1,4 +1,6 @@
 import { Icon } from "../../components/Icon";
+import { useOutline } from "../outline/store";
+import { useActiveEditor } from "../../stores/activeEditor";
 import { useShortcut } from "../shortcuts/useShortcut";
 import { READ_ONLY } from "../../lib/access";
 import { canBack, canForward } from "../../lib/history";
@@ -18,6 +20,17 @@ function HistoryButton() {
   return (
     <button className={`icon-btn${open ? " on" : ""}`} aria-label="Version history" aria-pressed={open} title="Version history" onClick={toggle}>
       <Icon name="clock" />
+    </button>
+  );
+}
+
+function OutlineButton() {
+  const open = useOutline((s) => s.open);
+  const hasEditor = useActiveEditor((s) => !!s.editor);
+  if (!hasEditor) return null;
+  return (
+    <button className={`icon-btn${open ? " on" : ""}`} aria-label="Outline and word count" aria-pressed={open} title="Outline and word count" onClick={() => useOutline.getState().toggle()}>
+      <Icon name="bullet" />
     </button>
   );
 }
@@ -117,7 +130,10 @@ export function Topbar() {
                 <Icon name="star" filled={page.favorite} />
               </button>
               {page.kind !== "database" && page.kind !== "dashboard" && (
-                <HistoryButton />
+                <>
+                  <OutlineButton />
+                  <HistoryButton />
+                </>
               )}
               <button className="icon-btn" aria-label="Move to trash" title="Move to trash" onClick={() => void trashPage(page)}>
                 <Icon name="trash" />

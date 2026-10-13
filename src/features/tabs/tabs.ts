@@ -2,6 +2,7 @@ import "../../lib/legacy";
 import type { MouseEvent } from "react";
 import { create } from "zustand";
 import { useWorkspace } from "../../stores/workspace";
+import { ipc } from "../../lib/ipc";
 
 /**
  * Page tabs: a short list of pages kept side by side, like browser tabs. The open page is always
@@ -66,14 +67,36 @@ export async function openInNewTab(pageId: string): Promise<void> {
 }
 
 /** Closes a tab. Closing the open one moves to its neighbour. */
+/** Recently closed tabs for this session, newest last; reopened with Ctrl+Shift+T. */
+const closed: { workspaceId: string; pageId: string }[] = [];
+const MAX_CLOSED = 20;
+
 export async function closeTab(id: string): Promise<void> {
   const ids = useTabs.getState().ids;
   const i = ids.indexOf(id);
   if (i < 0) return;
+  const ws = workspaceId();
+  if (ws) closed.push({ workspaceId: ws, pageId: id });
+  if (closed.length > MAX_CLOSED) closed.shift();
   const rest = ids.filter((x) => x !== id);
   const wasOpen = useWorkspace.getState().selectedPageId === id;
   commit(rest);
   if (wasOpen && rest.length) await useWorkspace.getState().selectPage(rest[Math.min(i, rest.length - 1)]);
+}
+
+/** Reopens the most recently closed tab of this workspace whose page still exists. */
+export async function reopenClosedTab(): Promise<boolean> {
+  const ws = workspaceId();
+  for (let i = closed.length - 1; i >= 0; i--) {
+    if (closed[i].workspaceId !== ws) continue;
+    const [{ pageId }] = closed.splice(i, 1);
+    if (useTabs.getState().ids.includes(pageId)) continue;
+    const page = await ipc.pageGet(pageId).catch(() => null);
+    if (!page || page.deletedAt) continue;
+    await openInNewTab(pageId);
+    return true;
+  }
+  return false;
 }
 
 /** Removes a tab whose page no longer exists, without moving anywhere. */

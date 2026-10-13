@@ -19,6 +19,9 @@ import { duplicatePage, saveAsTemplate } from "../templates/pageTemplates";
 import { useFindBar } from "../find/store";
 import { useActiveEditor } from "../../stores/activeEditor";
 import { modKey } from "./store";
+import { openDailyNote } from "../journal/journal";
+import { reopenClosedTab } from "../tabs/tabs";
+import { useOutline } from "../outline/store";
 
 export interface PaletteCommand {
   id: string;
@@ -43,6 +46,7 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "workspace-settings", title: "Workspace settings…", keywords: "rename icon color description spacing delete", run: () => useWorkspaceDialog.getState().show("manage") },
   { id: "switch-workspace", title: "Switch workspace…", keywords: "open space work personal", run: () => useWorkspaceDialog.getState().show("manage") },
   { id: "new-page", title: "New page", keywords: "create add page", shortcut: `${modKey}+N`, run: () => st().createPage(null) },
+  { id: "daily-note", title: "Open today's note", keywords: "journal daily diary today date log", run: () => openDailyNote() },
   { id: "new-database", title: "New database", keywords: "create add table records tasks", run: () => st().createDatabase(null) },
   { id: "new-dashboard", title: "New dashboard", keywords: "create add charts widgets overview kpi report", run: () => st().createDashboard(null) },
   { id: "new-from-template", title: "New from template…", keywords: "project manager tasks tracker sprint milestone software bugs", run: () => useTemplateGallery.getState().show() },
@@ -79,10 +83,12 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "settings", title: "Settings", keywords: "preferences options theme text size width backup", shortcut: `${modKey}+,`, run: () => useSettingsDialog.getState().show() },
   { id: "shortcuts", title: "Keyboard shortcuts", keywords: "keys hotkeys help cheatsheet reference", shortcut: `${modKey}+/`, run: () => useShortcutSheet.getState().show() },
   { id: "sidebar", title: "Collapse or expand the sidebar", keywords: "toggle collapse panel navigation", shortcut: `${modKey}+\\`, run: () => useLayout.getState().toggleSidebar() },
+  { id: "outline", title: "Show or hide the outline", keywords: "headings contents toc word count words characters reading time statistics", when: () => !!useActiveEditor.getState().editor, run: () => useOutline.getState().toggle() },
   { id: "focus", title: "Focus mode", keywords: "distraction free zen write hide sidebar toolbar", shortcut: `${modKey}+Shift+\\`, run: () => useLayout.getState().toggleFocus() },
   { id: "page-icon", title: "Change page icon…", keywords: "emoji symbol picture avatar", when: hasPage, run: () => useAppearanceUi.getState().show("icon") },
   { id: "page-cover", title: "Change page cover…", keywords: "banner header image gradient picture", when: hasPage, run: () => useAppearanceUi.getState().show("cover") },
   { id: "trash", title: "Open trash", keywords: "deleted restore bin", run: () => st().showTrash() },
+  { id: "reopen-tab", title: "Reopen closed tab", keywords: "undo close tab restore recent", run: async () => { if (!(await reopenClosedTab())) st().notify("No closed tab to reopen."); } },
   { id: "back", title: "Go back", keywords: "previous history", shortcut: "Alt+←", when: () => canBack(st().history), run: () => st().goBack() },
   { id: "forward", title: "Go forward", keywords: "next history", shortcut: "Alt+→", when: () => canForward(st().history), run: () => st().goForward() },
   {
