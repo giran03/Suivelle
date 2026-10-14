@@ -26,6 +26,19 @@ beforeEach(() => {
 });
 afterEach(() => { unregister?.(); unregister = undefined; usePreferences.setState(originalPreferences, true); vi.restoreAllMocks(); });
 
+it("can retry a failed startup without creating a replacement workspace", async () => {
+  vi.mocked(ipc.workspaceList).mockRejectedValueOnce(new Error("Workspace unavailable"));
+  const create = vi.spyOn(ipc, "workspaceCreate");
+  await useWorkspace.getState().init();
+  expect(useWorkspace.getState().ready).toBe(false);
+  expect(useWorkspace.getState().error).toContain("Workspace unavailable");
+  useWorkspace.getState().clearError();
+  await useWorkspace.getState().init();
+  expect(useWorkspace.getState().ready).toBe(true);
+  expect(useWorkspace.getState().workspace?.id).toBe("a");
+  expect(create).not.toHaveBeenCalled();
+});
+
 it("adopts the current legacy theme once and persists it as an application preference", () => {
   usePreferences.setState({ theme: null });
   usePreferences.getState().adoptTheme("dark");

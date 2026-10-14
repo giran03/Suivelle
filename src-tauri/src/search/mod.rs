@@ -353,9 +353,10 @@ pub mod index {
     /// Startup safety net: if there is content but no index (first run after this feature
     /// shipped, or a damaged index), build it.
     pub fn ensure_index(conn: &Connection) -> AppResult<()> {
-        let docs: i64 = conn.query_row("SELECT COUNT(*) FROM search_doc", [], |r| r.get(0))?;
-        let pages: i64 = conn.query_row("SELECT COUNT(*) FROM page", [], |r| r.get(0))?;
-        if docs == 0 && pages > 0 {
+        let docs: bool =
+            conn.query_row("SELECT EXISTS(SELECT 1 FROM search_doc)", [], |r| r.get(0))?;
+        let pages: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM page)", [], |r| r.get(0))?;
+        if !docs && pages {
             let ids: Vec<String> = {
                 let mut stmt = conn.prepare("SELECT id FROM workspace")?;
                 let rows = stmt.query_map([], |r| r.get(0))?;
@@ -607,7 +608,13 @@ pub fn page_preview(conn: &Connection, page_id: &str) -> AppResult<Option<PagePr
         .query_row(
             "SELECT title, icon, deleted_at IS NOT NULL FROM page WHERE id = ?1",
             [page_id],
-            |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, bool>(2)?)),
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, bool>(2)?,
+                ))
+            },
         )
         .optional()?
     else {
@@ -620,14 +627,21 @@ pub fn page_preview(conn: &Connection, page_id: &str) -> AppResult<Option<PagePr
     let mut lines = Vec::new();
     let mut image_hash = None;
     let rows = stmt.query_map([page_id], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, i64>(1)?,
+            r.get::<_, String>(2)?,
+        ))
     })?;
     for row in rows {
         let (kind, version, data) = row?;
         if kind == "image" && image_hash.is_none() {
             image_hash = serde_json::from_str::<serde_json::Value>(&data)
                 .ok()
-                .and_then(|v| v.pointer("/attachment/hash").and_then(|h| h.as_str().map(String::from)));
+                .and_then(|v| {
+                    v.pointer("/attachment/hash")
+                        .and_then(|h| h.as_str().map(String::from))
+                });
             continue;
         }
         if lines.len() >= PREVIEW_LINES {

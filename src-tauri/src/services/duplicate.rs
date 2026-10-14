@@ -159,25 +159,64 @@ pub fn apply_template(conn: &mut Connection, template_id: &str, page_id: &str) -
     validate_id(template_id, "template")?;
     validate_id(page_id, "page")?;
     let tx = conn.transaction()?;
-    let src = repo::page::get(&tx, template_id)?.filter(|p| p.deleted_at.is_none() && p.kind == "page")
+    let src = repo::page::get(&tx, template_id)?
+        .filter(|p| p.deleted_at.is_none() && p.kind == "page")
         .ok_or_else(|| AppError::NotFound("template page".into()))?;
-    let dest = repo::page::get(&tx, page_id)?.filter(|p| p.deleted_at.is_none() && p.kind == "page")
+    let dest = repo::page::get(&tx, page_id)?
+        .filter(|p| p.deleted_at.is_none() && p.kind == "page")
         .ok_or_else(|| AppError::NotFound("destination page".into()))?;
     if src.id == dest.id || src.workspace_id != dest.workspace_id {
-        return Err(AppError::Validation("Choose a different page template from this workspace.".into()));
+        return Err(AppError::Validation(
+            "Choose a different page template from this workspace.".into(),
+        ));
     }
     let existing = repo::block::list(&tx, page_id)?;
-    let blank = existing.is_empty() || (existing.len() == 1 && existing[0].block_type == "paragraph" && {
-        let data: Value = serde_json::from_str(&existing[0].data_json).map_err(|_| AppError::Validation("This page contains unreadable content. It cannot be replaced by a template.".into()))?;
-        data.get("content").and_then(Value::as_array).is_some_and(|c| c.is_empty()) ||
-            (data.get("content").is_none() && data.get("text").and_then(Value::as_str).unwrap_or("").is_empty())
-    });
-    if !blank { return Err(AppError::Validation("This page has content now. Apply a template to an empty page instead.".into())); }
-    copy_blocks(&tx, &src, &dest, existing.into_iter().map(|b| b.id).collect())?;
+    let blank = existing.is_empty()
+        || (existing.len() == 1 && existing[0].block_type == "paragraph" && {
+            let data: Value = serde_json::from_str(&existing[0].data_json).map_err(|_| {
+                AppError::Validation(
+                    "This page contains unreadable content. It cannot be replaced by a template."
+                        .into(),
+                )
+            })?;
+            data.get("content")
+                .and_then(Value::as_array)
+                .is_some_and(|c| c.is_empty())
+                || (data.get("content").is_none()
+                    && data
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .is_empty())
+        });
+    if !blank {
+        return Err(AppError::Validation(
+            "This page has content now. Apply a template to an empty page instead.".into(),
+        ));
+    }
+    copy_blocks(
+        &tx,
+        &src,
+        &dest,
+        existing.into_iter().map(|b| b.id).collect(),
+    )?;
     let kids = repo::page::list_children(&tx, &src.workspace_id, Some(&src.id))?;
     let (mut count, mut skipped) = (0, 0);
-    copy_children(&tx, kids, &dest.workspace_id, &dest.id, 1, &mut count, &mut skipped)?;
-    if skipped > 0 { return Err(AppError::Validation("This template contains a database or dashboard. Create a new page from it instead.".into())); }
+    copy_children(
+        &tx,
+        kids,
+        &dest.workspace_id,
+        &dest.id,
+        1,
+        &mut count,
+        &mut skipped,
+    )?;
+    if skipped > 0 {
+        return Err(AppError::Validation(
+            "This template contains a database or dashboard. Create a new page from it instead."
+                .into(),
+        ));
+    }
     tx.commit()?;
     Ok(())
 }
@@ -301,7 +340,12 @@ mod tests {
         assert_eq!(body.len(), 1);
         assert_ne!(body[0].id, original.id);
         assert!(body[0].data_json.contains("Reusable content"));
-        assert_eq!(repo::page::list_children(&conn, &ws, Some(&dest.id)).unwrap().len(), 1);
+        assert_eq!(
+            repo::page::list_children(&conn, &ws, Some(&dest.id))
+                .unwrap()
+                .len(),
+            1
+        );
         assert!(apply_template(&mut conn, &src.id, &dest.id).is_err());
         assert_eq!(repo::block::list(&conn, &dest.id).unwrap().len(), 1);
     }

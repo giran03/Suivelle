@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { coordinates, type Layout, type MapData, type Position } from "./model";
+import { coordinates, tether, type Layout, type MapData, type Position } from "./model";
 const cache = new Map<string, Record<string, Position>>();
 export function usePositions(data: MapData | null, layout: Layout, flat: boolean, propertyId: string, pins: Record<string, Position>, key: string) {
   const fallback = useMemo(()=>data?coordinates(data,layout,flat,propertyId,pins):{},[data,layout,flat,propertyId,pins]);
@@ -19,5 +19,8 @@ export function usePositions(data: MapData | null, layout: Layout, flat: boolean
     worker.postMessage({data,positions,pins,flat});
     return ()=>worker.terminate();
   },[topology,layout,flat,pins,key]);
-  return {positions:layout==="organic"&&settled?.key===key&&settled.topology===topology?settled.positions:fallback,working,failed};
+  const raw=layout==="organic"&&settled?.key===key&&settled.topology===topology?settled.positions:fallback;
+  // The last word on what is shown: whatever the source (fresh, cached or an earlier session's layout), pages stay leashed.
+  const positions=useMemo(()=>data&&(layout==="clusters"||layout==="organic")?tether(data,raw):raw,[data,raw,layout]);
+  return {positions,working,failed};
 }

@@ -3,8 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { PageGlyph } from "../pages/PageGlyph";
 import { WorkspaceBadge } from "../workspaces/WorkspaceBadge";
 import type { Workspace } from "../../types";
-import type { MapNode } from "./model";
-export function MapList({ nodes, selected, workspaces, onSelect, onOpen }: { nodes: MapNode[]; selected: string[]; workspaces: Workspace[]; onSelect: (ids:string[])=>void; onOpen:(node:MapNode)=>void }) {
+import { NODE_COLORS, type MapNode } from "./model";
+export function MapList({ nodes, selected, workspaces, onSelect, onOpen, nodeTones = {} }: { nodeTones?: Record<string, string>; nodes: MapNode[]; selected: string[]; workspaces: Workspace[]; onSelect: (ids:string[])=>void; onOpen:(node:MapNode)=>void }) {
   const viewport=useRef<HTMLDivElement>(null),focus=useRef<number|null>(null);
   const virtual=useVirtualizer({count:nodes.length,getScrollElement:()=>viewport.current,estimateSize:()=>60,overscan:6});
   const items=virtual.getVirtualItems();
@@ -15,7 +15,7 @@ export function MapList({ nodes, selected, workspaces, onSelect, onOpen }: { nod
       <button type="button" data-map-index={item.index} aria-pressed={selected.includes(n.id)} onClick={e=>select(n,e.ctrlKey||e.metaKey)} onDoubleClick={()=>onOpen(n)} onKeyDown={e=>{
         if(e.key==="Enter"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();select(n,false);onOpen(n);return;}
         if(["ArrowDown","ArrowUp","Home","End"].includes(e.key)){e.preventDefault();const index=e.key==="Home"?0:e.key==="End"?nodes.length-1:Math.max(0,Math.min(nodes.length-1,item.index+(e.key==="ArrowDown"?1:-1)));focus.current=index;virtual.scrollToIndex(index,{align:"auto"});requestAnimationFrame(()=>{const b=viewport.current?.querySelector<HTMLButtonElement>(`[data-map-index="${index}"]`);if(b){b.focus();focus.current=null;}});}
-      }}>{n.kind==="workspace"?<WorkspaceBadge workspace={workspaces.find(w=>w.id===n.workspaceId)??null}/>:<PageGlyph page={{icon:n.icon,kind:n.kind}}/>}<span>{n.title||"Untitled"}</span><small>{n.kind==="workspace"?`${n.count} pages and records`:`${workspaces.find(w=>w.id===n.workspaceId)?.name??"Workspace"} · ${n.kind}`}</small></button>
+      }}>{n.kind==="workspace"?<WorkspaceBadge workspace={workspaces.find(w=>w.id===n.workspaceId)??null}/>:<i className="map-node-glyph" style={{color:nodeTones[n.id] ?? `var(${NODE_COLORS[n.kind]})`}} aria-hidden="true"><PageGlyph page={{icon:n.icon,kind:n.kind}}/></i>}<span>{n.title||"Untitled"}</span><small>{n.kind==="workspace"?`${n.count} pages and records`:`${workspaces.find(w=>w.id===n.workspaceId)?.name??"Workspace"} · ${n.kind}`}</small></button>
       <button type="button" className="btn ghost" aria-label={`Open ${n.title||"Untitled"}`} onClick={()=>onOpen(n)}>Open</button>
     </li>;
   })}</ul></div>;

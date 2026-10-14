@@ -109,10 +109,11 @@ const Node = memo(function Node({ item, card, label, selected, editing, readOnly
       onPointerDown={(e) => onDown(e, item, "body")}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        if (item.kind === "page" && (e.target as Element).closest("[data-canvas-editor]")) return;
         if (isCard(item)) onOpen(item);
         else if (item.kind === "note" && !readOnly) onEdit(item);
       }}
-      onContextMenu={(e) => onMenu(e, item)}
+      onContextMenu={(e) => { if (item.kind === "page" && (e.target as Element).closest("[data-canvas-editor]")) { e.stopPropagation(); return; } onMenu(e, item); }}
     >
       {isCard(item) && renderCard(card, item, () => onOpen(item))}
       {item.kind === "note" &&
@@ -285,6 +286,9 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
     const el = boardRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      if (e.defaultPrevented) return;
+      const pageBody = (e.target as Element).closest("[data-canvas-editor]");
+      if (!e.ctrlKey && !e.metaKey && pageBody?.closest(".canvas-view") === el) return;
       e.preventDefault();
       setMenu(null);
       const rect = el.getBoundingClientRect();
@@ -461,7 +465,8 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
       // Hand tool or Space: the whole board is a pan surface, items included.
       if (handMode) return;
       const target = e.target as HTMLElement;
-      if (handle === "body" && target.closest("button, textarea, input, a")) return;
+      if (handle === "body" && item.kind === "page" && target.closest("[data-canvas-editor]")) { e.stopPropagation(); return; }
+      if (handle === "body" && target.closest("button, textarea, input, a")) { e.stopPropagation(); return; }
       e.stopPropagation();
       boardRef.current?.focus({ preventScroll: true });
       boardRef.current?.setPointerCapture(e.pointerId);
@@ -598,7 +603,8 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
   }, []);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("textarea, input")) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("textarea, input, [contenteditable='true']") || target.closest("[data-canvas-editor]")?.closest(".canvas-view") === e.currentTarget) return;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (mod && key === "z") {
@@ -773,6 +779,7 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
           if (onBackground && !t.closest(".cv-item, .cv-edge, .cv-pill, .cv-minimap, .cv-edge-editor") && !handMode) addNote(worldAt(e.clientX, e.clientY));
         }}
         onPaste={(e) => {
+          if (e.defaultPrevented || (e.target as Element).closest("[data-canvas-editor]")?.closest(".canvas-view") === e.currentTarget) return;
           const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
           if (file && !(e.target as HTMLElement).closest("textarea, input")) {
             e.preventDefault();
@@ -781,6 +788,7 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
         }}
         onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
         onDrop={(e) => {
+          if (e.defaultPrevented || (e.target as Element).closest("[data-canvas-editor]")?.closest(".canvas-view") === e.currentTarget) return;
           const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"));
           if (!files.length) return;
           e.preventDefault();

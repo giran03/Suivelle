@@ -6,8 +6,8 @@ import { ACTIONS, bindingError, conflicts, effective, format, fromEvent, key, re
 import { useShortcuts } from "./store";
 import "./shortcuts.css";
 
-const SCOPES: Scope[] = ["workspace", "editor", "pages", "grid", "tab", "capture"];
-const NAMES: Record<Scope, string> = { workspace: "Anywhere in the workspace", editor: "Writing", pages: "Page tree", grid: "Database grid", tab: "Tabs", capture: "Quick capture" };
+const SCOPES: Scope[] = ["workspace", "editor", "pages", "grid", "map", "tab", "capture"];
+const NAMES: Record<Scope, string> = { workspace: "Anywhere in the workspace", editor: "Writing", pages: "Page tree", grid: "Database grid", map: "Node Map", tab: "Tabs", capture: "Quick capture" };
 const BUTTONS = ["Primary", "Middle", "Secondary", "Back", "Forward"];
 interface Edit { id: string; index: number | null; candidate: Binding | null }
 

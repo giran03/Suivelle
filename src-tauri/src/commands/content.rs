@@ -153,11 +153,16 @@ pub async fn page_duplicate(app: tauri::AppHandle, input: PageDuplicate) -> AppR
 }
 
 #[tauri::command]
-pub async fn page_apply_template(app: tauri::AppHandle, template_id: String, page_id: String) -> AppResult<()> {
+pub async fn page_apply_template(
+    app: tauri::AppHandle,
+    template_id: String,
+    page_id: String,
+) -> AppResult<()> {
     blocking("page_apply_template", move || {
         let db = app.state::<Db>();
         lock(&db).and_then(|mut c| duplicate::apply_template(&mut c, &template_id, &page_id))
-    }).await
+    })
+    .await
 }
 
 #[tauri::command]

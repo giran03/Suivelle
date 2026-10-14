@@ -5,7 +5,8 @@
 .canvas-view.hand, .canvas-view.hand .cv-item { cursor: grab; }
 .canvas-view.panning, .canvas-view.panning .cv-item { cursor: grabbing; }
 .canvas-view:focus-visible { box-shadow: 0 0 0 2px var(--accent-ui); }
-.cv-world { will-change: transform; position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+/* Let scale changes rasterize at the current zoom instead of enlarging a cached layer. */
+.cv-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 .cv-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .cv-edge line { stroke: color-mix(in srgb, currentColor 45%, transparent); stroke-width: 1.5; }
 .cv-edge .cv-edge-hit { stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }

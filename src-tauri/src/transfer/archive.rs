@@ -1459,11 +1459,17 @@ fn apply_in(
         }
     }
     if archive.names.contains("canvases.json") {
-        let boards = archive.json("canvases.json")?.as_array().cloned().unwrap_or_default();
+        let boards = archive
+            .json("canvases.json")?
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         for b in boards {
             let made = crate::databases::canvas::create_board(tx, workspace_id, s(&b, "name"));
             let result = made.and_then(|board| {
-                let ops = crate::databases::canvas::import_ops(&b["canvas"], &|old| id_map.get(old).cloned());
+                let ops = crate::databases::canvas::import_ops(&b["canvas"], &|old| {
+                    id_map.get(old).cloned()
+                });
                 crate::databases::canvas::apply_board_in(tx, &board.id, &ops)
             });
             if let Err(e) = result {

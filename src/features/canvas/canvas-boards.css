@@ -1,18 +1,28 @@
-/* ---- a workspace canvas board in the main area ---- */
-.board-page { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; padding: 0 24px; }
-.board-page > .page-title { flex: none; max-width: none; margin: 0 0 calc(12px * var(--density)); }
-.board-page > .page-title input { font-size: 1.75rem; }
-.board-page .canvas-wrap { flex: 1; min-height: 0; height: auto; margin-bottom: 16px; }
-.main-scroll:has(> .board-page) { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+/* ---- a workspace canvas board fills the editor pane ---- */
+.main-scroll:has(> .board-page) { display: flex; flex-direction: column; overflow: clip; padding: 0; }
+.main-scroll > .board-page { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; width: 100%; max-width: none; margin: 0; padding: 0; }
+.board-page > .page-title { position: absolute; z-index: 8; top: 12px; left: 16px; width: min(360px, calc(100% - 32px)); margin: 0; padding: 8px 12px; border-radius: var(--r-md); background: var(--editor-background); }
+.board-page > .page-title input { font-size: 1.125rem; }
+.board-page > .page-title input:focus-visible { box-shadow: 0 1px 0 var(--accent-ui); }
+.board-page .canvas-wrap { flex: 1; min-height: 0; height: auto; margin: 0; }
+.board-page .canvas-view { border: 0; border-radius: 0; }
 
-/* ---- page cards: a live look at the page itself ---- */
-.cv-item.kind-page { padding: 12px 14px; gap: 8px; background: var(--surface-2, var(--surface-1)); }
-.cv-page-head { align-items: center; }
-.cv-page-glyph { display: inline-grid; place-items: center; flex: none; color: var(--text-secondary); }
-.cv-page-image { flex: none; flex-basis: auto; height: min(45%, 120px); }
-.cv-page-body { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
-.cv-page-body p { flex: none; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.cv-page-body .cv-page-heading { color: var(--text-primary); font-weight: 600; }
+/* ---- editable pages on the canvas ---- */
+/* Only page bodies scroll; editor caret movement must not scroll the transformed board. */
+.board-page .canvas-view { overflow: clip; }
+.cv-item.kind-page { overflow: clip; padding: 0; gap: 0; background: var(--editor-background, var(--background)); }
+.cv-page-head { align-items: center; flex: none; min-height: 46px; padding: 8px 12px; gap: 8px; border-bottom: 1px solid var(--border-subtle); cursor: grab; }
+.cv-page-grip, .cv-page-glyph { display: inline-grid; place-items: center; flex: none; color: var(--text-muted); }
+.cv-page-title { flex: 1; min-width: 0; width: 100%; border: 0; outline: none; background: transparent; color: var(--text-primary); font-size: 1.125rem; font-weight: 600; cursor: text; }
+.cv-page-title:focus-visible { box-shadow: 0 1px 0 var(--accent-ui); }
+.cv-page-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 28px 32px; cursor: text; --page-pad: 24px; }
+.cv-page-body .editor { min-height: 100%; padding-bottom: 32px; }
+.cv-page-body, .cv-page-body :where(*) { user-select: text; }
+.cv-page-body .doc { overflow-wrap: anywhere; }
+.cv-page-body .doc pre { max-width: 100%; overflow-x: auto; }
+.cv-page-cover { height: 120px; margin: -20px -28px 20px; overflow: hidden; }
+.cv-page-cover > * { width: 100%; height: 100%; object-fit: cover; }
+.cv-page-loading { color: var(--text-muted); font-size: .875rem; }
 
 /* ---- add-a-page picker above the tool pill ---- */
 .cv-picker { position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 7; width: min(320px, 84vw); transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--menu-shadow); cursor: default; }

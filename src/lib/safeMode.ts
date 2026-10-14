@@ -8,7 +8,7 @@ declare global {
 /** Asks the backend whether the workspace opened read-only. Outside the desktop app it never does. */
 export async function loadSafeMode(): Promise<string | null> {
   if (!("__TAURI_INTERNALS__" in window)) return null;
-  try { return (await invoke<string | null>("app_safe_mode")) ?? null; } catch { return null; }
+  return (await invoke<string | null>("app_safe_mode")) ?? null;
 }
 
 export const safeModeReason = (): string | null => globalThis.__SUIVELLE_SAFE_MODE__ ?? null;

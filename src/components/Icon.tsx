@@ -1,4 +1,5 @@
 const PATHS = {
+  orbit: <><ellipse cx="8" cy="8" rx="6" ry="3" transform="rotate(-30 8 8)" /><circle cx="8" cy="8" r="1.3" /><path d="m11.5 2.5 2 1-.4 2.2" /></>,
   "corner-sharp": <path d="M3 13V3h10" />,
   "corner-soft": <path d="M3 13V6a3 3 0 0 1 3-3h7" />,
   "corner-round": <path d="M3 13V9a6 6 0 0 1 6-6h4" />,
@@ -91,6 +92,20 @@ const PATHS = {
   smile: <path d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM5.8 9.6a2.9 2.9 0 0 0 4.4 0M6 6.6h.01M10 6.6h.01" />,
   keyboard: <path d="M1.8 4.5h12.4v7H1.8zM4 7h.01M6.4 7h.01M8.8 7h.01M11.2 7h.01M4.6 9.6h6.8" />,
   duplicate: <path d="M5.5 5.5h7v7h-7zM3.5 10.5v-7h7" />,
+  cursor: <path d="M4 2.5 12 8.2l-3.6.7 2 3.9-1.6.8-2-3.9L4 12.2z" />,
+  move: <path d="M8 2v12M2 8h12M6 4l2-2 2 2M6 12l2 2 2-2M4 6 2 8l2 2M12 6l2 2-2 2" />,
+  marquee: <path d="M2.5 4.5v-2h2M7 2.5h2M11.5 2.5h2v2M13.5 7v2M13.5 11.5v2h-2M9 13.5H7M4.5 13.5h-2v-2M2.5 9V7" />,
+  connect: <path d="M4 5.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5zM12 14a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5zM5.3 4.9l5.4 6.2" />,
+  zoomIn: <path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM13.5 13.5 10.2 10.2M7 5v4M5 7h4" />,
+  zoomOut: <path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM13.5 13.5 10.2 10.2M5 7h4" />,
+  fit: <path d="M2.5 5.5v-3h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3M6 6h4v4H6z" />,
+  cube: <path d="M8 1.8 13.5 5v6L8 14.2 2.5 11V5zM2.5 5 8 8.2 13.5 5M8 8.2v6" />,
+  square: <path d="M3 3h10v10H3z" />,
+  list: <path d="M5.5 4H13M5.5 8H13M5.5 12H13M2.8 4h.01M2.8 8h.01M2.8 12h.01" />,
+  target: <path d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM8 1v2M8 13v2M1 8h2M13 8h2" />,
+  undo: <path d="M5.5 3 2.5 6l3 3M2.5 6H10a3.5 3.5 0 0 1 0 7H6" />,
+  redo: <path d="M10.5 3l3 3-3 3M13.5 6H6a3.5 3.5 0 0 0 0 7h4" />,
+  pin: <path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

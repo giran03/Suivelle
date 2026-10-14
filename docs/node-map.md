@@ -66,3 +66,7 @@ from content undo.
 
 Native WebView2 hardware FPS and battery measurements remain a release-validation task. The
 rendering check used Chromium/SwiftShader; it does not establish 60 FPS on integrated laptops.
+
+## Continuous auto-orbit
+
+The orbit icon beside Fit remembers whether orbit is enabled. In 3D, the camera makes one slow revolution in about two minutes around the current target, preserving zoom and tilt. It starts immediately and keeps running through hover, mouse interaction, editing and menus until the icon is toggled off. 2D/list view, hidden windows and reduced motion suspend rendering; returning to eligible 3D resumes it immediately. Rendering is capped at 30 frames per second, and camera state is saved when orbit stops rather than on every frame.

@@ -30,6 +30,7 @@ export function Editor({ pageId, peek = false }: { pageId: string; peek?: boolea
     editorProps: {
       attributes: {
         class: "doc",
+        "data-context-page": pageId,
         "aria-label": "Page content",
         "aria-multiline": "true",
         spellcheck: "true",

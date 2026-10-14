@@ -20,6 +20,7 @@ pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
+mod startup;
 pub mod transfer;
 pub mod updates;
 
@@ -72,8 +73,13 @@ pub struct SafeMode(pub Option<String>);
 
 /// The safe-mode reason, asked for before the page loads so every view starts read-only.
 #[tauri::command]
-fn app_safe_mode(state: tauri::State<'_, SafeMode>) -> Option<String> {
-    state.0.clone()
+async fn app_safe_mode(
+    state: tauri::State<'_, startup::Startup>,
+) -> Result<Option<String>, String> {
+    let startup = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || startup.wait())
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// The log is started afresh past this size; the previous one is kept as suivelle.log.1.
@@ -271,40 +277,64 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?.join("data");
             init_logging(&data_dir.join("logs"));
             let paths = backup::Paths::new(&data_dir);
-            // Finish or undo a restore that was interrupted, before the database is opened.
-            backup::recover(&paths);
-            // Present while the app runs; left behind only by a crash or forced shutdown.
-            let session = data_dir.join("session.open");
-            // Never refuse to open: a failed check or migration opens the data read-only instead.
-            let (conn, safe_mode) = match database::open_at_startup(&paths.db(), session.exists()) {
-                Ok(conn) => (conn, None),
-                Err(error) => {
-                    tracing::error!(%error, "opening the workspace read-only");
-                    let conn = database::open_read_only(&paths.db())
-                        .or_else(|_| database::open_in_memory())?;
-                    (conn, Some(error.to_string()))
-                }
-            };
-            let _ = std::fs::write(&session, b"");
-            app.manage(SessionMarker(session));
-            if safe_mode.is_none() {
-                search::index::ensure_index(&conn)?;
-            }
-            tracing::info!("workspace database ready");
-            app.manage(database::Db(Mutex::new(conn)));
-            app.manage(paths);
+            app.manage(backup::Paths::new(&data_dir));
             app.manage(commands::PendingRestore::default());
             app.manage(commands::ImportSessions::default());
             updates::init(app.handle())?;
             shell::init(app.handle())?;
-            if safe_mode.is_none() {
-                spawn_auto_backup(app.handle().clone());
-                spawn_automation(app.handle().clone());
-            }
-            app.manage(SafeMode(safe_mode));
             install_deep_links(app)?;
             app.manage(files::AttachmentStore {
                 root: data_dir.join("attachments"),
+            });
+            let startup = startup::Startup::default();
+            app.manage(startup.clone());
+            let app = app.handle().clone();
+            std::thread::spawn(move || {
+                let started = std::time::Instant::now();
+                tracing::info!("workspace preparation started");
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                    || -> Result<Option<String>, String> {
+                        // Finish or undo a restore that was interrupted, before the database is opened.
+                        backup::recover(&paths);
+                        // Present while the app runs; left behind only by a crash or forced shutdown.
+                        let session = data_dir.join("session.open");
+                        // Never refuse to open: a failed check or migration opens the data read-only instead.
+                        let (conn, safe_mode) =
+                            match database::open_at_startup(&paths.db(), session.exists()) {
+                                Ok(conn) => (conn, None),
+                                Err(error) => {
+                                    tracing::error!(%error, "opening the workspace read-only");
+                                    let conn = database::open_read_only(&paths.db())
+                                        .or_else(|_| database::open_in_memory())
+                                        .map_err(|e| e.to_string())?;
+                                    (conn, Some(error.to_string()))
+                                }
+                            };
+                        let _ = std::fs::write(&session, b"");
+                        app.manage(SessionMarker(session));
+                        if safe_mode.is_none() {
+                            search::index::ensure_index(&conn).map_err(|e| e.to_string())?;
+                        }
+                        tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "workspace database ready"
+                        );
+                        app.manage(database::Db(Mutex::new(conn)));
+                        if safe_mode.is_none() {
+                            spawn_auto_backup(app.clone());
+                            spawn_automation(app.clone());
+                        }
+                        app.manage(SafeMode(safe_mode.clone()));
+                        Ok(safe_mode)
+                    },
+                ))
+                .unwrap_or_else(|_| {
+                    Err("Workspace preparation failed. Restart Suivelle and try again.".into())
+                });
+                if let Err(error) = &result {
+                    tracing::error!(%error, "workspace preparation failed");
+                }
+                startup.finish(result);
             });
             Ok(())
         })
@@ -472,7 +502,11 @@ pub fn run() {
                         database::close_cleanly(&conn);
                     }
                 }
-                if let Some(marker) = app.try_state::<SessionMarker>() {
+                // Closing during background preparation is not a clean database session.
+                if let Some(marker) = app
+                    .try_state::<SessionMarker>()
+                    .filter(|_| app.try_state::<SafeMode>().is_some())
+                {
                     let _ = std::fs::remove_file(&marker.0);
                 }
             }

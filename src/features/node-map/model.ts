@@ -1,4 +1,6 @@
 export type NodeKind = "workspace" | "page" | "database" | "record" | "dashboard";
+/** Semantic theme tokens shared by the renderer, list and node-type legend. */
+export const NODE_COLORS: Record<Exclude<NodeKind, "workspace">, string> = { page: "--tone-blue", database: "--tone-violet", record: "--tone-green", dashboard: "--tone-orange" };
 export type EdgeKind = "contains" | "membership" | "reference" | "relation" | "dependency";
 export interface MapNode {
   id: string; workspaceId: string; parentId: string | null; title: string; kind: NodeKind;
@@ -39,13 +41,26 @@ export function coordinates(data: MapData, layout: Layout, flat: boolean, proper
     const group = layout === "property" ? propertyGroup(node, data.properties.find(p => p.id === propertyId)) : node.workspaceId;
     const index = clusters.indexOf(group), angle = index * Math.PI * 2 / Math.max(1, clusters.length);
     const spread = clusters.length > 1 ? 260 + clusters.length * 50 : 0;
-    const anchor = { x: Math.cos(angle) * spread, y: Math.sin(angle) * spread };
+    // 2D (and the timeline, whose depth is time) keeps workspaces on a ring; 3D spreads them evenly
+    // over a sphere (a Fibonacci lattice) so the universe has depth at every scale.
+    const sphere = !flat && layout !== "timeline" && clusters.length > 1;
+    const lift = sphere ? 1 - 2 * (index + .5) / clusters.length : 0, ring = Math.sqrt(1 - lift * lift), turn = sphere ? index * Math.PI * (3 - Math.sqrt(5)) : angle;
+    const anchor = sphere ? { x: Math.cos(turn) * ring * spread, y: lift * spread, z: Math.sin(turn) * ring * spread } : { x: Math.cos(angle) * spread, y: Math.sin(angle) * spread, z: 0 };
     const seed = hash(node.id), theta = seed / 0xffffffff * Math.PI * 2, radius = 70 + ((seed >>> 9) % 180);
     let depth = 0, parent = node.parentId; const visited = new Set([node.id]);
     while (parent && at.has(parent) && !visited.has(parent)) { visited.add(parent); depth++; parent = at.get(parent)?.parentId ?? null; }
-    const p = node.kind === "workspace" ? { x: anchor.x, y: anchor.y + 180, z: 0 }
-      : { x: anchor.x + Math.cos(theta) * radius, y: anchor.y + Math.sin(theta) * radius, z: flat ? 0 : ((seed >>> 18) % 160) - 80 };
-    if (layout === "hierarchy" && node.kind !== "workspace") { p.y = 80 - depth * 130; p.x = anchor.x + Math.cos(theta) * radius; }
+    let p: Position;
+    if (flat) p = node.kind === "workspace" ? { x: anchor.x, y: anchor.y + 180, z: 0 } : { x: anchor.x + Math.cos(theta) * radius, y: anchor.y + Math.sin(theta) * radius, z: 0 };
+    else if (node.kind === "workspace") p = { x: anchor.x, y: layout === "hierarchy" ? 210 : anchor.y, z: anchor.z };
+    else {
+      // In 3D, pages fill a ball around their workspace hub: an even direction on the sphere and a
+      // cube-root radius, so the cluster reads as a sphere from every angle instead of a thin disc.
+      const second = hash(`${node.id}#z`), cosPhi = (second % 10007) / 10006 * 2 - 1, sinPhi = Math.sqrt(1 - cosPhi * cosPhi);
+      const ball = 70 + 190 * Math.cbrt(((second >>> 14) % 4001) / 4000);
+      p = { x: anchor.x + ball * sinPhi * Math.cos(theta), y: anchor.y + ball * sinPhi * Math.sin(theta), z: anchor.z + ball * cosPhi };
+    }
+    // Hierarchy levels become rings around the vertical axis in 3D, so a tree is a solid, not a sheet.
+    if (layout === "hierarchy" && node.kind !== "workspace") { p.y = 80 - depth * 130; p.x = anchor.x + Math.cos(theta) * radius; p.z = flat ? 0 : anchor.z + Math.sin(theta) * radius; }
     if (layout === "timeline" && node.kind !== "workspace") {
       const parsed = dateOf(node);
       const t = Number.isFinite(parsed) ? ((parsed - minDate) / Math.max(1, maxDate - minDate)) * 1000 - 500 : 650;
@@ -53,7 +68,34 @@ export function coordinates(data: MapData, layout: Layout, flat: boolean, proper
     }
     positions[node.id] = p;
   }
-  return positions;
+  return layout === "clusters" ? tether(data, positions) : positions;
+}
+
+/** Furthest a page may sit from its parent page, or from its workspace when it is top level. */
+export const TETHER = { parent: 200, workspace: 300 };
+/**
+ * Keeps every page near what it belongs to, so a sparsely linked page never drifts off on its own.
+ * Parents are placed first, so whole branches stay together. Pins are held too: a page dragged past
+ * its leash rests at the edge, so nothing can end up stranded across the map.
+ */
+export function tether(data: MapData, positions: Record<string, Position>): Record<string, Position> {
+  const at = new Map(data.nodes.map(n => [n.id, n])), depth = new Map<string, number>();
+  const depthOf = (node: MapNode) => {
+    let d = 0, current: MapNode | undefined = node; const seen = new Set<string>();
+    while (current?.parentId && !seen.has(current.id)) { seen.add(current.id); const parent = at.get(current.parentId); if (!parent || parent.kind === "workspace") break; d++; current = parent; }
+    return d;
+  };
+  for (const n of data.nodes) depth.set(n.id, depthOf(n));
+  const result = { ...positions };
+  for (const node of [...data.nodes].sort((a, b) => depth.get(a.id)! - depth.get(b.id)!)) {
+    const p = result[node.id]; if (node.kind === "workspace" || !p) continue;
+    const parent = node.parentId ? at.get(node.parentId) : undefined, nested = !!parent && parent.kind !== "workspace";
+    const anchor = result[nested ? parent!.id : workspaceNode(node.workspaceId)]; if (!anchor) continue;
+    const limit = nested ? TETHER.parent : TETHER.workspace;
+    const dx = p.x - anchor.x, dy = p.y - anchor.y, dz = p.z - anchor.z, distance = Math.hypot(dx, dy, dz);
+    if (distance > limit) { const k = limit / distance; result[node.id] = { x: anchor.x + dx * k, y: anchor.y + dy * k, z: anchor.z + dz * k }; }
+  }
+  return result;
 }
 
 export function propertyGroup(node: MapNode, property?: MapProperty): string {

@@ -462,13 +462,26 @@ fn backlinks_report_each_table_row_that_references_the_page() {
             r#"{{"type":"{kind}","content":[{{"type":"paragraph","content":[{{"type":"text","text":"{text}"}}{m}]}}]}}"#
         )
     };
-    let row = |cells: Vec<String>| format!(r#"{{"type":"tableRow","content":[{}]}}"#, cells.join(","));
+    let row =
+        |cells: Vec<String>| format!(r#"{{"type":"tableRow","content":[{}]}}"#, cells.join(","));
     let table = format!(
         r#"{{"table":{{"type":"table","content":[{},{},{},{}]}}}}"#,
-        row(vec![cell("tableHeader", "Task", false), cell("tableHeader", "Owner", false)]),
-        row(vec![cell("tableCell", "Ship", false), cell("tableCell", "see ", true)]),
-        row(vec![cell("tableCell", "Skip", false), cell("tableCell", "nobody", false)]),
-        row(vec![cell("tableCell", "Test ", true), cell("tableCell", "Ana", false)]),
+        row(vec![
+            cell("tableHeader", "Task", false),
+            cell("tableHeader", "Owner", false)
+        ]),
+        row(vec![
+            cell("tableCell", "Ship", false),
+            cell("tableCell", "see ", true)
+        ]),
+        row(vec![
+            cell("tableCell", "Skip", false),
+            cell("tableCell", "nobody", false)
+        ]),
+        row(vec![
+            cell("tableCell", "Test ", true),
+            cell("tableCell", "Ana", false)
+        ]),
     );
     add_block(&mut conn, &src, "simple_table", table);
 

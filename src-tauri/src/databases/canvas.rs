@@ -101,10 +101,9 @@ fn check_item(i: &CanvasItem, scope: Scope) -> AppResult<()> {
         },
         ("note", _) => Ok(()),
         ("image", _) => {
-            let ok = i
-                .attachment_hash
-                .as_deref()
-                .is_some_and(|h| !h.is_empty() && h.len() <= 128 && h.bytes().all(|b| b.is_ascii_alphanumeric()));
+            let ok = i.attachment_hash.as_deref().is_some_and(|h| {
+                !h.is_empty() && h.len() <= 128 && h.bytes().all(|b| b.is_ascii_alphanumeric())
+            });
             if ok {
                 Ok(())
             } else {
@@ -137,8 +136,18 @@ impl<'a> Scope<'a> {
     }
     fn names(self) -> Names {
         match self {
-            Scope::View(_) => Names { items: "db_canvas_item", edges: "db_canvas_edge", owner: "view_id", card: "record_id" },
-            Scope::Board(_) => Names { items: "canvas_board_item", edges: "canvas_board_edge", owner: "board_id", card: "page_id" },
+            Scope::View(_) => Names {
+                items: "db_canvas_item",
+                edges: "db_canvas_edge",
+                owner: "view_id",
+                card: "record_id",
+            },
+            Scope::Board(_) => Names {
+                items: "canvas_board_item",
+                edges: "canvas_board_edge",
+                owner: "board_id",
+                card: "page_id",
+            },
         }
     }
 }
@@ -154,7 +163,11 @@ fn canvas_view(conn: &Connection, view_id: &str) -> AppResult<super::DbView> {
 
 fn check_board(conn: &Connection, board_id: &str) -> AppResult<()> {
     validate_id(board_id, "board")?;
-    let here: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM canvas_board WHERE id = ?1)", [board_id], |r| r.get(0))?;
+    let here: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM canvas_board WHERE id = ?1)",
+        [board_id],
+        |r| r.get(0),
+    )?;
     if here {
         Ok(())
     } else {
@@ -253,7 +266,10 @@ pub fn apply_in(tx: &Connection, view_id: &str, ops: &[CanvasOp]) -> AppResult<(
 pub fn apply_board(conn: &mut Connection, board_id: &str, ops: &[CanvasOp]) -> AppResult<()> {
     let tx = conn.transaction()?;
     apply_board_in(&tx, board_id, ops)?;
-    tx.execute("UPDATE canvas_board SET updated_at = ?2 WHERE id = ?1", params![board_id, now()])?;
+    tx.execute(
+        "UPDATE canvas_board SET updated_at = ?2 WHERE id = ?1",
+        params![board_id, now()],
+    )?;
     tx.commit()?;
     Ok(())
 }
@@ -321,7 +337,10 @@ fn apply_scope(tx: &Connection, scope: Scope, ops: &[CanvasOp]) -> AppResult<()>
             }
             CanvasOp::DeleteItem { id } => {
                 validate_id(id, "canvas item")?;
-                tx.execute(&format!("DELETE FROM {} WHERE id = ?1 AND {} = ?2", n.items, n.owner), params![id, owner])?;
+                tx.execute(
+                    &format!("DELETE FROM {} WHERE id = ?1 AND {} = ?2", n.items, n.owner),
+                    params![id, owner],
+                )?;
             }
             CanvasOp::UpsertEdge { edge } => {
                 validate_id(&edge.id, "canvas edge")?;
@@ -334,7 +353,10 @@ fn apply_scope(tx: &Connection, scope: Scope, ops: &[CanvasOp]) -> AppResult<()>
                 for end in [&edge.from_item, &edge.to_item] {
                     validate_id(end, "canvas item")?;
                     let here: bool = tx.query_row(
-                        &format!("SELECT EXISTS(SELECT 1 FROM {} WHERE id = ?1 AND {} = ?2)", n.items, n.owner),
+                        &format!(
+                            "SELECT EXISTS(SELECT 1 FROM {} WHERE id = ?1 AND {} = ?2)",
+                            n.items, n.owner
+                        ),
                         params![end, owner],
                         |r| r.get(0),
                     )?;
@@ -358,12 +380,23 @@ fn apply_scope(tx: &Connection, scope: Scope, ops: &[CanvasOp]) -> AppResult<()>
             }
             CanvasOp::DeleteEdge { id } => {
                 validate_id(id, "canvas edge")?;
-                tx.execute(&format!("DELETE FROM {} WHERE id = ?1 AND {} = ?2", n.edges, n.owner), params![id, owner])?;
+                tx.execute(
+                    &format!("DELETE FROM {} WHERE id = ?1 AND {} = ?2", n.edges, n.owner),
+                    params![id, owner],
+                )?;
             }
         }
     }
-    let items: i64 = tx.query_row(&format!("SELECT COUNT(*) FROM {} WHERE {} = ?1", n.items, n.owner), [owner], |r| r.get(0))?;
-    let edges: i64 = tx.query_row(&format!("SELECT COUNT(*) FROM {} WHERE {} = ?1", n.edges, n.owner), [owner], |r| r.get(0))?;
+    let items: i64 = tx.query_row(
+        &format!("SELECT COUNT(*) FROM {} WHERE {} = ?1", n.items, n.owner),
+        [owner],
+        |r| r.get(0),
+    )?;
+    let edges: i64 = tx.query_row(
+        &format!("SELECT COUNT(*) FROM {} WHERE {} = ?1", n.edges, n.owner),
+        [owner],
+        |r| r.get(0),
+    )?;
     if items > MAX_ITEMS {
         return bad(format!("a canvas can hold at most {MAX_ITEMS} items"));
     }
@@ -388,33 +421,55 @@ pub struct CanvasBoard {
 }
 
 fn board_row(r: &rusqlite::Row) -> rusqlite::Result<CanvasBoard> {
-    Ok(CanvasBoard { id: r.get(0)?, workspace_id: r.get(1)?, name: r.get(2)?, created_at: r.get(3)?, updated_at: r.get(4)? })
+    Ok(CanvasBoard {
+        id: r.get(0)?,
+        workspace_id: r.get(1)?,
+        name: r.get(2)?,
+        created_at: r.get(3)?,
+        updated_at: r.get(4)?,
+    })
 }
 
 pub fn list_boards(conn: &Connection, workspace_id: &str) -> AppResult<Vec<CanvasBoard>> {
     validate_id(workspace_id, "workspace")?;
     let mut stmt = conn.prepare("SELECT id, workspace_id, name, created_at, updated_at FROM canvas_board WHERE workspace_id = ?1 ORDER BY created_at, rowid")?;
-    let rows = stmt.query_map([workspace_id], board_row)?.collect::<Result<Vec<_>, _>>()?;
+    let rows = stmt
+        .query_map([workspace_id], board_row)?
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
 
 fn board(conn: &Connection, id: &str) -> AppResult<CanvasBoard> {
     validate_id(id, "board")?;
-    conn.query_row("SELECT id, workspace_id, name, created_at, updated_at FROM canvas_board WHERE id = ?1", [id], board_row)
-        .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound("canvas".into()),
-            e => e.into(),
-        })
+    conn.query_row(
+        "SELECT id, workspace_id, name, created_at, updated_at FROM canvas_board WHERE id = ?1",
+        [id],
+        board_row,
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound("canvas".into()),
+        e => e.into(),
+    })
 }
 
 pub fn create_board(conn: &Connection, workspace_id: &str, name: &str) -> AppResult<CanvasBoard> {
     validate_id(workspace_id, "workspace")?;
     let name = name.trim();
-    let name = if name.is_empty() { "Untitled canvas" } else { name };
+    let name = if name.is_empty() {
+        "Untitled canvas"
+    } else {
+        name
+    };
     validate_name(name)?;
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM canvas_board WHERE workspace_id = ?1", [workspace_id], |r| r.get(0))?;
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM canvas_board WHERE workspace_id = ?1",
+        [workspace_id],
+        |r| r.get(0),
+    )?;
     if count >= MAX_BOARDS {
-        return bad(format!("a workspace can hold at most {MAX_BOARDS} canvases"));
+        return bad(format!(
+            "a workspace can hold at most {MAX_BOARDS} canvases"
+        ));
     }
     let id = new_id();
     let at = now();
@@ -428,7 +483,10 @@ pub fn create_board(conn: &Connection, workspace_id: &str, name: &str) -> AppRes
 pub fn rename_board(conn: &Connection, id: &str, name: &str) -> AppResult<CanvasBoard> {
     validate_name(name)?;
     board(conn, id)?;
-    conn.execute("UPDATE canvas_board SET name = ?2, updated_at = ?3 WHERE id = ?1", params![id, name.trim(), now()])?;
+    conn.execute(
+        "UPDATE canvas_board SET name = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, name.trim(), now()],
+    )?;
     board(conn, id)
 }
 
@@ -462,7 +520,10 @@ pub fn export_board_json(conn: &Connection, board_id: &str) -> AppResult<serde_j
 
 /// Operations that rebuild an exported canvas under new ids. `card_id` maps an exported record id
 /// (views) or page id (boards) to its imported one; cards whose target did not come across are dropped.
-pub fn import_ops(data: &serde_json::Value, card_id: &dyn Fn(&str) -> Option<String>) -> Vec<CanvasOp> {
+pub fn import_ops(
+    data: &serde_json::Value,
+    card_id: &dyn Fn(&str) -> Option<String>,
+) -> Vec<CanvasOp> {
     let Ok(data) = serde_json::from_value::<CanvasData>(data.clone()) else {
         return Vec::new();
     };
@@ -491,7 +552,12 @@ pub fn import_ops(data: &serde_json::Value, card_id: &dyn Fn(&str) -> Option<Str
     for e in data.edges {
         if let (Some(a), Some(b)) = (ids.get(&e.from_item), ids.get(&e.to_item)) {
             ops.push(CanvasOp::UpsertEdge {
-                edge: CanvasEdge { id: new_id(), from_item: a.clone(), to_item: b.clone(), label: e.label },
+                edge: CanvasEdge {
+                    id: new_id(),
+                    from_item: a.clone(),
+                    to_item: b.clone(),
+                    label: e.label,
+                },
             });
         }
     }
@@ -506,8 +572,13 @@ pub fn copy_view(conn: &Connection, from: &str, to: &str) -> AppResult<()> {
 fn copy_scope(conn: &Connection, from: Scope, to: Scope) -> AppResult<()> {
     let (f, t) = (from.names(), to.names());
     let mut map: HashMap<String, String> = HashMap::new();
-    let mut stmt = conn.prepare(&format!("SELECT id FROM {} WHERE {} = ?1", f.items, f.owner))?;
-    let ids = stmt.query_map([from.owner()], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id FROM {} WHERE {} = ?1",
+        f.items, f.owner
+    ))?;
+    let ids = stmt
+        .query_map([from.owner()], |r| r.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
     for old in ids {
         let fresh = new_id();
         conn.execute(
@@ -524,9 +595,18 @@ fn copy_scope(conn: &Connection, from: Scope, to: Scope) -> AppResult<()> {
         )?;
         map.insert(old, fresh);
     }
-    let mut stmt = conn.prepare(&format!("SELECT from_item, to_item, label FROM {} WHERE {} = ?1", f.edges, f.owner))?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT from_item, to_item, label FROM {} WHERE {} = ?1",
+        f.edges, f.owner
+    ))?;
     let edges = stmt
-        .query_map([from.owner()], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))?
+        .query_map([from.owner()], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?
         .collect::<Result<Vec<_>, _>>()?;
     for (a, b, label) in edges {
         if let (Some(a), Some(b)) = (map.get(&a), map.get(&b)) {

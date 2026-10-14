@@ -31,6 +31,33 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
   const [ready, setReady] = useState(false);
   const [reload, setReload] = useState(0);
   const focusAfterReload = useRef(false);
+  const pendingPeer = useRef(false), peerRead = useRef(0), editGeneration = useRef(0);
+  // Canvas pages and side panes may show the same page. Refresh clean peers without autosaving stale text.
+  const refreshPeer = useCallback(async () => {
+    if (!editor || editor.isDestroyed || !loaded.current || dirty.current) return;
+    const read = ++peerRead.current, generation = editGeneration.current;
+    try {
+      const blocks = await ipc.blockList(pageId);
+      if (editor.isDestroyed || !loaded.current || dirty.current || read !== peerRead.current || generation !== editGeneration.current) return;
+      const rows = blocks.map(rowFromBlock), selection = editor.state.selection;
+      saved.current = new Map(rows.map(row => [row.id, row])); pendingPeer.current = false;
+      editor.chain().setContent(blocksToDoc(rows), { emitUpdate: false }).setMeta("addToHistory", false).run();
+      const size = editor.state.doc.content.size;
+      editor.commands.setTextSelection({ from: Math.min(selection.from, size), to: Math.min(selection.to, size) });
+    } catch { /* Keep the visible document; ordinary saving and reload still report errors. */ }
+  }, [editor, pageId]);
+  useEffect(() => {
+    if (!editor) return;
+    let alive = true;
+    const peerSaved = (event: Event) => {
+      const detail = (event as CustomEvent<{ pageId: string; source: Editor }>).detail;
+      if (detail.pageId !== pageId || detail.source === editor) return;
+      pendingPeer.current = true;
+      void chain.current.then(() => { if (alive) return refreshPeer(); });
+    };
+    window.addEventListener("suivelle:page-blocks-saved", peerSaved);
+    return () => { alive = false; window.removeEventListener("suivelle:page-blocks-saved", peerSaved); };
+  }, [editor, pageId, refreshPeer]);
   useEffect(() => {
     const refresh = (event: Event) => {
       const detail = (event as CustomEvent<{ pageId: string; focusEditor: Editor | null }>).detail;
@@ -57,6 +84,8 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
         setState(dirty.current ? "saving" : "idle");
         failure.current = null;
         setSaveError(null);
+        window.dispatchEvent(new CustomEvent("suivelle:page-blocks-saved", { detail: { pageId, source: editor } }));
+        if (pendingPeer.current) await refreshPeer();
       } catch (e) {
         const err = toAppError(e);
         dirty.current = true; // keep the changes; they are re-diffed on the next attempt
@@ -68,7 +97,7 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
       }
     });
     return chain.current;
-  }, [editor, pageId]);
+  }, [editor, pageId, refreshPeer]);
 
   // Schedule edits write through a backend transaction. Reload their page after flushing,
   // so a later note edit cannot overwrite the saved schedule with stale node attributes.
@@ -108,7 +137,7 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
         if (cancelled || editor.isDestroyed) return;
         const rows = blocks.map(rowFromBlock);
         saved.current = new Map(rows.map((r) => [r.id, r]));
-        editor.commands.setContent(blocksToDoc(rows), { emitUpdate: false });
+        editor.chain().setContent(blocksToDoc(rows), { emitUpdate: false }).setMeta("addToHistory", false).run();
         loaded.current = true;
           editor.setEditable(!READ_ONLY);
         setReady(true);
@@ -128,7 +157,7 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
     if (!editor) return;
     const onUpdate = () => {
       if (READ_ONLY || !loaded.current) return;
-      dirty.current = true;
+      dirty.current = true; editGeneration.current++;
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => void flush(), DEBOUNCE_MS);
     };

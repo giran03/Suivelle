@@ -2,8 +2,8 @@
 
 pub mod calendar;
 pub mod content;
-pub mod local_file;
 pub mod image;
+pub mod local_file;
 pub mod maintenance;
 pub mod remote;
 pub mod worker;
@@ -20,23 +20,39 @@ use std::sync::MutexGuard;
 use tauri::{Manager, State};
 
 #[tauri::command]
-pub async fn node_map_edit(app: tauri::AppHandle, input: crate::node_map::edit::MapEdit) -> AppResult<crate::node_map::edit::MapEdit> {
+pub async fn node_map_edit(
+    app: tauri::AppHandle,
+    input: crate::node_map::edit::MapEdit,
+) -> AppResult<crate::node_map::edit::MapEdit> {
     blocking("node_map_edit", move || {
-        let db=app.state::<Db>();
-        let mut conn=lock(&db)?;
-        let inverse=crate::node_map::edit::apply(&mut conn,input)?;
+        let db = app.state::<Db>();
+        let mut conn = lock(&db)?;
+        let inverse = crate::node_map::edit::apply(&mut conn, input)?;
         // Preserve the same database automations as edits from a table or calendar.
-        if let crate::node_map::edit::MapEdit::Cells{property_id,changes,..}=&inverse {
-            let mut events=Vec::new();
+        if let crate::node_map::edit::MapEdit::Cells {
+            property_id,
+            changes,
+            ..
+        } = &inverse
+        {
+            let mut events = Vec::new();
             for change in changes {
-                if let Ok(rows)=dbs::load_rows(&conn,std::slice::from_ref(&change.record_id)) {
-                    if let Some(row)=rows.first() {let before=(!change.value.is_null()).then_some(&change.value);events.extend(crate::automation::engine::change_events(before,row,property_id));}
+                if let Ok(rows) = dbs::load_rows(&conn, std::slice::from_ref(&change.record_id)) {
+                    if let Some(row) = rows.first() {
+                        let before = (!change.value.is_null()).then_some(&change.value);
+                        events.extend(crate::automation::engine::change_events(
+                            before,
+                            row,
+                            property_id,
+                        ));
+                    }
                 }
             }
-            react(&app,&mut conn,events);
+            react(&app, &mut conn, events);
         }
         Ok(inverse)
-    }).await
+    })
+    .await
 }
 
 pub(crate) fn lock<'a>(db: &'a State<'_, Db>) -> AppResult<MutexGuard<'a, Connection>> {
@@ -440,7 +456,10 @@ pub async fn canvas_apply(
 }
 
 #[tauri::command]
-pub async fn canvas_board_list(app: tauri::AppHandle, workspace_id: String) -> AppResult<Vec<databases::canvas::CanvasBoard>> {
+pub async fn canvas_board_list(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<Vec<databases::canvas::CanvasBoard>> {
     blocking("canvas_board_list", move || {
         let db = app.state::<Db>();
         let conn = lock(&db)?;
@@ -450,7 +469,11 @@ pub async fn canvas_board_list(app: tauri::AppHandle, workspace_id: String) -> A
 }
 
 #[tauri::command]
-pub async fn canvas_board_create(app: tauri::AppHandle, workspace_id: String, name: String) -> AppResult<databases::canvas::CanvasBoard> {
+pub async fn canvas_board_create(
+    app: tauri::AppHandle,
+    workspace_id: String,
+    name: String,
+) -> AppResult<databases::canvas::CanvasBoard> {
     blocking("canvas_board_create", move || {
         let db = app.state::<Db>();
         let t = std::time::Instant::now();
@@ -461,7 +484,11 @@ pub async fn canvas_board_create(app: tauri::AppHandle, workspace_id: String, na
 }
 
 #[tauri::command]
-pub async fn canvas_board_rename(app: tauri::AppHandle, id: String, name: String) -> AppResult<databases::canvas::CanvasBoard> {
+pub async fn canvas_board_rename(
+    app: tauri::AppHandle,
+    id: String,
+    name: String,
+) -> AppResult<databases::canvas::CanvasBoard> {
     blocking("canvas_board_rename", move || {
         let db = app.state::<Db>();
         let t = std::time::Instant::now();
@@ -472,7 +499,10 @@ pub async fn canvas_board_rename(app: tauri::AppHandle, id: String, name: String
 }
 
 #[tauri::command]
-pub async fn canvas_board_duplicate(app: tauri::AppHandle, id: String) -> AppResult<databases::canvas::CanvasBoard> {
+pub async fn canvas_board_duplicate(
+    app: tauri::AppHandle,
+    id: String,
+) -> AppResult<databases::canvas::CanvasBoard> {
     blocking("canvas_board_duplicate", move || {
         let db = app.state::<Db>();
         let t = std::time::Instant::now();
@@ -499,7 +529,10 @@ pub async fn canvas_board_delete(app: tauri::AppHandle, id: String) -> AppResult
 }
 
 #[tauri::command]
-pub async fn canvas_board_load(app: tauri::AppHandle, id: String) -> AppResult<databases::canvas::CanvasData> {
+pub async fn canvas_board_load(
+    app: tauri::AppHandle,
+    id: String,
+) -> AppResult<databases::canvas::CanvasData> {
     blocking("canvas_board_load", move || {
         let db = app.state::<Db>();
         let conn = lock(&db)?;
@@ -509,7 +542,11 @@ pub async fn canvas_board_load(app: tauri::AppHandle, id: String) -> AppResult<d
 }
 
 #[tauri::command]
-pub async fn canvas_board_apply(app: tauri::AppHandle, id: String, ops: Vec<databases::canvas::CanvasOp>) -> AppResult<()> {
+pub async fn canvas_board_apply(
+    app: tauri::AppHandle,
+    id: String,
+    ops: Vec<databases::canvas::CanvasOp>,
+) -> AppResult<()> {
     blocking("canvas_board_apply", move || {
         let db = app.state::<Db>();
         let t = std::time::Instant::now();

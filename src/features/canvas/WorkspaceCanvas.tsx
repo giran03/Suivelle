@@ -1,23 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { MenuItem } from "../../components/ContextMenu";
 import { READ_ONLY } from "../../lib/access";
-import { thumbUrl } from "../../lib/attachments";
 import { newId } from "../../lib/ids";
 import { ipc } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
-import type { CanvasBoard, CanvasItem, CanvasOp, PagePreview } from "../../types";
+import type { CanvasBoard, CanvasItem, CanvasOp, Page } from "../../types";
 import { type BoardApi, CanvasBoard as Board } from "../database/canvas/CanvasBoard";
 import { Tool } from "../database/canvas/CanvasControls";
 import { useCanvas } from "../database/canvas/useCanvas";
 import { gridSlots } from "../database/canvas/viewport";
-import { PageGlyph } from "../pages/PageGlyph";
 import { usePeek } from "../peek/store";
 import "./canvas-boards.css";
 import { registerBoardDrop, useBoards } from "./store";
 
-const CARD_W = 260;
-const CARD_H = 190;
+const CARD_W = 560;
+const CARD_H = 620;
+const CanvasPage = lazy(() => import("./CanvasPage").then(m => ({ default: m.CanvasPage })));
 
 /** The open canvas board, filling the main area under its name. */
 export function WorkspaceCanvas() {
@@ -27,13 +26,13 @@ export function WorkspaceCanvas() {
 }
 
 /** What each page card shows, read live from the page itself and refreshed when the window comes back into focus. */
-function usePagePreviews(ids: string[]) {
-  const [byId, setById] = useState<ReadonlyMap<string, PagePreview | null>>(new Map());
+function useCanvasPages(ids: string[]) {
+  const [byId, setById] = useState<ReadonlyMap<string, Page | null>>(new Map());
   const [settled, setSettled] = useState(false);
   const key = ids.join(",");
 
   const read = useCallback(async (wanted: string[]) => {
-    const got = await Promise.all(wanted.map((id) => ipc.pagePreview(id).catch(() => null)));
+    const got = await Promise.all(wanted.map((id) => ipc.pageGet(id).catch(() => null)));
     setById((prev) => {
       const next = new Map(prev);
       wanted.forEach((id, n) => next.set(id, got[n]));
@@ -62,10 +61,10 @@ function BoardPage({ board }: { board: CanvasBoard }) {
   const [picker, setPicker] = useState<{ at: { x: number; y: number } | null } | null>(null);
 
   const pageIds = useMemo(() => (canvas.data?.items ?? []).flatMap((i) => (i.kind === "page" && i.pageId ? [i.pageId] : [])), [canvas.data]);
-  const { byId, settled } = usePagePreviews(pageIds);
+  const { byId, settled } = useCanvasPages(pageIds);
   const cards = useMemo(() => {
     const live = new Map<string, unknown>();
-    for (const [id, p] of byId) if (p && !p.deleted) live.set(id, p);
+    for (const [id, p] of byId) if (p && !p.deletedAt) live.set(id, p);
     return live;
   }, [byId]);
 
@@ -98,12 +97,12 @@ function BoardPage({ board }: { board: CanvasBoard }) {
     });
   }, [addPages]);
 
-  const renderCard = useCallback((card: unknown, _item: CanvasItem, open: () => void) => <PageCardBody page={card as PagePreview} onOpen={open} />, []);
-  const cardLabel = useCallback((card: unknown) => (card as PagePreview).title || "Untitled", []);
-  const openCard = useCallback((card: unknown) => void useWorkspace.getState().openPage((card as PagePreview).id), []);
+  const renderCard = useCallback((card: unknown, _item: CanvasItem, open: () => void) => <Suspense fallback={<p role="status">Loading page…</p>}><CanvasPage page={card as Page} onOpen={open} /></Suspense>, []);
+  const cardLabel = useCallback((card: unknown) => (card as Page).title || "Untitled", []);
+  const openCard = useCallback((card: unknown) => void useWorkspace.getState().openPage((card as Page).id), []);
   const cardMenu = useCallback(
     (card: unknown): MenuItem[] => {
-      const id = (card as PagePreview).id;
+      const id = (card as Page).id;
       return [
         { label: "Open page", onSelect: () => void useWorkspace.getState().openPage(id) },
         { label: "Open beside", onSelect: () => usePeek.getState().show(id) },
@@ -194,35 +193,6 @@ function BoardTitle({ board }: { board: CanvasBoard }) {
         }}
       />
     </div>
-  );
-}
-
-/** A page on the canvas: its icon and title, its first image or lines of text, fading out toward the card's lower edge. */
-function PageCardBody({ page, onOpen }: { page: PagePreview; onOpen: () => void }) {
-  return (
-    <>
-      <div className="cv-card-head cv-page-head">
-        <span className="cv-page-glyph">
-          <PageGlyph page={{ icon: page.icon, kind: "page" }} />
-        </span>
-        <span className="cv-card-title">{page.title || <span className="cell-placeholder">Untitled</span>}</span>
-        <button type="button" className="icon-btn cv-open" aria-label={`Open ${page.title || "Untitled"}`} onClick={onOpen}>
-          <Icon name="forward" size={14} />
-        </button>
-      </div>
-      {page.imageHash && <img className="cv-card-image cv-page-image" src={thumbUrl(page.imageHash, 640)} alt="" draggable={false} />}
-      {page.lines.length > 0 ? (
-        <div className="cv-page-body">
-          {page.lines.map((l, n) => (
-            <p key={n} className={l.kind.startsWith("heading") ? "cv-page-heading" : undefined}>
-              {l.text}
-            </p>
-          ))}
-        </div>
-      ) : (
-        !page.imageHash && <p className="cv-card-text">Empty page</p>
-      )}
-    </>
   );
 }
 

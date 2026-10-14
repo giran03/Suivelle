@@ -55,7 +55,12 @@ pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> Str
 }
 
 /// Like [`plain_text`], with mentions replaced by their page titles, for showing a block as context.
-pub fn plain_text_with(block_type: &str, schema_version: i64, data_json: &str, mention: MentionTitle) -> String {
+pub fn plain_text_with(
+    block_type: &str,
+    schema_version: i64,
+    data_json: &str,
+    mention: MentionTitle,
+) -> String {
     let Ok(data) = serde_json::from_str::<Value>(data_json) else {
         return String::new();
     };
@@ -187,14 +192,15 @@ fn row_cells(row: &Value, mention: MentionTitle) -> Vec<String> {
 
 /// The rows of a `simple_table` block that mention or link to `target` (lowercase page id).
 /// Row 0 is treated as the header when every cell in it is a `tableHeader`.
-pub fn table_rows_referencing(data_json: &str, target: &str, mention: MentionTitle) -> Vec<TableRowRef> {
+pub fn table_rows_referencing(
+    data_json: &str,
+    target: &str,
+    mention: MentionTitle,
+) -> Vec<TableRowRef> {
     let Ok(data) = serde_json::from_str::<Value>(data_json) else {
         return Vec::new();
     };
-    let Some(rows) = data
-        .pointer("/table/content")
-        .and_then(Value::as_array)
-    else {
+    let Some(rows) = data.pointer("/table/content").and_then(Value::as_array) else {
         return Vec::new();
     };
     let is_header = |row: &Value| {
@@ -218,7 +224,11 @@ pub fn table_rows_referencing(data_json: &str, target: &str, mention: MentionTit
             walk_refs(row, &mut refs);
             refs.iter().any(|r| r == target).then(|| TableRowRef {
                 row_index: i,
-                header: if i == 0 && !header.is_empty() { Vec::new() } else { header.clone() },
+                header: if i == 0 && !header.is_empty() {
+                    Vec::new()
+                } else {
+                    header.clone()
+                },
                 cells: row_cells(row, mention),
             })
         })

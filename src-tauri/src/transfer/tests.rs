@@ -16,22 +16,57 @@ fn smart_references_keep_text_links_and_paths_through_transfer() {
     assert!(md.contains("brief.pdf"));
     assert!(md.contains("My files"));
     assert!(md.contains("https://github.com/owner/repo/issues/123"));
-    let ctx = Ctx { asset: &|_| None, title: &|_| None, link: &|_| None };
+    let ctx = Ctx {
+        asset: &|_| None,
+        title: &|_| None,
+        link: &|_| None,
+    };
     let html = super::html::render_document("References", &blocks, &ctx);
     assert!(html.contains("data-smart-kind=\"color\""));
     let parsed = super::html::parse(&html);
-    let paragraph = parsed.blocks.iter().find(|b| b.kind == "paragraph").unwrap();
+    let paragraph = parsed
+        .blocks
+        .iter()
+        .find(|b| b.kind == "paragraph")
+        .unwrap();
     assert!(paragraph.inline.iter().any(|i| matches!(i, Inline::Text { text, marks } if text == "brief.pdf" && marks.contains(&Mark::Smart { kind: "file".into(), value: "C:\\My files\\brief.pdf".into() }))));
     assert!(smart_mark("color", "#fff;background:url(https://example.com)").is_none());
     let (mut conn, ws, store) = workspace();
-    let page = services::page::create(&mut conn, PageCreate { workspace_id: ws.clone(), parent_page_id: None, title: Some("Smart references".into()), icon: None }).unwrap();
-    services::block::apply_batch(&mut conn, crate::domain::BlockBatch { page_id: page.id.clone(), upserts: flatten(&blocks), delete_ids: vec![] }).unwrap();
+    let page = services::page::create(
+        &mut conn,
+        PageCreate {
+            workspace_id: ws.clone(),
+            parent_page_id: None,
+            title: Some("Smart references".into()),
+            icon: None,
+        },
+    )
+    .unwrap();
+    services::block::apply_batch(
+        &mut conn,
+        crate::domain::BlockBatch {
+            page_id: page.id.clone(),
+            upserts: flatten(&blocks),
+            delete_ids: vec![],
+        },
+    )
+    .unwrap();
     let path = temp().join("smart-references.zip");
     archive::export_workspace(&conn, &store, &ws, &path).unwrap();
     let (mut other, other_ws, other_store) = workspace();
     let staged = import::stage_archive(&path).unwrap();
-    let imported = import::apply(&mut other, &other_store, &other_ws, &staged, &HashMap::new()).unwrap();
-    let copied = pages_under(&other, &imported.page_id).into_iter().find(|p| p.title == "Smart references").unwrap();
+    let imported = import::apply(
+        &mut other,
+        &other_store,
+        &other_ws,
+        &staged,
+        &HashMap::new(),
+    )
+    .unwrap();
+    let copied = pages_under(&other, &imported.page_id)
+        .into_iter()
+        .find(|p| p.title == "Smart references")
+        .unwrap();
     let body = repo::block::list(&other, &copied.id).unwrap();
     let data: serde_json::Value = serde_json::from_str(&body[0].data_json).unwrap();
     assert_eq!(data["content"], json);
@@ -2198,14 +2233,22 @@ fn canvas_layouts_survive_an_archive_round_trip_with_new_record_ids() {
     )
     .unwrap();
     let rec: String = conn
-        .query_row("SELECT id FROM db_record WHERE database_id = ?1 LIMIT 1", [&detail.database.id], |r| r.get(0))
+        .query_row(
+            "SELECT id FROM db_record WHERE database_id = ?1 LIMIT 1",
+            [&detail.database.id],
+            |r| r.get(0),
+        )
         .unwrap();
     let item = |kind: &str, record: Option<&str>, x: f64| CanvasItem {
         id: crate::domain::new_id(),
         kind: kind.into(),
         record_id: record.map(Into::into),
         page_id: None,
-        text: if kind == "note" { "idea".into() } else { String::new() },
+        text: if kind == "note" {
+            "idea".into()
+        } else {
+            String::new()
+        },
         attachment_hash: None,
         x,
         y: 5.0,
@@ -2222,7 +2265,14 @@ fn canvas_layouts_survive_an_archive_round_trip_with_new_record_ids() {
         &[
             CanvasOp::UpsertItem { item: card.clone() },
             CanvasOp::UpsertItem { item: note.clone() },
-            CanvasOp::UpsertEdge { edge: CanvasEdge { id: crate::domain::new_id(), from_item: card.id, to_item: note.id, label: "see".into() } },
+            CanvasOp::UpsertEdge {
+                edge: CanvasEdge {
+                    id: crate::domain::new_id(),
+                    from_item: card.id,
+                    to_item: note.id,
+                    label: "see".into(),
+                },
+            },
         ],
     )
     .unwrap();
@@ -2231,7 +2281,11 @@ fn canvas_layouts_survive_an_archive_round_trip_with_new_record_ids() {
     archive::export_workspace(&conn, &store, &ws, &dest).unwrap();
     let (mut target, _original, target_store) = workspace();
     let imported = archive::import_workspace(&mut target, &target_store, &dest, "W", true).unwrap();
-    assert!(imported.counts.warnings.is_empty(), "{:?}", imported.counts.warnings);
+    assert!(
+        imported.counts.warnings.is_empty(),
+        "{:?}",
+        imported.counts.warnings
+    );
 
     let new_view: String = target
         .query_row(
@@ -2246,7 +2300,10 @@ fn canvas_layouts_survive_an_archive_round_trip_with_new_record_ids() {
     assert_eq!(data.edges[0].label, "see");
     let new_rec = data.items.iter().find_map(|i| i.record_id.clone()).unwrap();
     assert_ne!(new_rec, rec, "records are re-created under new ids");
-    assert!(data.items.iter().any(|i| i.kind == "note" && i.text == "idea"));
+    assert!(data
+        .items
+        .iter()
+        .any(|i| i.kind == "note" && i.text == "idea"));
 }
 
 #[test]
@@ -2255,7 +2312,12 @@ fn canvas_boards_survive_an_archive_round_trip_with_new_page_ids() {
     let (mut conn, ws, store) = workspace();
     let page = services::page::create(
         &mut conn,
-        crate::domain::PageCreate { workspace_id: ws.clone(), parent_page_id: None, title: Some("Pinned".into()), icon: None },
+        crate::domain::PageCreate {
+            workspace_id: ws.clone(),
+            parent_page_id: None,
+            title: Some("Pinned".into()),
+            icon: None,
+        },
     )
     .unwrap()
     .id;
@@ -2265,7 +2327,11 @@ fn canvas_boards_survive_an_archive_round_trip_with_new_page_ids() {
         kind: kind.into(),
         record_id: None,
         page_id: page_id.map(Into::into),
-        text: if kind == "note" { "idea".into() } else { String::new() },
+        text: if kind == "note" {
+            "idea".into()
+        } else {
+            String::new()
+        },
         attachment_hash: None,
         x,
         y: 5.0,
@@ -2274,13 +2340,29 @@ fn canvas_boards_survive_an_archive_round_trip_with_new_page_ids() {
         z: 1,
         color: None,
     };
-    canvas::apply_board(&mut conn, &board.id, &[CanvasOp::UpsertItem { item: item("page", Some(&page), 0.0) }, CanvasOp::UpsertItem { item: item("note", None, 300.0) }]).unwrap();
+    canvas::apply_board(
+        &mut conn,
+        &board.id,
+        &[
+            CanvasOp::UpsertItem {
+                item: item("page", Some(&page), 0.0),
+            },
+            CanvasOp::UpsertItem {
+                item: item("note", None, 300.0),
+            },
+        ],
+    )
+    .unwrap();
 
     let dest = temp().join("boards.zip");
     archive::export_workspace(&conn, &store, &ws, &dest).unwrap();
     let (mut target, _original, target_store) = workspace();
     let imported = archive::import_workspace(&mut target, &target_store, &dest, "W", true).unwrap();
-    assert!(imported.counts.warnings.is_empty(), "{:?}", imported.counts.warnings);
+    assert!(
+        imported.counts.warnings.is_empty(),
+        "{:?}",
+        imported.counts.warnings
+    );
 
     let boards = canvas::list_boards(&target, &imported.workspace.id).unwrap();
     assert_eq!(boards.len(), 1);

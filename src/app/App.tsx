@@ -45,7 +45,7 @@ import { useFindBar } from "../features/find/store";
 import { closeTab, cycleTab, installTabs, useTabs } from "../features/tabs/tabs";
 import { installMotion } from "../features/motion/install";
 import { installTooltips } from "../features/tooltip/tooltip";
-import { PagePreviewCard } from "../features/preview/PagePreviewCard";
+import { usePreviewCard } from "../features/preview/store";
 import { installPagePreview } from "../features/preview/install";
 import { useAppIcon } from "../lib/appIcon";
 import { useAppearance } from "../lib/appearance";
@@ -76,6 +76,7 @@ const FilesDialog = lazy(() => import("../features/files/FilesDialog").then((m) 
 const FindBar = lazy(() => import("../features/find/FindBar").then((m) => ({ default: m.FindBar })));
 const DatabaseView = lazy(() => import("../features/database/DatabaseView").then((m) => ({ default: m.DatabaseView })));
 const DashboardView = lazy(() => import("../features/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
+const PagePreviewCard = lazy(() => import("../features/preview/PagePreviewCard").then((m) => ({ default: m.PagePreviewCard })));
 
 /** Load a feature on first use, then keep its shell so dialog exit and focus restoration still run. */
 /** Shown when the workspace opened read-only because its check or upgrade failed. */
@@ -169,7 +170,7 @@ function Content() {
 
   if (view === "trash") return <TrashView />;
   if (view === "node-map") return <Suspense fallback={<Loading label="Loading map…" />}><NodeMap /></Suspense>;
-  if (view === "canvas") return <Suspense fallback={null}><WorkspaceCanvas /></Suspense>;
+  if (view === "canvas") return <Suspense fallback={<Loading label="Loading canvas…" />}><WorkspaceCanvas /></Suspense>;
   if (selectedPageId && kind === "dashboard") {
     return (
       <>
@@ -190,14 +191,14 @@ function Content() {
     return (
       <>
         <PageTitle />
-        <Suspense fallback={null}>
+        <Suspense fallback={<Loading label="Loading editor…" />}>
           {kind === "record" && <RecordProperties key={`props-${selectedPageId}`} pageId={selectedPageId} />}
           <Editor key={`${selectedPageId}:${epoch}`} pageId={selectedPageId} />
         </Suspense>
       </>
     );
   }
-  if (!ready) return null;
+  if (!ready) return <Loading label="Opening workspace…" />;
   return hasPages ? (
     <p className="empty">Select a page from the sidebar{searchBinding.label ? `, or press ${searchBinding.label} to search.` : "."}</p>
   ) : (
@@ -266,6 +267,7 @@ function ConstellationArt() {
 }
 
 export function App() {
+  const previewOpen = usePreviewCard((s) => s.pageId !== null);
   const updatePreparing = useUpdates((s) => isPreparing(s.phase));
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
@@ -405,7 +407,7 @@ export function App() {
           {error && (
             <div className="error" role="alert">
               <span>{error}</span>
-              <button onClick={clearError}>Dismiss</button>
+              <button onClick={() => { clearError(); if (!workspaceReady) void init(); }}>{workspaceReady ? "Dismiss" : "Try again"}</button>
             </div>
           )}
           <ErrorBoundary label="This view could not be shown.">
@@ -429,7 +431,7 @@ export function App() {
       <OnDemand open={SettingsDialogOpen}><SettingsDialog /></OnDemand>
       <OnDemand open={FilesDialogOpen}><FilesDialog /></OnDemand>
       <QuickCapture />
-      <PagePreviewCard />
+      <OnDemand open={previewOpen}><PagePreviewCard /></OnDemand>
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
     <OnDemand open={MediaPasteDialogOpen}><MediaPasteDialog /></OnDemand>

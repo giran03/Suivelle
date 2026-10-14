@@ -13,8 +13,8 @@ it("rebinding changes execution, disables the old input, and leaves typing alone
   expect(keyboard(input, "\\", { ctrlKey: true }).defaultPrevented).toBe(false);
   expect(keyboard(input, "b", { ctrlKey: true, altKey: true }).defaultPrevented).toBe(true);
   expect(count).toBe(1);
-  useShortcuts.getState().assign("sidebar", [key("b")]);
-  expect(keyboard(input, "b").defaultPrevented).toBe(false);
+  useShortcuts.getState().assign("sidebar", [key("j")]);
+  expect(keyboard(input, "j").defaultPrevented).toBe(false);
 });
 it("handles a mouse gesture once, suppresses its followup and preserves unmatched clicks", () => {
   const element = document.createElement("div"); document.body.append(element);

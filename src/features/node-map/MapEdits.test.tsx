@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect,it,vi } from "vitest";
-import { MapEdits } from "./MapEdits";
+import { MapEdits, MapHistory } from "./MapEdits";
 import type { MapData,MapEdit,MapNode } from "./model";
 Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
 const mocks=vi.hoisted(()=>({edit:vi.fn(),flush:vi.fn().mockResolvedValue(undefined),reload:vi.fn().mockResolvedValue(undefined),bump:vi.fn()}));
@@ -16,10 +16,9 @@ it("saves pending editors before editing and passes the server inverse to undo; 
  const host=document.createElement("div");document.body.append(host);const root=createRoot(host);
  const inverse:MapEdit={kind:"blocks",changes:[{pageId:"a",blockId:"link",dataJson:"{}",position:0,expectedRevision:1}]};
  mocks.edit.mockResolvedValueOnce(inverse).mockResolvedValueOnce({kind:"blocks",changes:[]});
- const done=vi.fn();
- try{
-  await act(async()=>{root.render(<MapEdits data={data} selected={["a"]} pair={["a","b"]} onDone={done}/>);});
-  const button=(label:string)=>Array.from(host.querySelectorAll("button")).find(b=>b.textContent===label)!;
+  try{
+  await act(async()=>{root.render(<><MapHistory/><MapEdits data={data} selected={["a"]} pair={["a","b"]}/></>);});
+  const button=(label:string)=>Array.from(host.querySelectorAll("button")).find(b=>b.textContent===label||b.getAttribute("aria-label")===label)!;
   await act(async()=>button("Apply connection").click());
   expect(mocks.flush).toHaveBeenCalledWith(true);expect(mocks.edit).toHaveBeenNthCalledWith(1,{kind:"reference",source:"a",target:"b"});
   expect(mocks.flush.mock.invocationCallOrder[0]).toBeLessThan(mocks.edit.mock.invocationCallOrder[0]);

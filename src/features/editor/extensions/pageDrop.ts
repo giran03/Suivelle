@@ -15,7 +15,7 @@ export function dropPagesOnEditor(pageIds: string[], x: number, y: number): bool
   const under = document.elementsFromPoint(x, y);
   for (const editor of editors) {
     if (!editor.isEditable || !under.includes(editor.view.dom)) continue;
-    const { selectedPageId } = useWorkspace.getState();
+    const selectedPageId = editor.view.dom.dataset.contextPage ?? useWorkspace.getState().selectedPageId;
     const ids = pageIds.filter((id) => id !== selectedPageId);
     if (!ids.length) return true; // over the editor, but nothing worth linking: swallow the drop
     const at = editor.view.posAtCoords({ left: x, top: y });
