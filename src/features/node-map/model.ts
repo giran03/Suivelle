@@ -21,6 +21,10 @@ export function coordinates(data: MapData, layout: Layout, flat: boolean, proper
   const at = new Map(data.nodes.map(n => [n.id, n]));
   const positions: Record<string, Position> = {};
   const clusters = [...new Set(data.nodes.map(n => layout === "property" ? propertyGroup(n, data.properties.find(p => p.id === propertyId)) : n.workspaceId))].sort();
+  const dateProperty = data.properties.find(p => p.id === propertyId);
+  const dateOf = (node: MapNode) => { const raw = dateProperty ? node.values[dateProperty.id] : node.createdAt; const time = typeof raw === "object" && raw !== null ? (raw as { start?: string }).start : raw; return typeof time === "string" ? Date.parse(time) : Number.NaN; };
+  const dates = layout === "timeline" ? data.nodes.filter(n => n.kind !== "workspace").map(dateOf).filter(Number.isFinite) : [];
+  const minDate = Math.min(...dates), maxDate = Math.max(...dates);
   for (const node of data.nodes) {
     if (pins[node.id]) { positions[node.id] = { ...pins[node.id], z: flat ? 0 : pins[node.id].z }; continue; }
     const group = layout === "property" ? propertyGroup(node, data.properties.find(p => p.id === propertyId)) : node.workspaceId;
@@ -34,17 +38,8 @@ export function coordinates(data: MapData, layout: Layout, flat: boolean, proper
       : { x: anchor.x + Math.cos(theta) * radius, y: anchor.y + Math.sin(theta) * radius, z: flat ? 0 : ((seed >>> 18) % 160) - 80 };
     if (layout === "hierarchy" && node.kind !== "workspace") { p.y = 80 - depth * 130; p.x = anchor.x + Math.cos(theta) * radius; }
     if (layout === "timeline" && node.kind !== "workspace") {
-      const property = data.properties.find(p => p.id === propertyId);
-      const raw = property ? node.values[property.id] : node.createdAt;
-      const time = typeof raw === "object" && raw !== null ? (raw as { start?: string }).start : raw;
-      const parsed = typeof time === "string" ? Date.parse(time) : Number.NaN;
-      const times = data.nodes.filter(n => n.kind !== "workspace").map(n => {
-        const v = property ? n.values[property.id] : n.createdAt;
-        const s = typeof v === "object" && v !== null ? (v as { start?: string }).start : v;
-        return typeof s === "string" ? Date.parse(s) : Number.NaN;
-      }).filter(Number.isFinite);
-      const min = Math.min(...times), max = Math.max(...times);
-      const t = Number.isFinite(parsed) ? ((parsed - min) / Math.max(1, max - min)) * 1000 - 500 : 650;
+      const parsed = dateOf(node);
+      const t = Number.isFinite(parsed) ? ((parsed - minDate) / Math.max(1, maxDate - minDate)) * 1000 - 500 : 650;
       if (flat) p.y = t; else p.z = t;
     }
     positions[node.id] = p;

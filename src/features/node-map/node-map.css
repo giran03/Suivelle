@@ -12,6 +12,8 @@
 .map-search { flex: 1 1 190px; max-width: 320px; padding: 0 8px; }
 .map-search input { border: 0; background: transparent; min-width: 0; width: 100%; padding: 6px 0; color: var(--text-primary); }
 .map-search:focus-within { border-color: var(--focus-ring); }
+.map-bookmark-name { background: var(--field); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; width: 150px; min-width: 0; font-size: .8125rem; }
+.map-explore-tools { gap: 8px; }
 .map-body { display: flex; flex: 1; min-height: 0; }
 .map-stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--background); overflow: hidden; }
 .map-canvas { position: relative; flex: 1; min-height: 220px; overflow: hidden; }

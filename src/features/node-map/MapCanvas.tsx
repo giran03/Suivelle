@@ -32,6 +32,7 @@ export function MapCanvas(props: Props) {
     controls.minPolarAngle = 0.1; controls.maxPolarAngle = Math.PI - 0.1;
     const meshes: InstancedMesh[] = [], nodesByMesh = new Map<InstancedMesh, MapNode[]>();
     const at = new Map(props.data.nodes.map(n => [n.id, n]));
+    const localPositions = { ...props.positions };
     const probe = document.createElement("span"); el.append(probe);
     const palette = new Map<string, Color>();
     const color = (token: string) => { const cached = palette.get(token); if (cached) return cached; probe.style.color = `var(${token})`; const value = new Color(getComputedStyle(probe).color); palette.set(token, value); return value; };
@@ -82,7 +83,7 @@ export function MapCanvas(props: Props) {
       const occupied: { x: number; y: number; w: number }[] = [];
       const ordering = [...labelElements].sort(([a],[b]) => Number(current.current.selected.includes(b)) - Number(current.current.selected.includes(a)));
       for (const [id, button] of ordering) {
-        const p = props.positions[id], n = at.get(id)!; const v = new Vector3(p.x, p.y, p.z).project(camera);
+        const p = localPositions[id], n = at.get(id)!; const v = new Vector3(p.x, p.y, p.z).project(camera);
         const x = (v.x + 1) * el.clientWidth / 2 + 10, y = (1 - v.y) * el.clientHeight / 2 - 8;
         const important = current.current.selected.includes(id) || id === hover || n.kind === "workspace";
         const close = camera.position.distanceTo(new Vector3(p.x,p.y,p.z)) < 900 / camera.zoom;
@@ -137,6 +138,10 @@ export function MapCanvas(props: Props) {
     const move = (e: PointerEvent) => {
       if(drag) {
         drag.moved ||= Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>4;
+        if(current.current.tool==="move" && drag.node && drag.plane) {
+          pick(e); const p=ray.ray.intersectPlane(drag.plane,new Vector3());
+          if(p) {localPositions[drag.node.id]={x:p.x,y:p.y,z:props.flat?0:p.z};for(const mesh of meshes){const index=nodesByMesh.get(mesh)!.findIndex(n=>n.id===drag!.node!.id);if(index>=0){const matrix=new Matrix4();mesh.getMatrixAt(index,matrix);matrix.setPosition(p.x,p.y,props.flat?0:p.z);mesh.setMatrixAt(index,matrix);mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();}}request();}
+        }
         if(current.current.tool==="select") { const r=el.getBoundingClientRect();box.hidden=false;Object.assign(box.style,{left:`${Math.min(e.clientX,drag.x)-r.left}px`,top:`${Math.min(e.clientY,drag.y)-r.top}px`,width:`${Math.abs(e.clientX-drag.x)}px`,height:`${Math.abs(e.clientY-drag.y)}px`}); }
       } else { const n=pick(e);if(hover!==n?.id){hover=n?.id??null;canvas.style.cursor=hover?"pointer":"grab";request();} }
     };
@@ -157,12 +162,13 @@ export function MapCanvas(props: Props) {
     const observer=new ResizeObserver(resize);observer.observe(el);
     const themeObserver=new MutationObserver(theme);themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["style","data-theme","data-motion"]});
     document.addEventListener("visibilitychange",request);
+    const scheme=window.matchMedia("(prefers-color-scheme: dark)");scheme.addEventListener("change",theme);
     resize();theme();
     const saved=props.initialCamera;
     if(saved && [...saved.position,...saved.target,saved.zoom].every(Number.isFinite)) {camera.position.fromArray(saved.position);controls.target.fromArray(saved.target);camera.zoom=saved.zoom;camera.updateProjectionMatrix();controls.update();request();}else fit();
     return () => {
       dead=true;cancelAnimationFrame(raf);cancelAnimationFrame(tween);props.api.current=null;
-      observer.disconnect();themeObserver.disconnect();document.removeEventListener("visibilitychange",request);controls.dispose();
+      observer.disconnect();themeObserver.disconnect();document.removeEventListener("visibilitychange",request);scheme.removeEventListener("change",theme);controls.dispose();
       meshes.forEach(m=>{m.geometry.dispose();(m.material as MeshBasicMaterial).dispose();m.dispose();});lines.forEach(l=>{l.geometry.dispose();l.material.dispose();});renderer.dispose();canvas.remove();probe.remove();box.remove();layer.replaceChildren();
     };
   }, [props.data,props.positions,props.flat]);
