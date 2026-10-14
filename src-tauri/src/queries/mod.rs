@@ -7,6 +7,15 @@ use crate::errors::{AppError, AppResult};
 use crate::repositories as repo;
 use tauri::Manager;
 
+#[tauri::command]
+pub async fn node_map_snapshot(app: tauri::AppHandle, input: crate::node_map::MapQuery) -> AppResult<crate::node_map::MapData> {
+    blocking("node_map_snapshot", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::node_map::snapshot(&conn, &input)
+    }).await
+}
+
 /// Returns the requested workspace, or the first one when `id` is omitted. `None` on a fresh install.
 #[tauri::command]
 pub async fn workspace_get(

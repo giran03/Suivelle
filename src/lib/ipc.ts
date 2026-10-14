@@ -280,6 +280,7 @@ export const ipc = {
   tagList: (workspaceId: string) => call<TagCount[]>("tag_list", { workspaceId }),
   tagPages: (workspaceId: string, tag: string) => call<PageTitle[]>("tag_pages", { workspaceId, tag }),
   linkGraph: (workspaceId: string) => call<LinkGraph>("link_graph", { workspaceId }),
+  nodeMapSnapshot: (input: import("../features/node-map/model").MapQuery) => call<import("../features/node-map/model").MapData>("node_map_snapshot", { input }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
   traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),

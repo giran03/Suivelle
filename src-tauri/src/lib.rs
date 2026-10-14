@@ -13,6 +13,7 @@ pub mod files;
 pub mod history;
 mod legacy;
 pub mod maintenance;
+pub mod node_map;
 pub mod queries;
 pub mod reminders;
 pub mod repositories;
@@ -375,6 +376,7 @@ pub fn run() {
             queries::tag_list,
             queries::tag_pages,
             queries::link_graph,
+            queries::node_map_snapshot,
             queries::page_unlinked_mentions,
             commands::database_create,
             commands::property_create,
