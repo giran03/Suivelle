@@ -1,5 +1,5 @@
 {
   "version": "0.1.5",
   "date": "2026-10-14",
-  "notes": "Unreleased.\n\n## Maintenance\n- Updated CSV import code for compatibility with newer Rust toolchains."
+  "notes": "Unreleased.\n\n## Maintenance\n- Updated CSV import code for compatibility with newer Rust toolchains.\n- Promotional video project files are no longer tracked in the source repository."
 }

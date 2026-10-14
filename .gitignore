@@ -58,6 +58,7 @@ Thumbs.db
 Desktop.ini
 
 # motion showcase build output and tooling
+/videos/suivelle-intro/
 showcase/dist/
 showcase/tools/node_modules/
 showcase/tools/shots/
