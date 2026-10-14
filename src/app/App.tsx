@@ -290,7 +290,7 @@ export function App() {
   const theme = appTheme ?? legacyTheme;
   const error = useWorkspace((s) => s.error);
   const clearError = useWorkspace((s) => s.clearError);
-  const isDatabase = useWorkspace((s) => s.view === "canvas" || (s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard")));
+  const isDatabase = useWorkspace((s) => s.view === "canvas" || s.view === "node-map" || (s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard")));
 
   useEffect(() => void init(), [init]);
   useEffect(() => {

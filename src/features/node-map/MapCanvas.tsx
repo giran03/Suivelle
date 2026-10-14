@@ -1,8 +1,8 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { BoxGeometry, BufferGeometry, Color, Float32BufferAttribute, Fog, InstancedMesh, LineBasicMaterial, LineDashedMaterial, LineSegments, Matrix4, MeshBasicMaterial, OctahedronGeometry, OrthographicCamera, PerspectiveCamera, Plane, Raycaster, Scene, SphereGeometry, Vector2, Vector3, WebGLRenderer } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { readProfile } from "../../lib/motion";
-import type { CameraState, MapData, MapNode, Position } from "./model";
+import { bezier, readProfile } from "../../lib/motion";
+import { neighborhood, type CameraState, type MapData, type MapNode, type Position } from "./model";
 
 export type MapTool = "navigate" | "move" | "connect" | "select";
 export interface CanvasApi { fit: () => void; focus: (id: string) => void; camera: () => CameraState }
@@ -11,6 +11,7 @@ interface Props {
   initialCamera?: CameraState; api: RefObject<CanvasApi | null>;
   onSelect: (ids: string[]) => void; onOpen: (node: MapNode) => void; onPin: (id: string, p: Position) => void;
   onConnect: (source: string, target: string) => void; onCamera: (state: CameraState) => void; onError: () => void;
+  workspaceColors?: Record<string,string>;
 }
 
 /** Instanced nodes and batched lines. No animation loop runs when the camera is at rest. */
@@ -35,7 +36,7 @@ export function MapCanvas(props: Props) {
     const localPositions = { ...props.positions };
     const probe = document.createElement("span"); el.append(probe);
     const palette = new Map<string, Color>();
-    const color = (token: string) => { const cached = palette.get(token); if (cached) return cached; probe.style.color = `var(${token})`; const value = new Color(getComputedStyle(probe).color); palette.set(token, value); return value; };
+    const color = (token: string) => { const cached = palette.get(token); if (cached) return cached; probe.style.color = token.startsWith("--") ? `var(${token})` : token; const value = new Color(getComputedStyle(probe).color); palette.set(token, value); return value; };
     const groups = ["workspace", "page", "database", "record", "dashboard"] as const;
     for (const kind of groups) {
       const nodes = props.data.nodes.filter(n => n.kind === kind); if (!nodes.length) continue;
@@ -46,7 +47,7 @@ export function MapCanvas(props: Props) {
       mesh.computeBoundingSphere(); scene.add(mesh); meshes.push(mesh); nodesByMesh.set(mesh, nodes);
     }
     const lines: LineSegments<BufferGeometry, LineBasicMaterial | LineDashedMaterial>[] = [];
-    for (const kind of ["contains", "membership", "reference", "relation"]) {
+    for (const kind of ["contains", "membership", "reference", "relation", "dependency"]) {
       const vertices: number[] = [];
       for (const edge of props.data.edges.filter(e => e.kind === kind)) {
         const p = props.positions[edge.source], q = props.positions[edge.target]; if (!p || !q) continue;
@@ -58,7 +59,7 @@ export function MapCanvas(props: Props) {
         for (const sign of [-1, 1]) { const end = tail.clone().addScaledVector(side, sign * 3); vertices.push(tip.x, tip.y, tip.z, end.x, end.y, end.z); }
       }
       const geometry = new BufferGeometry(); geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-      const material = kind === "reference" ? new LineDashedMaterial({ color: color("--border-strong"), dashSize: 6, gapSize: 4 }) : new LineBasicMaterial({ color: color(kind === "relation" ? "--accent-ui" : "--border-strong") });
+      const material = kind === "reference" ? new LineDashedMaterial({ color: color("--border-strong"), dashSize: 6, gapSize: 4 }) : new LineBasicMaterial({ color: color(["relation","dependency"].includes(kind) ? "--accent-ui" : "--border-strong") });
       const line = new LineSegments(geometry, material); line.computeLineDistances(); scene.add(line); lines.push(line);
     }
     let raf = 0, tween = 0, dead = false;
@@ -66,17 +67,25 @@ export function MapCanvas(props: Props) {
     const labelElements = new Map<string, HTMLButtonElement>();
     // Reuse bounded DOM labels; canvas content itself is not an accessible navigation tree.
     const labelNodes = [...props.data.nodes].sort((a,b) => Number(b.kind === "workspace") - Number(a.kind === "workspace") || b.count - a.count).slice(0, 60);
-    for (const n of labelNodes) {
+    const addLabel = (n: MapNode) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "map-label"; button.textContent = n.title || "Untitled"; button.title = `${n.kind}: ${n.title || "Untitled"}`; button.tabIndex = -1;
       button.onclick = e => { e.stopPropagation(); current.current.onSelect([n.id]); };
       button.ondblclick = e => { e.stopPropagation(); current.current.onOpen(n); };
       layer.append(button); labelElements.set(n.id, button);
-    }
+    };
+    for(const n of labelNodes)addLabel(n);
+    const baseLabels = new Set(labelNodes.map(n=>n.id));
+    let selectionKey="",nearby:Set<string>|null=null;
     const capture = (): CameraState => ({ position: camera.position.toArray() as [number,number,number], target: controls.target.toArray() as [number,number,number], zoom: camera.zoom });
     const draw = () => {
       raf = 0; if (dead || document.hidden || !el.clientWidth || !el.clientHeight) return;
+      const selected=current.current.selected;
+      if(selectionKey!==selected.join(",")){selectionKey=selected.join(",");nearby=selected.length===1&&!selected[0].startsWith("workspace:")?neighborhood(props.data,selected[0],1):null;}
+      const extras=new Set([...selected.slice(0,30),...(hover?[hover]:[])]);
+      for(const [id,button]of labelElements)if(!baseLabels.has(id)&&!extras.has(id)){button.remove();labelElements.delete(id);}
+      for(const id of extras){const n=at.get(id);if(n&&!labelElements.has(id))addLabel(n);}
       for (const mesh of meshes) {
-        nodesByMesh.get(mesh)!.forEach((n,i) => { const selected = current.current.selected.includes(n.id); mesh.setColorAt(i, color(selected || n.id === hover ? "--accent-ui" : n.kind === "workspace" ? "--text-secondary" : "--text-muted")); });
+        nodesByMesh.get(mesh)!.forEach((n,i) => { const picked = selected.includes(n.id); const value=color(picked || n.id === hover ? "--accent-ui" : n.kind === "workspace" ? current.current.workspaceColors?.[n.workspaceId]??"--text-secondary" : "--text-muted");mesh.setColorAt(i,nearby&&!nearby.has(n.id)&&n.kind!=="workspace"?value.clone().lerp(color("--background"),.6):value); });
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
       renderer.render(scene, camera);
@@ -102,15 +111,17 @@ export function MapCanvas(props: Props) {
       else { camera.left = -500*w/h; camera.right = 500*w/h; camera.top = 500; camera.bottom = -500; }
       camera.updateProjectionMatrix(); request();
     };
-    const theme = () => { palette.clear(); const background = color("--background"); renderer.setClearColor(background); scene.fog = new Fog(background, 3000, 12000); lines.forEach((l,i) => l.material.color.copy(color(i === 3 ? "--accent-ui" : "--border-strong"))); request(); };
+    const theme = () => { palette.clear(); const background = color("--background"); renderer.setClearColor(background); scene.fog = new Fog(background, 3000, 12000); lines.forEach((l,i) => l.material.color.copy(color(i >= 3 ? "--accent-ui" : "--border-strong"))); request(); };
     const fly = (target: Vector3, distance: number) => {
       cancelAnimationFrame(tween);
       const from = camera.position.clone(), startTarget = controls.target.clone();
       const direction = props.flat ? new Vector3(0,0,1) : from.clone().sub(startTarget).normalize();
       const to = target.clone().addScaledVector(direction, distance);
-      const duration = readProfile().dist === 0 ? 0 : 250 * readProfile().time;
+      probe.style.transitionDuration = "var(--duration-fast)";
+      const duration = readProfile().dist === 0 ? 0 : parseFloat(getComputedStyle(probe).transitionDuration) * 1000;
+      const ease = bezier(getComputedStyle(document.documentElement).getPropertyValue("--ease-smooth-out"));
       const start = performance.now();
-      const step = (now: number) => { const t = duration ? Math.min(1,(now-start)/duration) : 1; const eased = 1-Math.pow(1-t,3); camera.position.lerpVectors(from,to,eased); controls.target.lerpVectors(startTarget,target,eased); controls.update(); request(); if (t<1 && !dead) tween=requestAnimationFrame(step); };
+      const step = (now: number) => { const t = duration ? Math.min(1,(now-start)/duration) : 1; const eased = ease(t); camera.position.lerpVectors(from,to,eased); controls.target.lerpVectors(startTarget,target,eased); controls.update(); request(); if (t<1 && !dead) tween=requestAnimationFrame(step); };
       step(start);
     };
     const fit = () => {
@@ -143,7 +154,7 @@ export function MapCanvas(props: Props) {
           if(p) {localPositions[drag.node.id]={x:p.x,y:p.y,z:props.flat?0:p.z};for(const mesh of meshes){const index=nodesByMesh.get(mesh)!.findIndex(n=>n.id===drag!.node!.id);if(index>=0){const matrix=new Matrix4();mesh.getMatrixAt(index,matrix);matrix.setPosition(p.x,p.y,props.flat?0:p.z);mesh.setMatrixAt(index,matrix);mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();}}request();}
         }
         if(current.current.tool==="select") { const r=el.getBoundingClientRect();box.hidden=false;Object.assign(box.style,{left:`${Math.min(e.clientX,drag.x)-r.left}px`,top:`${Math.min(e.clientY,drag.y)-r.top}px`,width:`${Math.abs(e.clientX-drag.x)}px`,height:`${Math.abs(e.clientY-drag.y)}px`}); }
-      } else { const n=pick(e);if(hover!==n?.id){hover=n?.id??null;canvas.style.cursor=hover?"pointer":"grab";request();} }
+      } else { const next=pick(e)?.id??null;if(hover!==next){hover=next;canvas.style.cursor=hover?"pointer":"grab";request();} }
     };
     const up = (e: PointerEvent) => {
       if(!drag) return;const start=drag;drag=null;box.hidden=true;controls.enabled=true;

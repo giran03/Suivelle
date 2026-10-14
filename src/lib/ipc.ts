@@ -77,7 +77,7 @@ function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, str
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const result = await track(invoke<T>(cmd, args));
-  if (/^(?:page_(?:create|update|move|delete|restore)|block_apply_batch|database_set_value|record_set_value|node_map_edit)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
+  if (/^(?:page_(?:create|update|move|delete|restore|duplicate|transfer)|block_apply_batch|record_(?:create|duplicate|set_value|bulk_set_value)|database_(?:create|add_property|update_property|delete_property)|calendar_(?:create|save|import|delete)|node_map_edit)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
   return result;
 }
 
@@ -283,6 +283,7 @@ export const ipc = {
   tagPages: (workspaceId: string, tag: string) => call<PageTitle[]>("tag_pages", { workspaceId, tag }),
   linkGraph: (workspaceId: string) => call<LinkGraph>("link_graph", { workspaceId }),
   nodeMapSnapshot: (input: import("../features/node-map/model").MapQuery) => call<import("../features/node-map/model").MapData>("node_map_snapshot", { input }),
+  nodeMapEdit: (input: import("../features/node-map/model").MapEdit) => call<import("../features/node-map/model").MapEdit>("node_map_edit", { input }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
   traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),

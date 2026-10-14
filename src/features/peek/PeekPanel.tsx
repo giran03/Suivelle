@@ -23,6 +23,8 @@ export function PeekPanel() {
   const [page, setPage] = useState<Page | null>(null);
   const [width, setWidth] = useState(50);
   const [error, setError] = useState("");
+  const [mapEpoch,setMapEpoch] = useState(0);
+  useEffect(()=>{const refresh=(event:Event)=>{if((event as CustomEvent<string[]>).detail?.includes(pageId??""))setMapEpoch(n=>n+1);};window.addEventListener("suivelle:map-content-changed",refresh);return()=>window.removeEventListener("suivelle:map-content-changed",refresh);},[pageId]);
   useEffect(() => {
     let alive = true;
     setError("");
@@ -59,7 +61,7 @@ export function PeekPanel() {
       {page?.id === pageId && <ErrorBoundary key={pageId} label="This side pane could not be shown."><Suspense fallback={<p role="status">Loading page…</p>}>
         {page.kind === "database" ? <DatabaseView key={pageId} pageId={pageId} />
           : page.kind === "dashboard" ? <DashboardView key={pageId} pageId={pageId} />
-          : <>{page.kind === "record" && <RecordProperties pageId={pageId} />}<Editor key={pageId} pageId={pageId} peek /></>}
+          : <>{page.kind === "record" && <RecordProperties pageId={pageId} />}<Editor key={`${pageId}:${mapEpoch}`} pageId={pageId} peek /></>}
       </Suspense></ErrorBoundary>}
     </div>
   </aside></>;

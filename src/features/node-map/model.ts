@@ -1,5 +1,5 @@
 export type NodeKind = "workspace" | "page" | "database" | "record" | "dashboard";
-export type EdgeKind = "contains" | "membership" | "reference" | "relation";
+export type EdgeKind = "contains" | "membership" | "reference" | "relation" | "dependency";
 export interface MapNode {
   id: string; workspaceId: string; parentId: string | null; title: string; kind: NodeKind;
   icon: string | null; favorite: boolean; archived: boolean; createdAt: string; updatedAt: string;
@@ -12,6 +12,15 @@ export interface MapQuery { workspaceIds: string[]; pageId?: string; hops?: numb
 export type Layout = "clusters" | "hierarchy" | "organic" | "property" | "timeline";
 export interface Position { x: number; y: number; z: number }
 export interface CameraState { position: [number, number, number]; target: [number, number, number]; zoom: number }
+export type MapEdit =
+  | { kind: "reference"; source: string; target: string }
+  | { kind: "move"; source: string; target: string | null }
+  | { kind: "relation"; source: string; target: string; propertyId: string; dependency: boolean }
+  | { kind: "setProperty"; pageIds: string[]; propertyId: string; value: unknown }
+  | { kind: "tag"; pageIds: string[]; tag: string }
+  | { kind: "restoreParent"; source: string; parent: string | null; position: number; expectedParent: string | null; expectedPosition: number }
+  | { kind: "blocks"; changes: { pageId: string; blockId: string; dataJson: string; position: number; expectedRevision: number | null }[] }
+  | { kind: "cells"; propertyId: string; dependency: boolean; changes: { recordId: string; value: unknown; expected: unknown }[] };
 export const workspaceNode = (id: string) => `workspace:${id}`;
 
 /** Stable coordinates based on identity, not list order: renamed and newly added pages stay put. */

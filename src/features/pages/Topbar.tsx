@@ -77,7 +77,7 @@ export function Topbar() {
   const crumbs: (Page | "gap")[] = ancestors.length > 3 ? [ancestors[0], "gap", ancestors[ancestors.length - 1]] : ancestors;
 
   return (
-    <div className="topbar" data-context-page={page?.id}>
+    <div className="topbar" data-context-page={view === "page" ? page?.id : undefined}>
       <div className="nav-buttons">
         <button
           type="button"
@@ -100,8 +100,8 @@ export function Topbar() {
 
       {view === "trash" ? (
         <span className="crumbs"><span className="crumb-current">Trash</span></span>
-      ) : view === "canvas" ? (
-        <nav className="crumbs" aria-label="Breadcrumb"><ol><li><span className="crumb-current" aria-current="page">{boardName || "Canvas"}</span></li></ol></nav>
+      ) : view === "node-map" || view === "canvas" ? (
+        <nav className="crumbs" aria-label="Breadcrumb"><ol><li><span className="crumb-current" aria-current="page">{view === "node-map" ? "Node Map" : boardName || "Canvas"}</span></li></ol></nav>
       ) : (
         page && (
           <>

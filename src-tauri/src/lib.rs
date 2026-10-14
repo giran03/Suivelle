@@ -377,6 +377,7 @@ pub fn run() {
             queries::tag_pages,
             queries::link_graph,
             queries::node_map_snapshot,
+            commands::node_map_edit,
             queries::page_unlinked_mentions,
             commands::database_create,
             commands::property_create,

@@ -19,6 +19,26 @@ use rusqlite::Connection;
 use std::sync::MutexGuard;
 use tauri::{Manager, State};
 
+#[tauri::command]
+pub async fn node_map_edit(app: tauri::AppHandle, input: crate::node_map::edit::MapEdit) -> AppResult<crate::node_map::edit::MapEdit> {
+    blocking("node_map_edit", move || {
+        let db=app.state::<Db>();
+        let mut conn=lock(&db)?;
+        let inverse=crate::node_map::edit::apply(&mut conn,input)?;
+        // Preserve the same database automations as edits from a table or calendar.
+        if let crate::node_map::edit::MapEdit::Cells{property_id,changes,..}=&inverse {
+            let mut events=Vec::new();
+            for change in changes {
+                if let Ok(rows)=dbs::load_rows(&conn,std::slice::from_ref(&change.record_id)) {
+                    if let Some(row)=rows.first() {let before=(!change.value.is_null()).then_some(&change.value);events.extend(crate::automation::engine::change_events(before,row,property_id));}
+                }
+            }
+            react(&app,&mut conn,events);
+        }
+        Ok(inverse)
+    }).await
+}
+
 pub(crate) fn lock<'a>(db: &'a State<'_, Db>) -> AppResult<MutexGuard<'a, Connection>> {
     let started = std::time::Instant::now();
     let guard =

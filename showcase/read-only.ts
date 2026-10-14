@@ -6,6 +6,9 @@ const nameOf = (el: Element) => el.getAttribute('aria-label') || el.getAttribute
 function lockedControl(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) return null;
   if (target.closest(".shortcut-settings")) return null;
+  // Map controls change navigation/device preferences. Content edits are omitted by READ_ONLY
+  // and remain denied by the mock command boundary.
+  if (target.closest(".node-map") && !target.closest(".map-edits")) return null;
   const control = target.closest<HTMLElement>('button, [role="button"], input[type="checkbox"], input[type="file"]');
   return control && (control.matches('input[type="file"]') || writeAction.test(nameOf(control)) || control.matches('.main-scroll input[type="checkbox"]')) ? control : null;
 }

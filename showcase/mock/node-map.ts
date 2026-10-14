@@ -26,7 +26,7 @@ export function nodeMapSnapshot(db: Store, input: MapQuery): MapData {
   if (input.pageId) {const seen=neighborhood({nodes:all,edges,properties:[],totalNodes:all.length,truncated:false},input.pageId,input.hops??1);wanted=wanted.filter(n=>seen.has(n.id));}
   const totalNodes=wanted.length;wanted=wanted.slice(0,input.limit??1000);
   const owners=new Set(wanted.map(n=>n.workspaceId));
-  const nodes=overview?wanted:[...all.filter(n=>n.kind==="workspace"&&(owners.has(n.workspaceId)||input.workspaceIds.includes(n.workspaceId))),...wanted];
+  const nodes=overview?wanted:[...all.filter(n=>n.kind==="workspace"&&(!input.pageId||owners.has(n.workspaceId)||input.workspaceIds.includes(n.workspaceId))),...wanted];
   const ids=new Set(nodes.map(n=>n.id));const visible=edges.filter(e=>ids.has(e.source)&&ids.has(e.target));
   for(const edge of visible)for(const id of [edge.source,edge.target]) {const node=nodes.find(n=>n.id===id);if(node&&node.kind!=="workspace")node.count++;}
   return {nodes,edges:visible,properties:db.properties.map(p=>({...p,kind:p.type})),totalNodes,truncated:totalNodes>wanted.length};
