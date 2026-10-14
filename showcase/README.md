@@ -3,7 +3,7 @@
 A read-only showcase of Suivelle, plus a 60 fps product film.
 
 - `suivelle-motion-showcase.mp4`: 1920x1080, 60 fps, about two minutes. Every motion in it is the real app's.
-- `mock/`: an in-memory stand-in for the Rust backend (workspace "Hollow Orbit": pages, a sprint database with 18 records, a dashboard, search). The frontend in `src/` is untouched; only `@tauri-apps/api/core` is swapped for `mock/tauri-core.ts`.
+- `mock/`: an in-memory stand-in for the Rust backend (workspace "Hollow Orbit": pages, a sprint database with 18 records, a dashboard, search, tagged notes, and a native calendar with five fictional sessions). The frontend in `src/` is untouched; only `@tauri-apps/api/core` is swapped for `mock/tauri-core.ts`.
 - `tools/`: the recorder. It drives the real UI with a visible cursor, captures a CDP screencast of headless Chrome, and assembles the MP4 with ffmpeg (virtual camera moves included).
 
 ## Open the mock-up
@@ -31,3 +31,20 @@ node assemble.mjs <frames-dir> ../suivelle-motion-showcase.mp4
 ```
 
 `film.mjs` is the original storyboard (scenes, captions, camera). Its editing scenes predate the read-only showcase and need a revised storyboard before re-recording. `presenter.js` is the film-only layer: cursor, click rings, motion captions, title and end cards. It is injected by the recorder and is not part of the product UI.
+
+## Refresh the README mock screenshots
+
+Build the showcase, serve it on port 1492, then run the capture script from the repository root:
+
+```bash
+npx vite build --config showcase/vite.config.ts
+npx vite preview --config showcase/vite.config.ts --port 1492 --strictPort
+# In a second terminal:
+node showcase/tools/readme-screenshots.mjs
+```
+
+The script writes seven `readme-*-v014.png` images into `docs/images/`. It captures
+the real frontend with fictional data in a fresh headless browser profile, pins
+the sample date to October 14, 2026, and uses the Asia/Manila timezone. It defaults
+to Chrome's Windows installation path; set `CHROME_PATH` for another installation.
+An alternative preview URL can be passed as the first argument.

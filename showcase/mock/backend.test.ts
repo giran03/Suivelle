@@ -2,6 +2,15 @@ import { expect, test } from 'vitest';
 import { handle } from './backend';
 
 const read = (cmd: string, args = {}): Promise<any> => handle(cmd, args);
+test('sample calendar events reference real pages and respect the requested range and source', async () => {
+  const args = { workspaceId: 'ws_orbit', from: '2000-01-01', to: '2100-01-01', calendarIds: ['pg_calendar'] };
+  const result = await read('calendar_snapshot', args);
+  expect(result.collections.map((p: any) => p.id)).toContain('pg_calendar');
+  expect(result.occurrences).toHaveLength(5);
+  for (const event of result.events) expect((await read('page_get', { id: event.pageId })).title).toBe(event.title);
+  expect((await read('calendar_snapshot', { ...args, to: '2000-01-02' })).occurrences).toHaveLength(0);
+  expect((await read('calendar_snapshot', { ...args, calendarIds: ['missing'] })).events).toHaveLength(0);
+});
 async function snapshot() {
   const workspace = await read('workspace_get');
   const pages = await read('page_list_children', { parentPageId: null });

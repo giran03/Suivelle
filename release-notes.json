@@ -1,5 +1,5 @@
 {
   "version": "0.1.5",
   "date": "2026-10-14",
-  "notes": "Unreleased.\n\n## Maintenance\n- Updated CSV import code for compatibility with newer Rust toolchains.\n- Promotional video project files are no longer tracked in the source repository."
+  "notes": "Unreleased.\n\n## Maintenance\n- Updated CSV import code for compatibility with newer Rust toolchains.\n- Promotional video project files are no longer tracked in the source repository.\n\n## Documentation\n- Updated the feature overview with mock screenshots of notes, project views, calendars, dashboards, and pages open beside one another.\n- The demo now includes a studio calendar with sample events and tagged notes."
 }

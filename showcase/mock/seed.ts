@@ -76,6 +76,7 @@ const TASKS: [string, string, string, string[], number, number][] = [
 const PG = {
   home: "pg_home", sprint: "pg_sprint", pulse: "pg_pulse", wiki: "pg_wiki", tether: "pg_tether", orbit: "pg_orbit", narr: "pg_narr",
   journal: "pg_journal", wk41: "pg_wk41", road: "pg_road",
+  calendar: "pg_calendar",
 };
 
 export function seed(): Store {
@@ -90,6 +91,7 @@ export function seed(): Store {
     page(PG.journal, "Dev journal", { icon: "icon:feed", updatedAt: stamp(-1) }),
     page(PG.wk41, "Week 41: the tether holds", { parentPageId: PG.journal, icon: "icon:bolt", updatedAt: stamp(-1) }),
     page(PG.road, "Roadmap 2027", { icon: "icon:calendar", updatedAt: stamp(-5) }),
+    page(PG.calendar, "Studio Calendar", { icon: "icon:calendar", updatedAt: stamp(0) }),
   ];
 
   const properties = [
@@ -117,6 +119,33 @@ export function seed(): Store {
   ];
 
   const blocks: any[] = [];
+  blocks.push(
+    p(PG.calendar, "Make room for focused work, studio reviews and the next playtest."),
+    block(PG.calendar, "calendar", {
+      sources: [{ kind: "calendar", pageId: PG.calendar, label: "Studio sessions", color: "#6fb1e8" }],
+      view: "dayGridMonth", height: 540, timezone: "Asia/Manila", weekStart: 1,
+      weekends: true, isCollection: true, calendarId: PG.calendar,
+      workStart: "09:00", workEnd: "18:00", autoColor: true, weekNumbers: false,
+    }),
+  );
+  for (const [i, [title, day, time, through]] of [
+    ["Tether focus session", 0, "09:00", "11:00"],
+    ["Camera review", 1, "14:00", "15:00"],
+    ["Playtest weekend", 3, null, 5],
+    ["Build 0.8 planning", 6, "10:00", "11:30"],
+    ["Audio listening session", 9, "15:00", "16:00"],
+  ].entries()) {
+    const id = `pg_session_${i}`;
+    const data = {
+      calendarId: PG.calendar, allDay: time === null,
+      start: time === null ? iso(Number(day)) : `${iso(Number(day))}T${time}:00+08:00`,
+      end: time === null ? iso(Number(through)) : `${iso(Number(day))}T${through}:00+08:00`,
+      timezone: "Asia/Manila", recurrence: null, exceptions: [], links: [],
+      reminders: [], location: "Studio", completed: false, busy: true,
+    };
+    pages.push(page(id, String(title), { parentPageId: PG.calendar }));
+    blocks.push(block(id, "calendar_event", data), p(id, "Keep the session focused. Capture decisions and next steps here."));
+  }
   const H = PG.home;
   blocks.push(
     p(H, [{ t: "Hollow Orbit", b: true }, " is a small studio building a game about swinging between derelict stations on a single glowing tether. This page is the one we open every morning."]),
@@ -133,7 +162,7 @@ export function seed(): Store {
     block(H, "quote", { content: runs("Make the rope feel like a promise.") }),
     block(H, "code", { language: "typescript", text: "const tension = clamp(stretch / rest, 0, 1.4);\nrope.stiffness = lerp(0.35, 1.0, easeOutExpo(tension));" }),
     block(H, "divider", {}),
-    p(H, "Press Ctrl K to search the workspace and jump anywhere."),
+    p(H, "Press Ctrl K to search the workspace and jump anywhere. #studio #playtest"),
   );
   const TP = PG.tether;
   blocks.push(
@@ -143,12 +172,21 @@ export function seed(): Store {
     bl(TP, "Stretch past 1.4x snaps the anchor and plays the unhook cue"),
     block(TP, "equation", { latex: "F = k\\,(L - L_0) - c\\,\\dot{L}" }),
   );
-  blocks.push(h(PG.wk41, 2, "What changed"), p(PG.wk41, "The tether finally holds under spin. The trick was solving constraints before integrating the rotation."));
+  blocks.push(
+    h(PG.wk41, 2, "What changed"),
+    p(PG.wk41, "The tether finally holds under spin."),
+    p(PG.wk41, "Constraints now run before rotation."),
+    block(PG.wk41, "callout", { tone: "tip", content: runs("Ready for the next playtest.") }),
+    h(PG.wk41, 2, "Next session"),
+    td(PG.wk41, "Test the gravity wells"),
+    td(PG.wk41, "Review controller rumble"),
+    p(PG.wk41, "#physics #playtest"),
+  );
 
   const dashboards = {
     [PG.pulse]: {
       widgets: [
-        { id: "w_kpi", type: "chart", x: 0, y: 0, w: 3, h: 2, title: "Open tasks", databaseId: DB, chart: { chartType: "kpi", aggregation: "count", sort: "x" }, filter: { propertyId: "p_status", operator: "is_not", value: "s_done" } },
+        { id: "w_kpi", type: "chart", x: 0, y: 0, w: 3, h: 2, title: "Tasks tracked", databaseId: DB, chart: { chartType: "kpi", aggregation: "count", sort: "x" } },
         { id: "w_pts", type: "chart", x: 3, y: 0, w: 3, h: 2, title: "Points planned", databaseId: DB, chart: { chartType: "kpi", aggregation: "sum", yPropertyId: "p_est", sort: "x" } },
         { id: "w_status", type: "chart", x: 6, y: 0, w: 6, h: 4, title: "Tasks by status", databaseId: DB, chart: { chartType: "bar", xPropertyId: "p_status", aggregation: "count", sort: "x" } },
         { id: "w_prio", type: "chart", x: 0, y: 2, w: 6, h: 4, title: "Priority mix", databaseId: DB, chart: { chartType: "donut", xPropertyId: "p_priority", aggregation: "count", sort: "x" } },

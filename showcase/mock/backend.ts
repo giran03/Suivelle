@@ -224,7 +224,20 @@ export async function handle(cmd: string, a: any): Promise<unknown> {
 
 function dispatch(cmd: string, a: any): unknown {
   switch (cmd) {
-    case "calendar_snapshot": return {collections:[],events:[],occurrences:[],truncated:false,invalid:0};
+    case "calendar_snapshot": {
+      if (a.workspaceId !== db.workspaces[0].id) return { collections: [], events: [], occurrences: [], truncated: false, invalid: 0 };
+      const collections = db.pages.filter((p) => live(p) && db.blocks.some((b) => b.pageId === p.id && b.type === "calendar" && JSON.parse(b.dataJson).isCollection));
+      const events = db.blocks.filter((b) => b.type === "calendar_event").flatMap((b) => {
+        const p = db.pages.find((p) => p.id === b.pageId && live(p));
+        const data = JSON.parse(b.dataJson);
+        return p && (!a.calendarIds?.length || a.calendarIds.includes(data.calendarId))
+          ? [{ pageId: p.id, blockId: b.id, revision: b.revision, title: p.title, data }]
+          : [];
+      });
+      const occurrences = events.filter((e) => e.data.end.slice(0, 10) >= a.from && e.data.start.slice(0, 10) <= a.to)
+        .map((e) => ({ id: `${e.pageId}:${e.data.start.slice(0, 10)}`, pageId: e.pageId, originalDate: e.data.start.slice(0, 10), start: e.data.start, end: e.data.end, allDay: e.data.allDay }));
+      return { collections, events, occurrences, truncated: false, invalid: 0 };
+    }
     case "workspace_list": return db.workspaces;
     case "workspace_get": return db.workspaces[0];
     case "workspace_stats": return { pages: db.pages.length, records: db.records.length, databases: 1, dashboards: 1, trashed: 0 };
