@@ -23,6 +23,8 @@ import { openDailyNote } from "../journal/journal";
 import { reopenClosedTab } from "../tabs/tabs";
 import { useOutline } from "../outline/store";
 import { useExplore } from "../explore/store";
+import { createSavedBackup } from "../backup/create";
+import { usePalette } from "./store";
 
 export interface PaletteCommand {
   id: string;
@@ -36,6 +38,7 @@ export interface PaletteCommand {
 
 const st = () => useWorkspace.getState();
 const hasPage = () => !!st().selectedPage && st().view === "page";
+let backingUp = false;
 
 export const INTERNAL_PAGE_LINK = "suivelle://page/";
 
@@ -65,17 +68,24 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "history", title: "Page history", keywords: "versions restore previous undo changes", when: () => hasPage() && ["page", "record"].includes(st().selectedPage!.kind), run: () => useHistoryPanel.getState().toggle() },
   { id: "import", title: "Import…", keywords: "markdown csv html text files folder archive notion obsidian", run: () => useTransferDialog.getState().show("import") },
   { id: "export", title: "Export…", keywords: "markdown html csv archive zip save page database workspace", run: () => useTransferDialog.getState().show("export") },
+  { id: "export-pdf", title: "Export current page as PDF", keywords: "save print document", when: () => hasPage() && ["page", "record"].includes(st().selectedPage!.kind), run: () => { const s = st(); if (s.selectedPage && s.workspace) useTransferDialog.getState().showPdf(s.selectedPage, s.workspace.id); } },
+  { id: "create-project-task", title: "Create task in project…", keywords: "add todo project tasks", run: () => usePalette.getState().showTask() },
   { id: "backups", title: "Backups…", keywords: "backup restore export import safety copy data", run: () => useBackupsDialog.getState().show() },
   {
     id: "backup-now",
     title: "Back up now",
-    keywords: "backup save copy data",
+    keywords: "backup workspace now save copy data",
     run: async () => {
+      if (backingUp) return;
+      backingUp = true;
       try {
-        const b = await ipc.backupCreate();
+        st().notify("Saving edits and backing up…");
+        const b = await createSavedBackup();
         st().notify(`Backed up ${b.manifest.pages} ${b.manifest.pages === 1 ? "page" : "pages"}`);
       } catch (e) {
         st().setError(toAppError(e).message);
+      } finally {
+        backingUp = false;
       }
     },
   },

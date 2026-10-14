@@ -9,16 +9,15 @@ import "./page-focus.css";
 
 // Safe mode decides READ_ONLY, which modules read once as they load, so ask before importing them.
 globalThis.__SUIVELLE_SAFE_MODE__ ??= await loadSafeMode();
-const [{ App }, { ErrorBoundary }, { CaptureWindow }] = await Promise.all([
+const [{ App }, { ErrorBoundary }] = await Promise.all([
   import("./app/App"),
   import("./app/ErrorBoundary"),
-  import("./features/capture/CaptureWindow"),
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary label="Suivelle hit an unexpected error.">
-      {new URLSearchParams(window.location.search).has("quick-capture") ? <CaptureWindow /> : <App />}
+      <App />
     </ErrorBoundary>
   </React.StrictMode>,
 );

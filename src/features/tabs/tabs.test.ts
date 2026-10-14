@@ -4,7 +4,8 @@ const ipc = vi.hoisted(() => ({ pageGet: vi.fn() }));
 vi.mock("../../lib/ipc", async (original) => ({ ...(await original<typeof import("../../lib/ipc")>()), ipc }));
 import { useWorkspace } from "../../stores/workspace";
 import type { Workspace } from "../../types";
-import { closeTab, cycleTab, dropTab, installTabs, moveTab, openInNewTab, reopenClosedTab, useTabs } from "./tabs";
+import { closeTab, cycleTab, dropTab, installTabs, moveTab, openInNewTab, openTabBeside, reopenClosedTab, useTabs } from "./tabs";
+import { usePeek } from "../peek/store";
 
 const workspace = { id: "w1", name: "W" } as Workspace;
 let uninstall: () => void;
@@ -127,6 +128,26 @@ describe("moving tabs", () => {
     expect(ids()).toEqual(["A", "B"]);
     moveTab("nope", 0);
     expect(ids()).toEqual(["A", "B"]);
+  });
+});
+
+describe("side-by-side tabs", () => {
+  it("keeps the current page on the left", async () => {
+    await openInNewTab("B");
+    await openTabBeside("A");
+    expect(open()).toBe("B");
+    expect(usePeek.getState().pageId).toBe("A");
+    await closeTab("A");
+    expect(usePeek.getState().pageId).toBeNull();
+  });
+
+  it("moves to another tab before splitting the selected one", async () => {
+    await openInNewTab("B");
+    await openTabBeside("B");
+    expect(open()).toBe("A");
+    expect(usePeek.getState().pageId).toBe("B");
+    useWorkspace.setState({ workspace: { id: "w2" } as Workspace });
+    expect(usePeek.getState().pageId).toBeNull();
   });
 });
 

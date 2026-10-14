@@ -1449,7 +1449,7 @@ fn a_database_can_have_several_named_views_with_their_own_settings() {
     mk_view(&mut conn, &db, "list", None);
     assert_eq!(
         database_detail(&conn, &db.database.id).unwrap().views.len(),
-        6
+        7
     );
 
     // Each view filters on its own.
@@ -1516,7 +1516,7 @@ fn a_database_can_have_several_named_views_with_their_own_settings() {
 fn views_are_capped() {
     let (mut conn, ws) = setup();
     let db = new_db(&mut conn, &ws);
-    for _ in 1..MAX_VIEWS {
+    for _ in 2..MAX_VIEWS {
         mk_view(&mut conn, &db, "list", None);
     }
     assert!(create_view(
@@ -3035,6 +3035,9 @@ fn project_manager_builds_linked_databases_with_working_views() {
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
+    let stored_workspace = repo::workspace::get(&conn, &ws.id).unwrap().unwrap();
+    let settings: Value = serde_json::from_str(&stored_workspace.settings_json).unwrap();
+    assert!(settings["projectTaskRelationIds"].as_array().unwrap().contains(&json!(tasks.properties.iter().find(|p| p.name == "Project").unwrap().id)));
     for d in [&projects, &milestones, &sprints, &tasks] {
         assert_eq!(
             d.page.parent_page_id.as_deref(),
@@ -4124,4 +4127,196 @@ fn bulk_set_changes_every_record_or_none() {
         .is_empty());
     let many: Vec<String> = (0..2001).map(|i| format!("{i}")).collect();
     assert!(bulk_set_value(&mut conn, &qty.id, &many, &json!(1)).is_err());
+}
+
+// ---------------------------------------------------------------------------------------------
+// canvas views
+// ---------------------------------------------------------------------------------------------
+
+fn canvas_item(kind: &str, record: Option<&str>, x: f64) -> canvas::CanvasItem {
+    canvas::CanvasItem {
+        id: new_id(),
+        kind: kind.into(),
+        record_id: record.map(Into::into),
+        page_id: None,
+        text: String::new(),
+        attachment_hash: (kind == "image").then(|| "abc123".to_string()),
+        x,
+        y: 10.0,
+        w: 200.0,
+        h: 100.0,
+        z: 0,
+        color: None,
+    }
+}
+
+#[test]
+fn canvas_items_and_arrows_round_trip_and_follow_their_records() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let r = rec(&mut conn, &db, "Card", json!({}));
+    let view = mk_view(&mut conn, &db, "canvas", None);
+    assert_eq!(view.name, "Canvas");
+
+    let card = canvas_item("record", Some(&r.id), 0.0);
+    let note = canvas_item("note", None, 300.0);
+    let image = canvas_item("image", None, 600.0);
+    let edge = canvas::CanvasEdge {
+        id: new_id(),
+        from_item: card.id.clone(),
+        to_item: note.id.clone(),
+        label: "depends on".into(),
+    };
+    canvas::apply(
+        &mut conn,
+        &view.id,
+        &[
+            canvas::CanvasOp::UpsertItem { item: card.clone() },
+            canvas::CanvasOp::UpsertItem { item: note.clone() },
+            canvas::CanvasOp::UpsertItem { item: image },
+            canvas::CanvasOp::UpsertEdge { edge: edge.clone() },
+        ],
+    )
+    .unwrap();
+    let data = canvas::load(&conn, &view.id).unwrap();
+    assert_eq!((data.items.len(), data.edges.len()), (3, 1));
+    assert_eq!(data.edges[0], edge);
+
+    // Moving an item updates it in place.
+    let mut moved = card.clone();
+    moved.x = 42.0;
+    canvas::apply(&mut conn, &view.id, &[canvas::CanvasOp::UpsertItem { item: moved }]).unwrap();
+    let data = canvas::load(&conn, &view.id).unwrap();
+    assert_eq!(data.items.iter().find(|i| i.id == card.id).unwrap().x, 42.0);
+
+    // Duplicating the view copies items and arrows under new ids.
+    let copy = duplicate_view(&mut conn, &view.id).unwrap();
+    let copied = canvas::load(&conn, &copy.id).unwrap();
+    assert_eq!((copied.items.len(), copied.edges.len()), (3, 1));
+    assert!(copied.items.iter().all(|i| i.id != card.id));
+
+    // Removing a note takes its arrows with it; deleting the record removes its card.
+    canvas::apply(&mut conn, &view.id, &[canvas::CanvasOp::DeleteItem { id: note.id.clone() }]).unwrap();
+    assert!(canvas::load(&conn, &view.id).unwrap().edges.is_empty());
+    services::page::delete(&mut conn, &r.page_id).unwrap();
+    assert!(canvas::load(&conn, &view.id).unwrap().items.iter().all(|i| i.kind != "record"));
+}
+
+#[test]
+fn canvas_rejects_bad_input_atomically() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let other = new_db(&mut conn, &ws);
+    let foreign = rec(&mut conn, &other, "Elsewhere", json!({}));
+    let table = mk_view(&mut conn, &db, "table", None);
+    let view = mk_view(&mut conn, &db, "canvas", None);
+
+    let good = canvas_item("note", None, 0.0);
+    // Not a canvas view.
+    assert!(canvas::apply(&mut conn, &table.id, &[canvas::CanvasOp::UpsertItem { item: good.clone() }]).is_err());
+    // A record from another database, an off-canvas size and an unknown kind all fail the batch.
+    let mut huge = canvas_item("note", None, 0.0);
+    huge.w = 1e9;
+    for bad in [canvas_item("record", Some(&foreign.id), 0.0), huge, canvas_item("sticker", None, 0.0)] {
+        let res = canvas::apply(
+            &mut conn,
+            &view.id,
+            &[canvas::CanvasOp::UpsertItem { item: good.clone() }, canvas::CanvasOp::UpsertItem { item: bad }],
+        );
+        assert!(res.is_err());
+    }
+    assert!(canvas::load(&conn, &view.id).unwrap().items.is_empty(), "failed batches leave nothing behind");
+    // An arrow must join two existing items on this canvas.
+    let dangling = canvas::CanvasEdge { id: new_id(), from_item: good.id.clone(), to_item: new_id(), label: String::new() };
+    assert!(canvas::apply(&mut conn, &view.id, &[canvas::CanvasOp::UpsertItem { item: good }, canvas::CanvasOp::UpsertEdge { edge: dangling }]).is_err());
+}
+
+// ---------------------------------------------------------------------------------------------
+// canvas boards (workspace-level)
+// ---------------------------------------------------------------------------------------------
+
+fn page_card(page: &str, x: f64) -> canvas::CanvasItem {
+    canvas::CanvasItem { page_id: Some(page.into()), ..canvas_item("page", None, x) }
+}
+
+fn new_page(conn: &mut Connection, ws: &Workspace, title: &str) -> String {
+    services::page::create(
+        conn,
+        PageCreate { workspace_id: ws.id.clone(), parent_page_id: None, title: Some(title.into()), icon: None },
+    )
+    .unwrap()
+    .id
+}
+
+#[test]
+fn boards_hold_page_cards_notes_and_arrows() {
+    let (mut conn, ws) = setup();
+    let a = new_page(&mut conn, &ws, "Alpha");
+    let b = new_page(&mut conn, &ws, "Beta");
+    let board = canvas::create_board(&conn, &ws.id, "  Roadmap ").unwrap();
+    assert_eq!(board.name, "Roadmap");
+    assert_eq!(canvas::create_board(&conn, &ws.id, "").unwrap().name, "Untitled canvas");
+
+    let (ca, cb, note) = (page_card(&a, 0.0), page_card(&b, 300.0), canvas_item("note", None, 600.0));
+    let edge = canvas::CanvasEdge { id: new_id(), from_item: ca.id.clone(), to_item: cb.id.clone(), label: "leads to".into() };
+    canvas::apply_board(
+        &mut conn,
+        &board.id,
+        &[
+            canvas::CanvasOp::UpsertItem { item: ca.clone() },
+            canvas::CanvasOp::UpsertItem { item: cb.clone() },
+            canvas::CanvasOp::UpsertItem { item: note },
+            canvas::CanvasOp::UpsertEdge { edge },
+        ],
+    )
+    .unwrap();
+    let data = canvas::load_board(&conn, &board.id).unwrap();
+    assert_eq!((data.items.len(), data.edges.len()), (3, 1));
+
+    // A page can sit on a board once.
+    let again = page_card(&a, 50.0);
+    assert!(canvas::apply_board(&mut conn, &board.id, &[canvas::CanvasOp::UpsertItem { item: again }]).is_err());
+
+    // Duplicating copies cards and arrows under new ids.
+    let copy = canvas::duplicate_board(&conn, &board.id).unwrap();
+    assert_eq!(copy.name, "Roadmap copy");
+    let copied = canvas::load_board(&conn, &copy.id).unwrap();
+    assert_eq!((copied.items.len(), copied.edges.len()), (3, 1));
+    assert!(copied.items.iter().all(|i| i.id != ca.id));
+
+    // A trashed page's card is hidden, a deleted board takes its items with it.
+    services::page::delete(&mut conn, &b).unwrap();
+    let data = canvas::load_board(&conn, &board.id).unwrap();
+    assert!(data.items.iter().all(|i| i.page_id.as_deref() != Some(b.as_str())));
+    canvas::delete_board(&conn, &board.id).unwrap();
+    assert!(canvas::load_board(&conn, &board.id).is_err());
+    let left: i64 = conn.query_row("SELECT COUNT(*) FROM canvas_board_item WHERE board_id = ?1", [&board.id], |r| r.get(0)).unwrap();
+    assert_eq!(left, 0);
+    assert_eq!(canvas::list_boards(&conn, &ws.id).unwrap().len(), 2);
+}
+
+#[test]
+fn boards_reject_bad_cards_atomically() {
+    let (mut conn, ws) = setup();
+    let page = new_page(&mut conn, &ws, "Real");
+    let board = canvas::create_board(&conn, &ws.id, "B").unwrap();
+    let other = canvas::create_board(&conn, &ws.id, "Other").unwrap();
+    let good = canvas_item("note", None, 0.0);
+
+    // Records are for database views; a page card needs a page that exists; an item belongs to one board.
+    let no_page = canvas::CanvasItem { page_id: None, ..canvas_item("page", None, 0.0) };
+    for bad in [canvas_item("record", Some(&new_id()), 0.0), page_card(&new_id(), 0.0), no_page] {
+        let res = canvas::apply_board(&mut conn, &board.id, &[canvas::CanvasOp::UpsertItem { item: good.clone() }, canvas::CanvasOp::UpsertItem { item: bad }]);
+        assert!(res.is_err());
+    }
+    assert!(canvas::load_board(&conn, &board.id).unwrap().items.is_empty());
+    canvas::apply_board(&mut conn, &board.id, &[canvas::CanvasOp::UpsertItem { item: page_card(&page, 0.0) }]).unwrap();
+    let stolen = canvas::load_board(&conn, &board.id).unwrap().items.remove(0);
+    assert!(canvas::apply_board(&mut conn, &other.id, &[canvas::CanvasOp::UpsertItem { item: stolen }]).is_err());
+    // A page card is not valid on a database view.
+    let (mut conn2, ws2) = setup();
+    let db = new_db(&mut conn2, &ws2);
+    let view = mk_view(&mut conn2, &db, "canvas", None);
+    let p2 = new_page(&mut conn2, &ws2, "P");
+    assert!(canvas::apply(&mut conn2, &view.id, &[canvas::CanvasOp::UpsertItem { item: page_card(&p2, 0.0) }]).is_err());
 }

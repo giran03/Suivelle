@@ -16,6 +16,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { SlashMenu } from "./SlashMenu";
 import { TableToolbar } from "./TableToolbar";
 import { useBlockSync } from "./useBlockSync";
+import { EmptyPagePrompts } from "./EmptyPagePrompts";
 
 /**
  * The page body: one TipTap document whose blocks are saved as individual rows. A `peek` editor
@@ -114,6 +115,7 @@ export function Editor({ pageId, peek = false }: { pageId: string; peek?: boolea
         </div>
       )}
       <EditorContent editor={editor} />
+      {ready && editor && !loadError && !READ_ONLY && <EmptyPagePrompts key={pageId} editor={editor} pageId={pageId} />}
       {ready && <Backlinks pageId={pageId} />}
       {editor && !READ_ONLY && (
         <>

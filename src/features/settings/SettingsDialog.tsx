@@ -1,4 +1,3 @@
-import { useShortcut } from "../shortcuts/useShortcut";
 import { BackupMirror, HealthSection } from "./HealthSection";
 import { DiagnosticsButton } from "../../components/DiagnosticsButton";
 import { ShortcutSettings } from "../shortcuts/ShortcutSettings";
@@ -137,7 +136,6 @@ function WindowCornersRow() {
 
 /** Starting with the computer, the tray icon, and what closing or minimizing the window does. */
 function WindowSection() {
-  const focusBinding = useShortcut("global-focus");
   const shell = usePreferences((s) => s.shell);
   const setShell = usePreferences((s) => s.setShell);
   const [error, setError] = useState<string | null>(null);
@@ -160,9 +158,6 @@ function WindowSection() {
   return (
     <section>
       <h3>Window and startup</h3>
-      <Row title="Focus app from any program" hint={`${focusBinding.label || "Configure a binding in Shortcuts and input"} shows and focuses Suivelle while it is running, including from the tray.`}>
-        <Switch label="Focus app from any program" checked={shell.focusShortcut} onChange={(on) => change({ focusShortcut: on })} />
-      </Row>
       <Row title="Start with Windows" hint="Open Suivelle when you sign in.">
         <Switch label="Start with Windows" checked={shell.launchAtStartup} onChange={(on) => change({ launchAtStartup: on })} />
       </Row>

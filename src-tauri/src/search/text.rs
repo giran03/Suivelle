@@ -5,7 +5,10 @@ use serde_json::Value;
 
 pub const INTERNAL_PAGE_LINK: &str = "suivelle://page/";
 
-fn collect_text(v: &Value, out: &mut String) {
+/// Resolves a mentioned page id to the text shown for it; `None` leaves the mention out.
+pub type MentionTitle<'a> = &'a dyn Fn(&str) -> Option<String>;
+
+fn collect_text_with(v: &Value, out: &mut String, mention: MentionTitle) {
     match v {
         Value::Object(o) => {
             match o.get("type").and_then(Value::as_str) {
@@ -15,18 +18,27 @@ fn collect_text(v: &Value, out: &mut String) {
                     }
                 }
                 Some("hardBreak") => out.push(' '),
-                // Mentions render the target's live title; their id is not searchable text.
-                Some("pageMention") => {}
+                // Search skips mentions (they render the target's live title, and the id is not
+                // text). Reading contexts pass a resolver so the sentence still makes sense.
+                Some("pageMention") => {
+                    if let Some(title) = v
+                        .pointer("/attrs/pageId")
+                        .and_then(Value::as_str)
+                        .and_then(|id| mention(&id.to_ascii_lowercase()))
+                    {
+                        out.push_str(&title);
+                    }
+                }
                 _ => {}
             }
             if let Some(content) = o.get("content") {
-                collect_text(content, out);
+                collect_text_with(content, out, mention);
                 out.push(' ');
             }
         }
         Value::Array(a) => {
             for item in a {
-                collect_text(item, out);
+                collect_text_with(item, out, mention);
             }
         }
         _ => {}
@@ -39,6 +51,11 @@ fn squash(s: &str) -> String {
 
 /// The searchable text of a block. Code and equations are deliberately not indexed.
 pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> String {
+    plain_text_with(block_type, schema_version, data_json, &|_| None)
+}
+
+/// Like [`plain_text`], with mentions replaced by their page titles, for showing a block as context.
+pub fn plain_text_with(block_type: &str, schema_version: i64, data_json: &str, mention: MentionTitle) -> String {
     let Ok(data) = serde_json::from_str::<Value>(data_json) else {
         return String::new();
     };
@@ -66,7 +83,7 @@ pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> Str
         "simple_table" => {
             let mut out = String::new();
             if let Some(t) = data.get("table") {
-                collect_text(t, &mut out);
+                collect_text_with(t, &mut out, mention);
             }
             squash(&out)
         }
@@ -80,7 +97,7 @@ pub fn plain_text(block_type: &str, schema_version: i64, data_json: &str) -> Str
             }
             let mut out = String::new();
             if let Some(c) = data.get("content") {
-                collect_text(c, &mut out);
+                collect_text_with(c, &mut out, mention);
             }
             squash(&out)
         }
@@ -142,6 +159,70 @@ pub fn extract_refs(data_json: &str) -> Vec<String> {
     out.sort();
     out.dedup();
     out
+}
+
+/// One table row that references a page: its position, its cells' text and the header row's text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TableRowRef {
+    pub row_index: usize,
+    pub header: Vec<String>,
+    pub cells: Vec<String>,
+}
+
+fn row_cells(row: &Value, mention: MentionTitle) -> Vec<String> {
+    row.get("content")
+        .and_then(Value::as_array)
+        .map(|cells| {
+            cells
+                .iter()
+                .map(|cell| {
+                    let mut s = String::new();
+                    collect_text_with(cell, &mut s, mention);
+                    squash(&s)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The rows of a `simple_table` block that mention or link to `target` (lowercase page id).
+/// Row 0 is treated as the header when every cell in it is a `tableHeader`.
+pub fn table_rows_referencing(data_json: &str, target: &str, mention: MentionTitle) -> Vec<TableRowRef> {
+    let Ok(data) = serde_json::from_str::<Value>(data_json) else {
+        return Vec::new();
+    };
+    let Some(rows) = data
+        .pointer("/table/content")
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    let is_header = |row: &Value| {
+        row.get("content")
+            .and_then(Value::as_array)
+            .is_some_and(|c| {
+                !c.is_empty()
+                    && c.iter()
+                        .all(|x| x.get("type").and_then(Value::as_str) == Some("tableHeader"))
+            })
+    };
+    let header = rows
+        .first()
+        .filter(|r| is_header(r))
+        .map(|r| row_cells(r, mention))
+        .unwrap_or_default();
+    rows.iter()
+        .enumerate()
+        .filter_map(|(i, row)| {
+            let mut refs = Vec::new();
+            walk_refs(row, &mut refs);
+            refs.iter().any(|r| r == target).then(|| TableRowRef {
+                row_index: i,
+                header: if i == 0 && !header.is_empty() { Vec::new() } else { header.clone() },
+                cells: row_cells(row, mention),
+            })
+        })
+        .collect()
 }
 
 /// Builds an FTS5 expression from free text: every word becomes a quoted prefix term, so user

@@ -505,6 +505,7 @@ pub(crate) fn create_view_in(tx: &Connection, input: ViewCreate) -> AppResult<Db
         "chart" => "Chart",
         "form" => "Form",
         "feed" => "Feed",
+        "canvas" => "Canvas",
         _ => "Timeline",
     };
     let name = match input.name.as_deref() {
@@ -543,6 +544,9 @@ pub fn duplicate_view(conn: &mut Connection, view_id: &str) -> AppResult<DbView>
         &src.config,
         position,
     )?;
+    if view.view_type == "canvas" {
+        super::canvas::copy_view(&tx, &src.id, &view.id)?;
+    }
     tx.commit()?;
     Ok(view)
 }
@@ -691,7 +695,12 @@ pub(super) fn insert_property(
 
 pub fn create_database(conn: &mut Connection, input: DatabaseCreate) -> AppResult<DatabaseDetail> {
     let tx = conn.transaction()?;
-    let out = create_database_in(&tx, input)?;
+    let made = create_database_in(&tx, input)?;
+    // A new database starts with a Canvas view next to its table, so the freeform board is one click away.
+    let props = load_properties(&tx, &made.database.id)?;
+    let config = normalize_view(ViewConfig::default(), &props, &made.database.id, "canvas")?;
+    insert_view(&tx, &made.database.id, "Canvas", "canvas", &config, 1.0)?;
+    let out = detail(&tx, load_database(&tx, &made.database.id)?)?;
     tx.commit()?;
     Ok(out)
 }

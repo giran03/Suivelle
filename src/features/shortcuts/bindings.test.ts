@@ -20,7 +20,6 @@ it("detects overlapping contexts and permits disjoint mouse bindings", () => {
   expect(conflicts("sidebar", mouse(1), {}).map(a => a.id)).toContain("tab-close");
   expect(conflicts("sidebar", key("k", "Control"), {}).map(a => a.id)).toContain("search");
   expect(bindingError("sidebar", mouse(0))).toBeTruthy();
-  expect(bindingError("global-focus", mouse(3))).toBeTruthy();
 });
 it("keeps disabled overrides distinct from defaults and validates persisted inputs", () => {
   expect(effective("search", { search: [] })).toEqual([]);

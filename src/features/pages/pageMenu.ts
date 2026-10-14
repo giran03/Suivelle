@@ -10,7 +10,7 @@ export function pageItems(page: Page): MenuItem[] {
   const store = useWorkspace.getState();
   return [
     { label: "Open", onSelect: () => void store.openPage(page.id) },
-    ...((page.kind === "page" || page.kind === "record") && page.id !== store.selectedPageId ? [{ label: "Open beside", onSelect: () => usePeek.getState().show(page.id) }] : []),
+    ...(page.id !== store.selectedPageId ? [{ label: "Open beside", onSelect: () => usePeek.getState().show(page.id) }] : []),
     { label: "Copy link", shortcut: "copy-link", onSelect: () => void copyPageLink(page.id) },
     { label: page.favorite ? "Remove from favorites" : "Add to favorites", shortcut: page.favorite ? "unfavorite" : "favorite", onSelect: () => void store.toggleFavorite(page) },
     ...(page.kind === "page" ? [{ label: "Add page inside", shortcut: "new-subpage", onSelect: () => void store.createPage(page.id) }] : []),

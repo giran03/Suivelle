@@ -1,3 +1,4 @@
+import { useBoards } from "../canvas/store";
 import { Icon } from "../../components/Icon";
 import { useOutline } from "../outline/store";
 import { useActiveEditor } from "../../stores/activeEditor";
@@ -67,6 +68,7 @@ export function Topbar() {
   const sidebarAction = hidden ? "Show sidebar" : "Hide sidebar";
   const history = useWorkspace((s) => s.history);
   const view = useWorkspace((s) => s.view);
+  const boardName = useBoards((s) => s.boards.find((b) => b.id === s.activeId)?.name);
   const page = useWorkspace((s) => s.selectedPage);
   const ancestors = useWorkspace((s) => s.ancestors);
   const { goBack, goForward, selectPage, toggleFavorite, trashPage } = useWorkspace.getState();
@@ -98,6 +100,8 @@ export function Topbar() {
 
       {view === "trash" ? (
         <span className="crumbs"><span className="crumb-current">Trash</span></span>
+      ) : view === "canvas" ? (
+        <nav className="crumbs" aria-label="Breadcrumb"><ol><li><span className="crumb-current" aria-current="page">{boardName || "Canvas"}</span></li></ol></nav>
       ) : (
         page && (
           <>

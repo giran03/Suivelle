@@ -1,4 +1,3 @@
-import { installGlobalShortcutSync } from "../features/shortcuts/native";
 import { installInputRouter } from "../features/shortcuts/runtime";
 import { COMMANDS } from "../features/palette/commands";
 import { useFilesDialog } from "../features/files/store";
@@ -27,6 +26,7 @@ import { usePalette } from "../features/palette/store";
 import { Sidebar } from "../features/pages/Sidebar";
 import { Topbar } from "../features/pages/Topbar";
 import { TrashView } from "../features/pages/TrashView";
+const WorkspaceCanvas = lazy(() => import("../features/canvas/WorkspaceCanvas").then((m) => ({ default: m.WorkspaceCanvas })));
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -40,13 +40,13 @@ import { installFileDropGuard } from "../features/session/fileDropGuard";
 import { ShortcutSheet } from "../features/shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../features/settings/store";
 import { QuickCapture } from "../features/capture/QuickCapture";
-import { installCaptureWindowBridge } from "../features/capture/window";
 import { ipc, toAppError } from "../lib/ipc";
 import { useFindBar } from "../features/find/store";
-import { TabBar } from "../features/tabs/TabBar";
 import { closeTab, cycleTab, installTabs, useTabs } from "../features/tabs/tabs";
 import { installMotion } from "../features/motion/install";
 import { installTooltips } from "../features/tooltip/tooltip";
+import { PagePreviewCard } from "../features/preview/PagePreviewCard";
+import { installPagePreview } from "../features/preview/install";
 import { useAppIcon } from "../lib/appIcon";
 import { useAppearance } from "../lib/appearance";
 import { usePreferences } from "../stores/preferences";
@@ -58,6 +58,7 @@ import { PageTransferDialog, usePageTransfer } from "../features/pages/PageTrans
 // The editor (TipTap, KaTeX, syntax highlighting) is the heavy part; load it after the shell is up.
 const RecordProperties = lazy(() => import("../features/database/RecordProperties").then((m) => ({ default: m.RecordProperties })));
 const Editor = lazy(() => import("../features/editor/Editor").then((m) => ({ default: m.Editor })));
+const TabBar = lazy(() => import("../features/tabs/TabBar").then((m) => ({ default: m.TabBar })));
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
@@ -166,6 +167,7 @@ function Content() {
   const epoch = useWorkspace((s) => s.editorEpoch);
 
   if (view === "trash") return <TrashView />;
+  if (view === "canvas") return <Suspense fallback={null}><WorkspaceCanvas /></Suspense>;
   if (selectedPageId && kind === "dashboard") {
     return (
       <>
@@ -286,7 +288,7 @@ export function App() {
   const theme = appTheme ?? legacyTheme;
   const error = useWorkspace((s) => s.error);
   const clearError = useWorkspace((s) => s.clearError);
-  const isDatabase = useWorkspace((s) => s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard"));
+  const isDatabase = useWorkspace((s) => s.view === "canvas" || (s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard")));
 
   useEffect(() => void init(), [init]);
   useEffect(() => {
@@ -307,24 +309,6 @@ export function App() {
   useEffect(() => installTrayRecent(), []);
   useEffect(() => installDeepLinks(), []);
 
-  // The global shortcut opens a separate jot window; saves use this workspace and editor.
-  useEffect(() => {
-    let stop: (() => void) | undefined;
-    let cancelled = false;
-    installCaptureWindowBridge()
-      .then((un) => {
-        if (cancelled) { un(); return; }
-        stop = un;
-        void ipc.shortcutsMigrate(usePreferences.getState().globalCapture).then(state => {
-          usePreferences.getState().setGlobalCapture(state.config.captureEnabled);
-        }).catch(() => undefined);
-      })
-      .catch(() => undefined); // not running inside the desktop app
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, []);
   // Keep the desktop shell in step with this device's window choices, and show what is really set.
   useEffect(() => {
     void ipc
@@ -356,7 +340,7 @@ export function App() {
   }), []);
   useAppearance();
   useEffect(() => installTooltips(), []);
-  useEffect(() => installGlobalShortcutSync(), []);
+  useEffect(() => installPagePreview(), []);
   useEffect(() => installMotion(), []);
 
   useEffect(() => {
@@ -413,7 +397,8 @@ export function App() {
       <main>
         <SafeModeBanner />
         <Topbar />
-        <TabBar />
+        <Suspense fallback={null}><TabBar /></Suspense>
+        <div className="page-panes">
         <div className="main-scroll" data-fill={isDatabase ? "" : undefined}>
           {error && (
             <div className="error" role="alert">
@@ -424,6 +409,8 @@ export function App() {
           <ErrorBoundary label="This view could not be shown.">
             <Suspense fallback={<Loading label="Loading page…" />}><Content /></Suspense>
           </ErrorBoundary>
+        </div>
+        <OnDemand open={peekOpen}><PeekPanel /></OnDemand>
         </div>
         <OnDemand open={FindBarOpen}><FindBar /></OnDemand>
         <Toast />
@@ -440,12 +427,12 @@ export function App() {
       <OnDemand open={SettingsDialogOpen}><SettingsDialog /></OnDemand>
       <OnDemand open={FilesDialogOpen}><FilesDialog /></OnDemand>
       <QuickCapture />
+      <PagePreviewCard />
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
     <OnDemand open={MediaPasteDialogOpen}><MediaPasteDialog /></OnDemand>
     <OnDemand open={outlineOpen}><OutlinePanel /></OnDemand>
     <OnDemand open={exploreOpen}><ExploreDialog /></OnDemand>
-    <OnDemand open={peekOpen}><PeekPanel /></OnDemand>
     <UpdatesRoot />
     {workspaceBusy && <div className="workspace-pending" role="status"><Loading variant="orbit" label="Saving changes and preparing workspace…" /></div>}
     </div>

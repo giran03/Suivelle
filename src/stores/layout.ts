@@ -10,15 +10,16 @@ interface Saved {
   collapsed: boolean;
   hidden: boolean;
   recentOpen: boolean;
+  canvasOpen: boolean;
 }
 
 function read(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Saved>;
     const width = typeof v.width === "number" ? Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(v.width))) : null;
-    return { width, collapsed: v.collapsed === true, hidden: v.hidden === true, recentOpen: v.recentOpen !== false };
+    return { width, collapsed: v.collapsed === true, hidden: v.hidden === true, recentOpen: v.recentOpen !== false, canvasOpen: v.canvasOpen !== false };
   } catch {
-    return { width: null, collapsed: false, hidden: false, recentOpen: true };
+    return { width: null, collapsed: false, hidden: false, recentOpen: true, canvasOpen: true };
   }
 }
 
@@ -43,13 +44,14 @@ interface LayoutState extends Saved {
   toggleSidebarVisibility: () => void;
   setCollapsed: (collapsed: boolean) => void;
   toggleRecent: () => void;
+  toggleCanvases: () => void;
 }
 
 export const useLayout = create<LayoutState>((set, get) => {
   const save = (patch: Partial<Saved>) => {
     set(patch);
-    const { width, collapsed, hidden, recentOpen } = get();
-    write({ width, collapsed, hidden, recentOpen });
+    const { width, collapsed, hidden, recentOpen, canvasOpen } = get();
+    write({ width, collapsed, hidden, recentOpen, canvasOpen });
   };
   return {
     ...read(),
@@ -73,6 +75,7 @@ export const useLayout = create<LayoutState>((set, get) => {
     },
     setCollapsed: (collapsed) => save({ collapsed }),
     toggleRecent: () => save({ recentOpen: !get().recentOpen }),
+    toggleCanvases: () => save({ canvasOpen: !get().canvasOpen }),
   };
 });
 

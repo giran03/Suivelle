@@ -28,7 +28,6 @@ sha2 = "0.11.0"
 tauri = { version = "2.12.1", features = ["image-png", "tray-icon"] }
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-notification = "2"
-tauri-plugin-global-shortcut = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking"] }

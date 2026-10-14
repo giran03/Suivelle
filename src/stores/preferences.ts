@@ -135,9 +135,8 @@ export interface ShellChoices {
   showTray: boolean;
   closeToTray: boolean;
   minimizeToTray: boolean;
-  focusShortcut: boolean;
 }
-export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false, focusShortcut: true };
+export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false };
 
 export type WindowCornerStyle = "sharp" | "soft" | "round";
 
@@ -152,8 +151,6 @@ export function windowCornersFrom(raw: Partial<Record<string, unknown>>): Window
 interface Saved extends Choices {
   /** Null until the current workspace's legacy mode has been adopted once. */
   theme: ThemeSetting | null;
-  /** Quick capture from any program with Ctrl+Alt+N. Off until asked for. */
-  globalCapture: boolean;
   windowCorners: WindowCornerStyle;
   shell: ShellChoices;
 }
@@ -212,9 +209,9 @@ function read(): Saved {
     const sh = (v.shell ?? {}) as Partial<Record<keyof ShellChoices, unknown>>;
     const shell = Object.fromEntries(Object.entries(SHELL_DEFAULTS).map(([k, fallback]) => [k, typeof sh[k as keyof ShellChoices] === "boolean" ? sh[k as keyof ShellChoices] : fallback])) as unknown as ShellChoices;
     const theme = v.theme === "system" || v.theme === "light" || v.theme === "dark" ? v.theme : null;
-    return { ...sanitize(v), theme, globalCapture: v.globalCapture === true, windowCorners: windowCornersFrom(v), shell };
+    return { ...sanitize(v), theme, windowCorners: windowCornersFrom(v), shell };
   } catch {
-    return { ...defaults(), theme: null, globalCapture: false, windowCorners: "soft", shell: SHELL_DEFAULTS };
+    return { ...defaults(), theme: null, windowCorners: "soft", shell: SHELL_DEFAULTS };
   }
 }
 
@@ -222,7 +219,6 @@ interface PreferencesState extends Saved {
   setTheme: (theme: ThemeSetting) => void;
   adoptTheme: (legacy: ThemeSetting) => void;
   set: (key: ChoiceKey, id: string) => void;
-  setGlobalCapture: (on: boolean) => void;
   setWindowCorners: (style: WindowCornerStyle) => void;
   setShell: (shell: ShellChoices) => void;
   /** Back to the defaults for every reading and layout choice. */
@@ -234,7 +230,7 @@ export const usePreferences = create<PreferencesState>((set, get) => {
   const save = (patch: Partial<Saved>) => {
     set(patch);
     try {
-      const { set: _s, setTheme: _t, adoptTheme: _a, setGlobalCapture: _g, setWindowCorners: _w, setShell: _h, reset: _r, ...data } = get();
+      const { set: _s, setTheme: _t, adoptTheme: _a, setWindowCorners: _w, setShell: _h, reset: _r, ...data } = get();
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch {
       /* Convenience only: the choice still applies for this session. */
@@ -250,7 +246,6 @@ export const usePreferences = create<PreferencesState>((set, get) => {
         if (scale !== null) save({ uiScale: scale });
       } else save({ [key]: id } as Partial<Saved>);
     },
-    setGlobalCapture: (globalCapture) => save({ globalCapture }),
     setWindowCorners: (windowCorners) => save({ windowCorners }),
     setShell: (shell) => save({ shell }),
     reset: () => save({ ...defaults(), windowCorners: "soft" }),

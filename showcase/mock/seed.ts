@@ -116,6 +116,7 @@ export function seed(): Store {
     { id: "v_table", databaseId: DB, name: "All tasks", type: "table", config: { columns: [{ propertyId: "p_id", width: 84 }, { propertyId: "p_title", width: 300 }, { propertyId: "p_status", width: 150 }, { propertyId: "p_priority", width: 120 }, { propertyId: "p_area", width: 220 }, { propertyId: "p_due", width: 140 }, { propertyId: "p_est", width: 90 }], sorts: [], filter: null } },
     { id: "v_cal", databaseId: DB, name: "Calendar", type: "calendar", config: { columns: cols, sorts: [], filter: null, datePropertyId: "p_due" } },
     { id: "v_time", databaseId: DB, name: "Timeline", type: "timeline", config: { columns: cols, sorts: [], filter: null, datePropertyId: "p_due", zoom: "month" } },
+    { id: "v_canvas", databaseId: DB, name: "Canvas", type: "canvas", config: { columns: cols.map((c) => ({ ...c, hidden: c.propertyId !== "p_status" && c.propertyId !== "p_priority" })), sorts: [], filter: null } },
   ];
 
   const blocks: any[] = [];
@@ -150,6 +151,7 @@ export function seed(): Store {
   blocks.push(
     p(H, [{ t: "Hollow Orbit", b: true }, " is a small studio building a game about swinging between derelict stations on a single glowing tether. This page is the one we open every morning."]),
     block(H, "callout", { tone: "tip", content: runs("Build 0.7 shipped to playtesters on Friday. Feedback is landing in the Sprint Board.") }),
+    block(H, "paragraph", { content: [{ type: "text", text: "New here? Start with the " }, { type: "pageMention", attrs: { pageId: PG.tether } }, { type: "text", text: " notes, then check the " }, { type: "pageMention", attrs: { pageId: PG.sprint } }, { type: "text", text: "." }] }),
     h(H, 2, "This week"),
     td(H, "Lock the tether physics constants", true),
     td(H, "Review camera easing with the gravity wells", true),

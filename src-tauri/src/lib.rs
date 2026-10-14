@@ -19,7 +19,6 @@ pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
-pub mod shortcuts;
 pub mod transfer;
 pub mod updates;
 
@@ -244,17 +243,7 @@ pub fn run() {
             Some(vec![shell::AUTOSTART_ARG]),
         ))
         .manage(shell::ShellState::default())
-        .manage(shortcuts::ShortcutState::default())
         .on_window_event(shell::on_window_event)
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| {
-                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        shortcuts::dispatch(app, shortcut);
-                    }
-                })
-                .build(),
-        )
         // Answered on a worker thread: building a thumbnail or reading a large file must not
         // block the window.
         .register_asynchronous_uri_scheme_protocol("attachment", |ctx, request, responder| {
@@ -321,10 +310,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_safe_mode,
             deep_link_take,
-            shortcuts::shortcuts_get,
-            shortcuts::shortcuts_migrate,
-            shortcuts::shortcuts_set,
-            shortcuts::shortcuts_recording,
             updates::update_status,
             updates::update_preferences,
             updates::update_check,
@@ -338,6 +323,8 @@ pub fn run() {
             commands::image::image_save_crop,
             commands::image::image_copy,
             commands::image::image_open_link,
+            commands::local_file::local_file_open,
+            commands::content::page_apply_template,
             commands::export_page_preview,
             commands::export_shape,
             commands::workspace_create,
@@ -362,7 +349,6 @@ pub fn run() {
             commands::content::attachment_import_bytes,
             commands::content::page_duplicate,
             commands::content::record_bulk_set,
-            commands::content::quick_capture_shortcut,
             shell::shell_set_behavior,
             shell::shell_get_behavior,
             shell::tray_set_recent,
@@ -429,6 +415,15 @@ pub fn run() {
             commands::view_create,
             commands::view_delete,
             commands::view_duplicate,
+            commands::canvas_load,
+            commands::canvas_apply,
+            commands::canvas_board_list,
+            commands::canvas_board_create,
+            commands::canvas_board_rename,
+            commands::canvas_board_duplicate,
+            commands::canvas_board_delete,
+            commands::canvas_board_load,
+            commands::canvas_board_apply,
             commands::block_delete,
             queries::workspace_get,
             queries::workspace_list,
@@ -444,6 +439,7 @@ pub fn run() {
             queries::page_list_recent,
             queries::page_backlinks,
             queries::page_titles,
+            queries::page_preview,
             queries::database_get,
             queries::record_get,
             queries::query_records,

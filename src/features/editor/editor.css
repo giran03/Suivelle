@@ -22,6 +22,13 @@
 .doc h3 { font-size: 1.25rem; font-weight: 600; margin-top: 0.8em; }
 .doc > :first-child { margin-top: 0; }
 .doc a { color: var(--accent-ui); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.empty-page-prompts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; font-family: var(--ui-font, inherit); font-size: 0.875rem; }
+.empty-page-prompts button { background: transparent; border: 0; border-radius: var(--r-sm); color: var(--text-muted); padding: 4px 0; cursor: pointer; }
+.empty-page-prompts button:hover { color: var(--fg); }
+.smart-reference { white-space: break-spaces; }
+.smart-issue, .smart-file { background: var(--code-bg); border: 1px solid var(--border); border-radius: 1em; padding: 1px 6px; font-size: 0.9em; }
+.smart-file { cursor: pointer; color: var(--accent-ui); }
+.smart-color::before { content: ""; display: inline-block; width: 0.75em; height: 0.75em; margin-right: 0.3em; vertical-align: baseline; border: 1px solid var(--border); border-radius: var(--r-sm); background: linear-gradient(var(--swatch-color), var(--swatch-color)), conic-gradient(var(--border) 25%, var(--field) 0 50%, var(--border) 0 75%, var(--field) 0); background-size: auto, 6px 6px; }
 .doc :not(pre) > code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.875em; background: var(--code-bg); padding: 1px 4px; border-radius: var(--r-sm); }
 .doc hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 .doc blockquote { margin: 4px 0; padding: 3px 0 3px 16px; border-left: 1px solid var(--muted); font-style: italic; line-height: 1.5; }
@@ -220,7 +227,11 @@
 .bl-title { display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .bl-title svg { flex: none; color: var(--muted); }
 .bl-path { color: var(--muted); font-weight: 400; font-size: 0.875rem; }
-.bl-snippet { color: var(--muted); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 20px; }
+.bl-snippet { color: var(--muted); font-size: 0.875rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; padding-left: 20px; }
+.bl-row { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 2px 0 0 20px; color: var(--muted); font-size: 0.875rem; }
+.bl-cell { display: inline-flex; gap: 6px; min-width: 0; }
+.bl-cell-head { color: var(--muted); opacity: 0.7; }
+.bl-cell-head::after { content: ":"; }
 
 /* jump-to-block highlight */
 @keyframes block-flash { from { background: color-mix(in srgb, var(--accent-ui) 28%, transparent); } to { background: transparent; } }
@@ -247,3 +258,6 @@
 .editor-tab-panels { padding: 8px 12px; }
 
 .editor-tab-panels > [data-node-view-content-react] > [data-type="tabPanel"] { display: none; }
+
+/* dragging a page from the sidebar over the text: dropping it there inserts a link */
+body.page-drag .ProseMirror { cursor: copy; }

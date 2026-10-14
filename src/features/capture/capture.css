@@ -1,7 +1,4 @@
 .palette.capture { width: min(520px, calc(100vw - 32px)); margin-top: 18vh; }
-.capture-window { min-height: 100vh; background: var(--surface-1); overflow: auto; }
-.capture-window .qc-text { flex: 1; }
-.capture-window .qc { min-height: 100vh; }
 .qc { display: flex; flex-direction: column; gap: calc(10px * var(--density)); padding: 14px 16px 12px; }
 .qc-head { display: flex; align-items: center; justify-content: space-between; }
 .qc-head h2 { font-size: 1rem; font-weight: 600; }

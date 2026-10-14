@@ -77,6 +77,7 @@ const PATHS = {
   bolt: <path d="M9 2 3.5 9H8l-1 5L12.5 7H8z" />,
   chart: <path d="M3.5 13V8.5M8 13V3.5M12.5 13V6M2 13.5h12" />,
   form: <path d="M3 2.5h10v11H3zM5.5 6h5M5.5 9h5M5.5 11.5h2.5" />,
+  canvas: <path d="M2.5 3.5h5v3.5h-5zM9 9.5h4.5v3H9zM7.5 5.2h2.5a1.5 1.5 0 0 1 1.5 1.5v2.8M10.5 8.6l1 1 1-1" />,
   feed: <path d="M3 3h10v3.5H3zM3 9.5h10V13H3z" />,
   dashboard: <path d="M2.5 2.5h5v5h-5zM8.5 2.5h5v3h-5zM2.5 8.5h5v5h-5zM8.5 7.5h5v6h-5z" />,
   edit: <path d="M9.5 3.5l3 3M3 13l.7-3.2 6.8-6.8a1.4 1.4 0 0 1 2 0l1 1a1.4 1.4 0 0 1 0 2l-6.8 6.8z" />,

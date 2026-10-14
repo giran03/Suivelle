@@ -445,6 +445,43 @@ fn paging_and_limits() {
 }
 
 #[test]
+fn backlinks_report_each_table_row_that_references_the_page() {
+    let (mut conn, ws) = setup();
+    let target = page(&mut conn, &ws, None, "Target");
+    let src = page(&mut conn, &ws, None, "Plan");
+    let cell = |kind: &str, text: &str, mention: bool| {
+        let m = if mention {
+            format!(
+                r#",{{"type":"pageMention","attrs":{{"pageId":"{}"}}}}"#,
+                target.id
+            )
+        } else {
+            String::new()
+        };
+        format!(
+            r#"{{"type":"{kind}","content":[{{"type":"paragraph","content":[{{"type":"text","text":"{text}"}}{m}]}}]}}"#
+        )
+    };
+    let row = |cells: Vec<String>| format!(r#"{{"type":"tableRow","content":[{}]}}"#, cells.join(","));
+    let table = format!(
+        r#"{{"table":{{"type":"table","content":[{},{},{},{}]}}}}"#,
+        row(vec![cell("tableHeader", "Task", false), cell("tableHeader", "Owner", false)]),
+        row(vec![cell("tableCell", "Ship", false), cell("tableCell", "see ", true)]),
+        row(vec![cell("tableCell", "Skip", false), cell("tableCell", "nobody", false)]),
+        row(vec![cell("tableCell", "Test ", true), cell("tableCell", "Ana", false)]),
+    );
+    add_block(&mut conn, &src, "simple_table", table);
+
+    let links = backlinks(&conn, &target.id).unwrap();
+    assert_eq!(links.len(), 2);
+    assert!(links.iter().all(|l| l.context_kind == "table_row"));
+    assert_eq!(links[0].row_index, Some(1));
+    assert_eq!(links[1].row_index, Some(3));
+    assert_eq!(links[0].header, ["Task", "Owner"]);
+    assert_eq!(links[1].cells, ["Test Target", "Ana"]);
+}
+
+#[test]
 fn backlinks_list_mentions_and_internal_links_with_context() {
     let (mut conn, ws) = setup();
     let target = page(&mut conn, &ws, None, "Target");
@@ -484,7 +521,7 @@ fn backlinks_list_mentions_and_internal_links_with_context() {
     let mut titles: Vec<_> = links.iter().map(|l| l.source_page_title.as_str()).collect();
     titles.sort();
     assert_eq!(titles, ["Links it", "Mentions it"]); // self reference excluded
-    assert!(links.iter().any(|l| l.snippet == "see for details"));
+    assert!(links.iter().any(|l| l.snippet == "see Target for details"));
 
     // Trashing a source hides it; removing the mention removes the reference.
     services::page::delete(&mut conn, &a.id).unwrap();
@@ -551,6 +588,20 @@ fn rebuild_reproduces_the_incremental_index_and_startup_repairs_an_empty_one() {
     let n = index::rebuild_workspace(&conn, &ws.id).unwrap();
     assert_eq!(n, 4); // two page titles + two blocks
     assert_eq!(find(&conn, &ws, "words").len(), before.0);
+}
+
+#[test]
+fn page_preview_returns_title_and_leading_text() {
+    let (mut conn, ws) = setup();
+    let p = page(&mut conn, &ws, None, "Spec");
+    add_block(&mut conn, &p, "paragraph", rich("first line"));
+    add_block(&mut conn, &p, "paragraph", rich("second line"));
+    let prev = page_preview(&conn, &p.id).unwrap().unwrap();
+    assert_eq!(prev.title, "Spec");
+    assert_eq!(prev.lines.len(), 2);
+    assert_eq!(prev.lines[0].text, "first line");
+    assert!(!prev.deleted);
+    assert!(page_preview(&conn, &new_id()).unwrap().is_none());
 }
 
 #[test]

@@ -51,6 +51,24 @@ it("persists overrides, preserves default restoration conflicts and survives sto
   expect(useShortcuts.getState().overrides).toEqual({});
 });
 
+it("consumes background page keys and pointer inputs while preserving palette typing and Ctrl+K", () => {
+  const dialog = document.createElement("dialog"); dialog.className = "palette"; dialog.open = true;
+  const input = document.createElement("input"); dialog.append(input);
+  const editor = document.createElement("textarea"); document.body.append(editor, dialog);
+  const pageInput = vi.fn(), typing = vi.fn(), search = vi.fn();
+  editor.addEventListener("keydown", pageInput); editor.addEventListener("mousedown", pageInput);
+  input.addEventListener("keydown", typing);
+  cleanups.push(installInputRouter({ search }, () => true));
+  expect(keyboard(editor, "a").defaultPrevented).toBe(true);
+  const down = "PointerEvent" in window ? "pointerdown" : "mousedown";
+  const click = new MouseEvent(down, { bubbles: true, cancelable: true }); editor.dispatchEvent(click);
+  expect(click.defaultPrevented).toBe(true); expect(pageInput).not.toHaveBeenCalled();
+  expect(keyboard(input, "a").defaultPrevented).toBe(false); expect(typing).toHaveBeenCalledTimes(1);
+  expect(keyboard(input, "k", { ctrlKey: true }).defaultPrevented).toBe(true); expect(search).toHaveBeenCalledTimes(1);
+  dialog.open = false;
+  expect(keyboard(editor, "a").defaultPrevented).toBe(false); expect(pageInput).toHaveBeenCalledTimes(1);
+});
+
 it("keeps page clipboard shortcuts inside hierarchy scopes and preserves editor text copy/paste", () => {
   const tree = document.createElement("div"), editor = document.createElement("textarea");
   document.body.append(tree, editor);

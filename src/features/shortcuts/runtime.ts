@@ -21,13 +21,19 @@ export function defaultManaged(e: KeyboardEvent, scope: Scope) {
 export function installInputRouter(workspace: Handlers, enabled: () => boolean) {
   let consumed: { button: number; target: Element; until: number } | null = null;
   const route = (event: KeyboardEvent | MouseEvent) => {
-    if (useShortcuts.getState().recording || !enabled() || event.defaultPrevented) return;
+    if (event.defaultPrevented) return;
     const target = event.target instanceof Element ? event.target : null;
     if (!target || target.closest('[role="menu"]')) return; // Context menus execute shortcuts against their captured item.
     const keyEvent = "key" in event;
     const modal = target.closest("dialog[open], [data-popover]");
     const openModal = document.querySelector("dialog[open], [data-popover]");
-    if (openModal && !modal) return;
+    if (openModal && !modal) {
+      // A menu or popover closes itself on a press outside it; swallowing that press here would leave it open.
+      if (!keyEvent && openModal.matches('[role="menu"], .popover')) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      return;
+    }
+    if (useShortcuts.getState().recording || !enabled()) return;
     let handled = false;
     let scopeFound: Scope | undefined;
     for (let el: Element | null = target; el; el = el.parentElement) {

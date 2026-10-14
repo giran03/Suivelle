@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { type Editor, mergeAttributes, Node } from "@tiptap/core";
 import { usePeek } from "../../peek/store";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { exitSuggestion } from "@tiptap/suggestion";
@@ -27,6 +27,7 @@ interface MentionMenuState {
 export const useMentionMenu = create<MentionMenuState>(() => ({ open: false, query: "", items: [], index: 0, rect: null, choose: null }));
 const close = () => useMentionMenu.setState({ open: false, items: [], index: 0, rect: null, choose: null });
 const key = new PluginKey("pageMentionMenu");
+const linkKey = new PluginKey("pageLinkMenu");
 
 /** Candidates for "@": recent pages when nothing is typed, otherwise title matches. */
 async function candidates(query: string): Promise<MentionItem[]> {
@@ -66,7 +67,9 @@ function MentionView({ node }: NodeViewProps) {
       className={`mention${state}`}
       role="link"
       aria-disabled={!follow}
-      title={deleted ? "This page is in the trash" : missing ? "This page no longer exists" : "Open page (Shift+click to open beside)"}
+      data-page-id={pageId}
+      // A live page gets the hover preview card instead of a text tooltip.
+      title={deleted ? "This page is in the trash" : missing ? "This page no longer exists" : undefined}
       onClick={(e: React.MouseEvent) => {
         // A click follows the link (Shift+click opens it beside this page); the caret is placed
         // beside the chip with the arrow keys.
@@ -79,6 +82,62 @@ function MentionView({ node }: NodeViewProps) {
       <span>{text}</span>
     </NodeViewWrapper>
   );
+}
+
+/** One page-picker trigger: "@" and "[[" share the menu, the candidates and the inserted mention. */
+function pagePicker(editor: Editor, pluginKey: PluginKey, char: string) {
+  return Suggestion<MentionItem, MentionItem>({
+    editor,
+    pluginKey,
+    char,
+    allow: ({ state, range }) => !state.doc.resolve(range.from).parent.type.spec.code,
+    items: ({ query }) => candidates(query),
+    command: ({ editor, range, props }) => {
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(range, [{ type: "pageMention", attrs: { pageId: props.id } }, { type: "text", text: " " }])
+        .run();
+      void useWorkspace.getState().ensureTitles([props.id]);
+    },
+    render: () => {
+      const sync = (p: { query: string; items: MentionItem[]; clientRect?: (() => DOMRect | null) | null; command: (i: MentionItem) => void }) =>
+        useMentionMenu.setState((s) => ({
+          open: true,
+          query: p.query,
+          items: p.items,
+          index: p.query === s.query ? Math.min(s.index, Math.max(0, p.items.length - 1)) : 0,
+          rect: p.clientRect ?? null,
+          choose: p.command,
+        }));
+      return {
+        onStart: sync,
+        onUpdate: sync,
+        onExit: close,
+        onKeyDown: ({ event, view }) => {
+          const { items, index, choose } = useMentionMenu.getState();
+          if (event.key === "Escape") {
+            exitSuggestion(view, key);
+            return true;
+          }
+          if (!items.length) return false;
+          if (event.key === "ArrowDown") {
+            useMentionMenu.setState({ index: (index + 1) % items.length });
+            return true;
+          }
+          if (event.key === "ArrowUp") {
+            useMentionMenu.setState({ index: (index - 1 + items.length) % items.length });
+            return true;
+          }
+          if (event.key === "Enter" || event.key === "Tab") {
+            choose?.(items[index]);
+            return true;
+          }
+          return false;
+        },
+      };
+    },
+  });
 }
 
 export const PageMention = Node.create({
@@ -115,59 +174,6 @@ export const PageMention = Node.create({
   },
 
   addProseMirrorPlugins() {
-    return [
-      Suggestion<MentionItem, MentionItem>({
-        editor: this.editor,
-        pluginKey: key,
-        char: "@",
-        allow: ({ state, range }) => !state.doc.resolve(range.from).parent.type.spec.code,
-        items: ({ query }) => candidates(query),
-        command: ({ editor, range, props }) => {
-          editor
-            .chain()
-            .focus()
-            .insertContentAt(range, [{ type: "pageMention", attrs: { pageId: props.id } }, { type: "text", text: " " }])
-            .run();
-          void useWorkspace.getState().ensureTitles([props.id]);
-        },
-        render: () => {
-          const sync = (p: { query: string; items: MentionItem[]; clientRect?: (() => DOMRect | null) | null; command: (i: MentionItem) => void }) =>
-            useMentionMenu.setState((s) => ({
-              open: true,
-              query: p.query,
-              items: p.items,
-              index: p.query === s.query ? Math.min(s.index, Math.max(0, p.items.length - 1)) : 0,
-              rect: p.clientRect ?? null,
-              choose: p.command,
-            }));
-          return {
-            onStart: sync,
-            onUpdate: sync,
-            onExit: close,
-            onKeyDown: ({ event, view }) => {
-              const { items, index, choose } = useMentionMenu.getState();
-              if (event.key === "Escape") {
-                exitSuggestion(view, key);
-                return true;
-              }
-              if (!items.length) return false;
-              if (event.key === "ArrowDown") {
-                useMentionMenu.setState({ index: (index + 1) % items.length });
-                return true;
-              }
-              if (event.key === "ArrowUp") {
-                useMentionMenu.setState({ index: (index - 1 + items.length) % items.length });
-                return true;
-              }
-              if (event.key === "Enter" || event.key === "Tab") {
-                choose?.(items[index]);
-                return true;
-              }
-              return false;
-            },
-          };
-        },
-      }),
-    ];
+    return [pagePicker(this.editor, key, "@"), pagePicker(this.editor, linkKey, "[[")];
   },
 });

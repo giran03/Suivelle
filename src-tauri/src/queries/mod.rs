@@ -163,6 +163,19 @@ pub async fn page_backlinks(
 }
 
 #[tauri::command]
+pub async fn page_preview(
+    app: tauri::AppHandle,
+    page_id: String,
+) -> AppResult<Option<crate::search::PagePreview>> {
+    blocking("page_preview", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::search::page_preview(&conn, &page_id)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn page_titles(
     app: tauri::AppHandle,
     ids: Vec<String>,

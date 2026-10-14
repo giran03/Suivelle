@@ -1,0 +1,49 @@
+/* ---- a workspace canvas board in the main area ---- */
+.board-page { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; padding: 0 24px; }
+.board-page > .page-title { flex: none; max-width: none; margin: 0 0 calc(12px * var(--density)); }
+.board-page > .page-title input { font-size: 1.75rem; }
+.board-page .canvas-wrap { flex: 1; min-height: 0; height: auto; margin-bottom: 16px; }
+.main-scroll:has(> .board-page) { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+
+/* ---- page cards: a live look at the page itself ---- */
+.cv-item.kind-page { padding: 12px 14px; gap: 8px; background: var(--surface-2, var(--surface-1)); }
+.cv-page-head { align-items: center; }
+.cv-page-glyph { display: inline-grid; place-items: center; flex: none; color: var(--text-secondary); }
+.cv-page-image { flex: none; flex-basis: auto; height: min(45%, 120px); }
+.cv-page-body { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.cv-page-body p { flex: none; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cv-page-body .cv-page-heading { color: var(--text-primary); font-weight: 600; }
+
+/* ---- add-a-page picker above the tool pill ---- */
+.cv-picker { position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 7; width: min(320px, 84vw); transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--menu-shadow); cursor: default; }
+.cv-picker input { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-1, transparent); color: var(--fg); font-size: 0.875rem; }
+.cv-picker input:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -1px; }
+.cv-picker ul { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; }
+.cv-picker li button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-md); text-align: left; color: var(--text-primary); font-size: 0.875rem; }
+.cv-picker li button svg { flex: none; color: var(--text-muted); }
+.cv-picker li button.on { background: var(--surface-hover); }
+.cv-pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-pick-parent { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 0.75rem; }
+.cv-pick-empty { padding: 8px; color: var(--text-muted); font-size: 0.8125rem; }
+
+/* ---- sidebar: canvases ---- */
+.sidebar-canvases .canvas-list { margin: 0; padding: 0; list-style: none; }
+.canvas-row { position: relative; display: flex; align-items: center; margin: 1px 8px; padding-right: 4px; border-radius: var(--r-md); transition: background var(--t-fast) ease-out; }
+.canvas-row:hover, .canvas-row:focus-within { background: var(--surface-hover); }
+.canvas-row.selected { background: var(--accent-soft); }
+.canvas-row .title { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; text-align: left; color: var(--text-secondary); }
+.canvas-row .title svg { flex: none; color: var(--text-muted); }
+.canvas-row .title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-row.selected .title { color: var(--text-primary); font-weight: 550; }
+.canvas-row.selected .title svg { color: var(--accent-ui); }
+.canvas-row .actions { display: flex; opacity: 0; transition: opacity var(--t-fast) ease-out; }
+.canvas-row:hover .actions, .canvas-row:focus-within .actions { opacity: 1; }
+.canvas-row input { flex: 1; min-width: 0; margin: 2px 4px; padding: 3px 6px; border: 1px solid var(--accent-ui); border-radius: var(--r-sm); background: var(--surface-1, transparent); color: var(--fg); font: inherit; }
+.canvas-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 1px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-md); font-size: 0.8125rem; color: var(--text-secondary); }
+.canvas-confirm span { flex: 1 1 100%; }
+.canvas-confirm button { padding: 3px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.canvas-confirm button.danger { border-color: var(--danger); color: var(--danger); }
+.canvas-confirm button:hover { background: var(--surface-hover); }
+.side-empty.canvases-empty { margin: 0; padding: 2px 16px 6px; color: var(--text-muted); font-size: 0.8125rem; }
+.canvases-heading { display: flex; align-items: center; justify-content: space-between; padding-right: 12px; }
+.canvases-heading .icon-btn { width: 24px; height: 24px; min-width: 24px; min-height: 24px; }

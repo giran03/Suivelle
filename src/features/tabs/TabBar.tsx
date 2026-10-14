@@ -4,7 +4,7 @@ import { Icon } from "../../components/Icon";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
 import { PageGlyph } from "../pages/PageGlyph";
-import { closeTab, dropTab, moveTab, useTabs } from "./tabs";
+import { closeTab, dropTab, moveTab, openTabBeside, useTabs } from "./tabs";
 import "./tabs.css";
 
 /** Finds what the sidebar already knows about a page before falling back to the title cache. */
@@ -37,25 +37,32 @@ function useTabDrag(id: string) {
     if (!bar || !tab) return;
     const startX = e.clientX;
     let dragging = false;
+    let edge = false;
     const move = (ev: PointerEvent) => {
       if (!dragging && Math.abs(ev.clientX - startX) < 6) return;
       if (!dragging) {
         dragging = true;
         tab.classList.add("dragging");
       }
+      const main = bar.closest("main");
+      const bounds = main?.getBoundingClientRect();
+      edge = !!bounds && ev.clientX >= bounds.right - 80 && ev.clientY >= bounds.top && ev.clientY <= bounds.bottom;
+      main?.toggleAttribute("data-split-drop", edge);
       // The tab under the pointer decides the new slot.
       const tabs = [...bar.querySelectorAll<HTMLElement>(".tab")];
       const over = tabs.findIndex((t) => {
         const r = t.getBoundingClientRect();
         return ev.clientX >= r.left && ev.clientX < r.right;
       });
-      if (over >= 0) moveTab(id, over);
+      if (over >= 0 && !edge) moveTab(id, over);
     };
-    const stop = () => {
+    const stop = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
       tab.classList.remove("dragging");
+      bar.closest("main")?.removeAttribute("data-split-drop");
+      if (dragging && edge && ev.type !== "pointercancel") void openTabBeside(id);
       if (dragging) {
         // The click that ends a drag must not also switch tabs.
         const swallow = (c: MouseEvent) => c.stopPropagation();
@@ -90,9 +97,9 @@ function Tab({ id, active, focusable }: { id: string; active: boolean; focusable
         role="tab"
         aria-selected={active}
         tabIndex={focusable ? 0 : -1}
-        title={label}
+        title={`${label} · Alt+click to open beside`}
         onPointerDown={onPointerDown}
-        onClick={() => void useWorkspace.getState().selectPage(id)}
+        onClick={(e) => { if (e.altKey) void openTabBeside(id); else void useWorkspace.getState().selectPage(id); }}
 
       >
         <PageGlyph page={page} size={14} />

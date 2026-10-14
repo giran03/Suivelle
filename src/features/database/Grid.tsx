@@ -22,6 +22,7 @@ import { PropertyEditor } from "./PropertyEditor";
 import type { Column, useDatabase } from "./useDatabase";
 import type { useRecordTable } from "./useRecordTable";
 import { IconSwap } from "../../components/Swap";
+import { TaskScheduleHandle } from "../calendar/taskDrag";
 
 const BASE_ROW_HEIGHT = 34;
 const ADD_COL = 44;
@@ -497,6 +498,7 @@ export function Grid({ columns, view, db, table, focusRequest, onCreate, onAddPr
                               />
                             )}
                             <CellContent prop={c.property} row={row} />
+                            {c.property.type === "title" && <TaskScheduleHandle row={row} />}
                             {c.property.type === "title" && (
                               <button
                                 type="button"

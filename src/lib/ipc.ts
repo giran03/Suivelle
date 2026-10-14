@@ -1,4 +1,3 @@
-import type { GlobalConfig, GlobalState } from "../features/shortcuts/native";
 import { invoke } from "@tauri-apps/api/core";
 import type { CalendarEvent, CalendarOccurrence, CalendarSchedule } from "../features/calendar/model";
 import type {
@@ -14,6 +13,10 @@ import type {
   Automation,
   AutomationRun,
   Backlink,
+  CanvasBoard,
+  CanvasData,
+  CanvasOp,
+  PagePreview,
   ExportWritten,
   ImportPreview,
   ImportResult,
@@ -106,6 +109,8 @@ export const ipc = {
   imageSaveCrop: (id: string, crop: import("../features/editor/imageModel").Crop) => call<boolean>("image_save_crop", { id, crop }),
   imageCopy: (id: string, crop?: import("../features/editor/imageModel").Crop, stillFrame = false) => call<void>("image_copy", { id, crop: crop ?? null, stillFrame }),
   imageOpenLink: (url: string) => call<void>("image_open_link", { url }),
+  localFileOpen: (path: string) => call<void>("local_file_open", { path }),
+  pageApplyTemplate: (templateId: string, pageId: string) => call<void>("page_apply_template", { templateId, pageId }),
   // queries
   workspaceList: () => call<import("../types").Workspace[]>("workspace_list"),
   workspaceStats: (id: string) => call<import("../types").WorkspaceStats>("workspace_stats", { id }),
@@ -129,6 +134,7 @@ export const ipc = {
   }) => call<SearchHit[]>("search_workspace", { input }),
   pageListRecent: (workspaceId: string, limit = 8) => call<Page[]>("page_list_recent", { workspaceId, limit }),
   pageBacklinks: (pageId: string) => call<Backlink[]>("page_backlinks", { pageId }),
+  pagePreview: (pageId: string) => call<PagePreview | null>("page_preview", { pageId }),
   pageTitles: (ids: string[]) => call<PageTitle[]>("page_titles", { ids }),
 
   databaseGet: (pageId: string) => call<DatabaseDetail>("database_get", { pageId }),
@@ -214,6 +220,15 @@ export const ipc = {
   recordSetValue: (recordId: string, propertyId: string, value: unknown) =>
     call<RecordRow>("record_set_value", { input: { recordId, propertyId, value } }),
   recordDuplicate: (id: string) => call<RecordRow>("record_duplicate", { id }),
+  canvasLoad: (viewId: string) => call<CanvasData>("canvas_load", { viewId }),
+  canvasApply: (viewId: string, ops: CanvasOp[]) => call<void>("canvas_apply", { viewId, ops }),
+  canvasBoardList: (workspaceId: string) => call<CanvasBoard[]>("canvas_board_list", { workspaceId }),
+  canvasBoardCreate: (workspaceId: string, name: string) => call<CanvasBoard>("canvas_board_create", { workspaceId, name }),
+  canvasBoardRename: (id: string, name: string) => call<CanvasBoard>("canvas_board_rename", { id, name }),
+  canvasBoardDuplicate: (id: string) => call<CanvasBoard>("canvas_board_duplicate", { id }),
+  canvasBoardDelete: (id: string) => call<void>("canvas_board_delete", { id }),
+  canvasBoardLoad: (id: string) => call<CanvasData>("canvas_board_load", { id }),
+  canvasBoardApply: (id: string, ops: CanvasOp[]) => call<void>("canvas_board_apply", { id, ops }),
   viewUpdate: (viewId: string, config: ViewConfig, name?: string) => call<DbView>("view_update", { input: { viewId, config, name } }),
   viewCreate: (databaseId: string, type: ViewType, name?: string) => call<DbView>("view_create", { input: { databaseId, type, name } }),
   viewDuplicate: (id: string) => call<DbView>("view_duplicate", { id }),
@@ -271,12 +286,6 @@ export const ipc = {
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>
     rawCall<Attachment>("attachment_import_bytes", bytes, { "x-workspace-id": workspaceId, "x-file-name": name }),
-  /** Turns the system-wide quick-capture shortcut (Ctrl+Alt+N) on or off. */
-  shortcutsMigrate: (captureEnabled: boolean) => call<GlobalState>("shortcuts_migrate", { captureEnabled }),
-  shortcutsGet: () => call<GlobalState>("shortcuts_get"),
-  shortcutsSet: (config: GlobalConfig) => call<GlobalState>("shortcuts_set", { config }),
-  shortcutsRecording: (active: boolean) => call<void>("shortcuts_recording", { active }),
-  quickCaptureShortcut: (enabled: boolean) => call<boolean>("quick_capture_shortcut", { enabled }),
   /** Applies the tray, close, minimize and start-with-computer choices. Fails with a readable reason when the system refuses. */
   shellSetBehavior: (behavior: import("../stores/preferences").ShellChoices) => call<import("../stores/preferences").ShellChoices>("shell_set_behavior", { behavior }),
   windowSetCorners: (corners: string) => call<boolean>("window_set_corners", { corners }),

@@ -1,13 +1,15 @@
 import type { Editor } from "@tiptap/core";
 import { copyText } from "../../components/editingMenu";
 import { useWorkspace } from "../../stores/workspace";
+import { referenceText } from "./smartPaste";
 
 /** Set while a "paste as plain text" runs, so Intake does not turn Markdown-looking text into blocks. */
 export const plainPaste = { active: false };
 
 export function selectedPlainText(editor: Editor): string {
   const { from, to } = editor.state.selection;
-  return editor.state.doc.textBetween(from, to, "\n");
+  const slice = editor.state.doc.slice(from, to);
+  return referenceText(slice.content.toJSON() ?? []);
 }
 
 export function copyPlainText(editor: Editor): boolean {

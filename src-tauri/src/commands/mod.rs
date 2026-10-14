@@ -2,6 +2,7 @@
 
 pub mod calendar;
 pub mod content;
+pub mod local_file;
 pub mod image;
 pub mod maintenance;
 pub mod remote;
@@ -386,6 +387,114 @@ pub async fn view_delete(app: tauri::AppHandle, id: String) -> AppResult<()> {
         let t = std::time::Instant::now();
         let res = lock(&db).and_then(|mut c| dbs::delete_view(&mut c, &id));
         logged("view_delete", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_load(
+    app: tauri::AppHandle,
+    view_id: String,
+) -> AppResult<databases::canvas::CanvasData> {
+    blocking("canvas_load", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        databases::canvas::load(&conn, &view_id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_apply(
+    app: tauri::AppHandle,
+    view_id: String,
+    ops: Vec<databases::canvas::CanvasOp>,
+) -> AppResult<()> {
+    blocking("canvas_apply", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|mut c| databases::canvas::apply(&mut c, &view_id, &ops));
+        logged("canvas_apply", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_list(app: tauri::AppHandle, workspace_id: String) -> AppResult<Vec<databases::canvas::CanvasBoard>> {
+    blocking("canvas_board_list", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        databases::canvas::list_boards(&conn, &workspace_id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_create(app: tauri::AppHandle, workspace_id: String, name: String) -> AppResult<databases::canvas::CanvasBoard> {
+    blocking("canvas_board_create", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|c| databases::canvas::create_board(&c, &workspace_id, &name));
+        logged("canvas_board_create", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_rename(app: tauri::AppHandle, id: String, name: String) -> AppResult<databases::canvas::CanvasBoard> {
+    blocking("canvas_board_rename", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|c| databases::canvas::rename_board(&c, &id, &name));
+        logged("canvas_board_rename", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_duplicate(app: tauri::AppHandle, id: String) -> AppResult<databases::canvas::CanvasBoard> {
+    blocking("canvas_board_duplicate", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|mut c| {
+            let tx = c.transaction()?;
+            let copy = databases::canvas::duplicate_board(&tx, &id)?;
+            tx.commit()?;
+            Ok(copy)
+        });
+        logged("canvas_board_duplicate", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_delete(app: tauri::AppHandle, id: String) -> AppResult<()> {
+    blocking("canvas_board_delete", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|c| databases::canvas::delete_board(&c, &id));
+        logged("canvas_board_delete", t, res)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_load(app: tauri::AppHandle, id: String) -> AppResult<databases::canvas::CanvasData> {
+    blocking("canvas_board_load", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        databases::canvas::load_board(&conn, &id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn canvas_board_apply(app: tauri::AppHandle, id: String, ops: Vec<databases::canvas::CanvasOp>) -> AppResult<()> {
+    blocking("canvas_board_apply", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|mut c| databases::canvas::apply_board(&mut c, &id, &ops));
+        logged("canvas_board_apply", t, res)
     })
     .await
 }

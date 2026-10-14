@@ -1,4 +1,4 @@
-import { useShortcutScope, installInputRouter } from "../shortcuts/runtime";
+import { useShortcutScope } from "../shortcuts/runtime";
 import { useShortcut } from "../shortcuts/useShortcut";
 import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
@@ -59,7 +59,6 @@ export function CaptureBody({ onClose, onSave = capture, page, ready = true }: {
   };
 
   useShortcutScope(formRef, "capture", { "capture-save": () => { if (busy || !ready) return false; void save(); } });
-  useEffect(() => { if ("__TAURI_INTERNALS__" in window && window.location.search.includes("quick-capture")) return installInputRouter({}, () => true); }, []);
   return (
     <form
       ref={formRef}

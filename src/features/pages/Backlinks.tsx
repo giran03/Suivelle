@@ -16,18 +16,36 @@ function readOpen(): boolean {
   }
 }
 
+/** A table row as "Header: cell" pairs, so a hit in a table reads as a record rather than a run of words. */
+function RowContext({ link }: { link: Backlink }) {
+  return (
+    <span className="bl-row">
+      {link.cells.map((cell, i) => {
+        if (!cell) return null;
+        const head = link.header[i];
+        return (
+          <span key={i} className="bl-cell">
+            {head && <span className="bl-cell-head">{head}</span>}
+            {cell}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function Items({ links }: { links: Backlink[] }) {
   return (
     <ul className="bl-list">
       {links.map((l) => (
-        <li key={`${l.sourceBlockId}`}>
+        <li key={`${l.sourceBlockId}:${l.rowIndex ?? ""}`}>
           <button type="button" className="bl-item" onClick={() => void useWorkspace.getState().openPage(l.sourcePageId, l.sourceBlockId)}>
             <span className="bl-title">
               <Icon name="page" size={14} />
               {l.sourcePageTitle || "Untitled"}
               {l.parentTitle && <span className="bl-path">in {l.parentTitle}</span>}
             </span>
-            {l.snippet && <span className="bl-snippet">{l.snippet}</span>}
+            {l.contextKind === "table_row" ? <RowContext link={l} /> : l.snippet && <span className="bl-snippet">{l.snippet}</span>}
           </button>
         </li>
       ))}
@@ -73,12 +91,12 @@ export function Backlinks({ pageId }: { pageId: string }) {
   };
 
   return (
-    <section className="backlinks" aria-label="Backlinks">
+    <section className="backlinks" aria-label="Linked to this page">
       <button type="button" className="backlinks-head" aria-expanded={open} onClick={toggle}>
         <span className={`bl-chevron${open ? " open" : ""}`}>
           <Icon name="chevron" size={14} />
         </span>
-        Backlinks
+        Linked to this page
         <span className="bl-count">{links.length}</span>
       </button>
       <Collapse open={open}>

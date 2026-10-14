@@ -462,9 +462,16 @@ pub struct Backlink {
     pub parent_title: Option<String>,
     pub source_block_id: String,
     pub snippet: String,
+    /// `paragraph` for text blocks and list items, `table_row` for a row of a table.
+    pub context_kind: String,
+    pub row_index: Option<u32>,
+    /// Header-row text for `table_row` hits (empty when the table has no header or the hit is it).
+    pub header: Vec<String>,
+    /// Cell text of the matching row.
+    pub cells: Vec<String>,
 }
 
-/// Pages that mention or link to `page_id`, with the text around each reference.
+/// Pages that mention or link to `page_id`, with the paragraph or table row around each reference.
 pub fn backlinks(conn: &Connection, page_id: &str) -> AppResult<Vec<Backlink>> {
     validate_id(page_id, "page")?;
     let mut stmt = conn.prepare(
@@ -477,17 +484,59 @@ pub fn backlinks(conn: &Connection, page_id: &str) -> AppResult<Vec<Backlink>> {
          ORDER BY sp.updated_at DESC, b.position
          LIMIT 200",
     )?;
-    let rows = stmt.query_map([page_id.to_ascii_lowercase()], |r| {
-        let text = text::plain_text(&r.get::<_, String>(4)?, r.get(5)?, &r.get::<_, String>(6)?);
-        Ok(Backlink {
+    let target = page_id.to_ascii_lowercase();
+    let mut title_stmt = conn.prepare("SELECT title FROM page WHERE id = ?1")?;
+    let mut titles: std::collections::HashMap<String, Option<String>> = Default::default();
+    let mut title_of = |id: &str| -> Option<String> {
+        titles
+            .entry(id.to_string())
+            .or_insert_with(|| title_stmt.query_row([id], |r| r.get(0)).ok())
+            .clone()
+    };
+    let title_cell = std::cell::RefCell::new(&mut title_of);
+    let mention = |id: &str| (title_cell.borrow_mut())(id);
+    let rows = stmt.query_map([&target], |r| {
+        let block_type: String = r.get(4)?;
+        let data_json: String = r.get(6)?;
+        let base = Backlink {
             source_page_id: r.get(0)?,
             source_page_title: r.get(1)?,
             parent_title: r.get(2)?,
             source_block_id: r.get(3)?,
-            snippet: text.chars().take(160).collect(),
-        })
+            snippet: String::new(),
+            context_kind: "paragraph".into(),
+            row_index: None,
+            header: Vec::new(),
+            cells: Vec::new(),
+        };
+        if block_type == "simple_table" {
+            let hits = text::table_rows_referencing(&data_json, &target, &mention);
+            if !hits.is_empty() {
+                return Ok(hits
+                    .into_iter()
+                    .map(|h| Backlink {
+                        snippet: h.cells.join(" | ").chars().take(320).collect(),
+                        context_kind: "table_row".into(),
+                        row_index: Some(h.row_index as u32),
+                        header: h.header,
+                        cells: h.cells,
+                        ..base.clone()
+                    })
+                    .collect::<Vec<_>>());
+            }
+        }
+        let text = text::plain_text_with(&block_type, r.get(5)?, &data_json, &mention);
+        Ok(vec![Backlink {
+            snippet: text.chars().take(320).collect(),
+            ..base
+        }])
     })?;
-    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    let mut out = Vec::new();
+    for group in rows {
+        out.extend(group?);
+    }
+    out.truncate(200);
+    Ok(out)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -525,6 +574,81 @@ pub fn page_titles(conn: &Connection, ids: &[String]) -> AppResult<Vec<PageTitle
         }
     }
     Ok(out)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
+pub struct PreviewLine {
+    /// The block type (`heading_1`, `bullet_list`, `paragraph`, ...), so the card can style it.
+    pub kind: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS), ts(export))]
+pub struct PagePreview {
+    pub id: String,
+    pub title: String,
+    pub icon: Option<String>,
+    pub deleted: bool,
+    pub lines: Vec<PreviewLine>,
+    pub image_hash: Option<String>,
+}
+
+const PREVIEW_LINES: usize = 8;
+const PREVIEW_LINE_CHARS: usize = 220;
+
+/// A short read-only excerpt of a page for the hover card: its title and the first few text blocks.
+pub fn page_preview(conn: &Connection, page_id: &str) -> AppResult<Option<PagePreview>> {
+    validate_id(page_id, "page")?;
+    let Some((title, icon, deleted)) = conn
+        .query_row(
+            "SELECT title, icon, deleted_at IS NOT NULL FROM page WHERE id = ?1",
+            [page_id],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, bool>(2)?)),
+        )
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    let mut stmt = conn.prepare(
+        "SELECT type, schema_version, data_json FROM block
+         WHERE page_id = ?1 AND parent_block_id IS NULL ORDER BY position LIMIT 40",
+    )?;
+    let mut lines = Vec::new();
+    let mut image_hash = None;
+    let rows = stmt.query_map([page_id], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?))
+    })?;
+    for row in rows {
+        let (kind, version, data) = row?;
+        if kind == "image" && image_hash.is_none() {
+            image_hash = serde_json::from_str::<serde_json::Value>(&data)
+                .ok()
+                .and_then(|v| v.pointer("/attachment/hash").and_then(|h| h.as_str().map(String::from)));
+            continue;
+        }
+        if lines.len() >= PREVIEW_LINES {
+            continue;
+        }
+        let text: String = text::plain_text(&kind, version, &data)
+            .chars()
+            .take(PREVIEW_LINE_CHARS)
+            .collect();
+        if !text.is_empty() {
+            lines.push(PreviewLine { kind, text });
+        }
+    }
+    Ok(Some(PagePreview {
+        id: page_id.to_string(),
+        title,
+        icon,
+        deleted,
+        lines,
+        image_hash,
+    }))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -658,6 +782,10 @@ pub fn unlinked_mentions(conn: &Connection, page_id: &str) -> AppResult<Vec<Back
             source_page_title: r.get(2)?,
             parent_title: r.get(3)?,
             snippet: r.get(4)?,
+            context_kind: "paragraph".into(),
+            row_index: None,
+            header: Vec::new(),
+            cells: Vec::new(),
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)

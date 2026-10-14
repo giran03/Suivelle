@@ -135,10 +135,12 @@
 .rp-value.editable:empty::before { content: "Empty"; color: var(--muted); }
 
 /* ---- view tabs ---- */
-.view-tabs { flex: none; display: flex; align-items: center; gap: 2px; padding: 2px 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
-.vtab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); white-space: nowrap; }
+.view-tabs { z-index: 10; flex: none; display: flex; align-items: center; gap: 2px; padding: 2px 0; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.vtab { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); white-space: nowrap; }
 .vtab:hover { color: var(--fg); background: var(--hover); border-radius: var(--r-sm) 4px 0 0; }
-.vtab.on { color: var(--fg); border-bottom-color: var(--accent-ui); }
+.vtab.on { color: var(--fg); border-bottom-color: transparent; }
+/* The current tab's underline is drawn above the hover fill. */
+.vtab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; z-index: 1; height: 2px; border-radius: 1px; background: var(--accent-ui); pointer-events: none; }
 .vtab.add { padding: 5px 7px; }
 .view-types { min-width: 280px; }
 .view-type { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: var(--r-sm); text-align: left; }
@@ -364,3 +366,8 @@
 .bulk-pick { min-width: 200px; }
 .bulk-prop { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; border-radius: var(--r-sm); color: var(--text-secondary); text-align: left; }
 .bulk-prop:hover, .bulk-prop:focus-visible { background: var(--surface-hover); color: var(--fg); }
+.task-schedule-handle { cursor: grab; touch-action: none; flex: none; }
+.card > .task-schedule-handle { position: absolute; inset: 6px 34px auto auto; }
+.card-title { padding-inline-end: 60px; }
+.peek-body:has(> .db-wrap) { display: flex; flex-direction: column; padding-inline: 12px; }
+.peek-body > .db-wrap { display: flex; flex-direction: column; flex: 1; min-height: 340px; }

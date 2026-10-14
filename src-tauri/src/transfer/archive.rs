@@ -157,7 +157,15 @@ fn database_json(conn: &Connection, db_id: &str, page_id: &str) -> AppResult<Val
     let views: Vec<Value> = load_views(conn, db_id)?
         .into_iter()
         .enumerate()
-        .map(|(i, v)| json!({ "id": v.id, "name": v.name, "type": v.view_type, "config": v.config, "position": i }))
+        .map(|(i, v)| {
+            let mut j = json!({ "id": v.id, "name": v.name, "type": v.view_type, "config": v.config, "position": i });
+            if v.view_type == "canvas" {
+                if let Ok(c) = crate::databases::canvas::export_json(conn, &v.id) {
+                    j["canvas"] = c;
+                }
+            }
+            j
+        })
         .collect();
     let mut stmt = conn.prepare(
         "SELECT r.id, r.page_id, r.unique_id, r.created_at FROM db_record r JOIN page p ON p.id = r.page_id
@@ -268,6 +276,13 @@ pub fn export_workspace(
         }
         counts.automations = automations.len();
         put_json(&mut zip, "automations.json", &json!(automations))?;
+        let boards = crate::databases::canvas::list_boards(conn, &ws.id)?
+            .iter()
+            .map(|b| crate::databases::canvas::export_board_json(conn, &b.id))
+            .collect::<AppResult<Vec<Value>>>()?;
+        if !boards.is_empty() {
+            put_json(&mut zip, "canvases.json", &json!(boards))?;
+        }
         let mut stmt = conn.prepare(
             "SELECT hash, original_name, mime_type, size FROM attachment WHERE workspace_id = ?1",
         )?;
@@ -864,6 +879,7 @@ fn apply_in(
     }
 
     // ---- pages and empty databases ----
+    let mut canvas_work: Vec<(String, Value)> = Vec::new();
     let mut id_map: HashMap<String, String> = HashMap::new(); // pages, records, properties, views, databases, blocks, templates
     for p in &pages {
         for b in p["blocks"].as_array().cloned().unwrap_or_default() {
@@ -1126,6 +1142,9 @@ fn apply_in(
                 },
             ) {
                 Ok(nv) => {
+                    if let Some(c) = v.get("canvas") {
+                        canvas_work.push((nv.id.clone(), c.clone()));
+                    }
                     id_map.insert(s(&v, "id").to_string(), nv.id);
                     made += 1;
                 }
@@ -1240,6 +1259,14 @@ fn apply_in(
             },
         ) {
             warn(&mut st, format!("A relation link was skipped: {e}"));
+        }
+    }
+
+    // ---- canvas layouts (need the imported record ids) ----
+    for (view_id, data) in canvas_work {
+        let ops = crate::databases::canvas::import_ops(&data, &|old| id_map.get(old).cloned());
+        if let Err(e) = crate::databases::canvas::apply_in(tx, &view_id, &ops) {
+            warn(&mut st, format!("A canvas layout was skipped: {e}"));
         }
     }
 
@@ -1429,6 +1456,19 @@ fn apply_in(
                 .map_err(|e| AppError::Validation(format!("Invalid automation: {e}")))?;
             crate::automation::save_in(tx, input)?;
             st.automations += 1;
+        }
+    }
+    if archive.names.contains("canvases.json") {
+        let boards = archive.json("canvases.json")?.as_array().cloned().unwrap_or_default();
+        for b in boards {
+            let made = crate::databases::canvas::create_board(tx, workspace_id, s(&b, "name"));
+            let result = made.and_then(|board| {
+                let ops = crate::databases::canvas::import_ops(&b["canvas"], &|old| id_map.get(old).cloned());
+                crate::databases::canvas::apply_board_in(tx, &board.id, &ops)
+            });
+            if let Err(e) = result {
+                warn(&mut st, format!("A canvas was skipped: {e}"));
+            }
         }
     }
     if container.is_none() && archive.names.contains("workspace.json") {

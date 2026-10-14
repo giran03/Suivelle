@@ -10,6 +10,7 @@ import { jsonToMarkdown, looksLikeMarkdown } from "../markdown";
 import { registerFlusher } from "../flushRegistry";
 import { plainPaste } from "../plainText";
 import { pasteMediaUrl } from "../mediaPaste";
+import { pasteSmart, referenceText } from "../smartPaste";
 
 const MAX_BYTES = 256 * 1024 * 1024;
 /** Copying "an image" from a web page puts just an <img> tag next to the file; the file wins. */
@@ -141,7 +142,11 @@ export const Intake = Extension.create({
               void importFiles(editor, files);
               return true;
             }
-            if (!files.length && !plainPaste.active && !editor.isActive("codeBlock") && !editor.isActive("equation") && pasteMediaUrl(editor, data.getData("text/plain"))) {
+            if (!files.length && pasteSmart(editor, data.getData("text/plain"), html)) {
+              event.preventDefault();
+              return true;
+            }
+            if (!files.length && !plainPaste.active && !editor.isActive("codeBlock") && !editor.isActive("code") && !editor.isActive("equation") && pasteMediaUrl(editor, data.getData("text/plain"))) {
               event.preventDefault();
               return true;
             }
@@ -171,7 +176,7 @@ export const Intake = Extension.create({
             const only = slice.content.childCount === 1 ? slice.content.firstChild : null;
             // A few words from inside one text block copy as plain text, without markup.
             if (only?.isTextblock && (slice.openStart > 0 || slice.openEnd > 0)) {
-              return slice.content.textBetween(0, slice.content.size, "\n");
+              return referenceText(only.content.toJSON() ?? []);
             }
             const titles = useWorkspace.getState().pageTitles;
             const json = slice.content.toJSON();

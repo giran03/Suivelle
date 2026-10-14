@@ -1,7 +1,7 @@
 /** Structured inputs shared by recording, routing, conflict checks and labels. */
 export type Modifier = "Primary" | "Control" | "Shift" | "Alt" | "Meta";
 export type Binding = { kind: "key"; key: string; mode?: "logical" | "physical"; location?: number; displayKey?: string; modifiers: Modifier[] } | { kind: "mouse"; button: number; modifiers: Modifier[] };
-export type Scope = "workspace" | "editor" | "pages" | "grid" | "tab" | "capture" | "global";
+export type Scope = "workspace" | "editor" | "pages" | "grid" | "tab" | "capture";
 export interface Action { id: string; title: string; scope: Scope; defaults: Binding[]; repeat?: boolean; readonly?: boolean }
 export const MODIFIERS: Modifier[] = ["Primary", "Control", "Shift", "Alt", "Meta"];
 export const key = (value: string, ...modifiers: Modifier[]): Binding => ({ kind: "key", key: value, modifiers });
@@ -65,8 +65,6 @@ export const ACTIONS: Action[] = [
   action("grid-clear", "Clear cell", "grid", key("Delete"), key("Backspace")),
   action("grid-menu", "Cell menu", "grid", key("F10", "Shift"), key("ContextMenu")),
   action("capture-save", "Save quick capture", "capture", key("Enter")),
-  action("global-capture", "Quick capture from any program", "global", key("n", "Control", "Alt")),
-  action("global-focus", "Focus Suivelle from any program", "global", key("s", "Control", "Alt")),
 ];
 export type Overrides = Record<string, Binding[]>;
 export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -98,13 +96,12 @@ export function overlaps(a: Binding, b: Binding): boolean {
 }
 export function conflicts(id: string, candidate: Binding, overrides: Overrides): Action[] {
   const scope = ACTIONS.find(a => a.id === id)?.scope;
-  return ACTIONS.filter(a => a.id !== id && (a.scope === scope || (a.scope !== "global" && scope !== "global" && (a.scope === "workspace" || scope === "workspace"))) && effective(a.id, overrides).some(b => overlaps(b, candidate)));
+  return ACTIONS.filter(a => a.id !== id && (a.scope === scope || a.scope === "workspace" || scope === "workspace") && effective(a.id, overrides).some(b => overlaps(b, candidate)));
 }
 export function bindingError(id: string, b: Binding): string | null {
   if (!validBinding(b)) return "Choose a valid input and modifiers.";
   const scope = ACTIONS.find(a => a.id === id)?.scope;
   if (scope === "workspace" && b.kind === "mouse" && b.button <= 2 && b.modifiers.length === 0) return "Unmodified primary, secondary and middle clicks need a specific context. Add a modifier for a workspace action.";
-  if (scope === "global" && (b.kind !== "key" || b.mode === "physical" || b.location !== undefined || !b.modifiers.length)) return "System-wide shortcuts require a keyboard key with modifiers, without a physical-key or side restriction.";
   if (b.kind === "key" && b.modifiers.length === 0 && ["Tab", "Escape"].includes(b.key)) return "Tab and Escape remain available for focus navigation and cancellation. Add a modifier.";
   return null;
 }

@@ -44,7 +44,7 @@ Open another page beside the current one to keep a reference close while you wri
 
 ## See the same project from every angle
 
-Keep tasks and project details in a database, then choose the view that fits the work: table, board, list, gallery, calendar, or timeline. Each record is a page with room for its own notes.
+Keep tasks and project details in a database, then choose the view that fits the work: table, board, list, gallery, calendar, timeline, or a freeform canvas of cards, notes, images, and arrows (and workspace canvases for any pages). Each record is a page with room for its own notes.
 
 Use custom properties, filters, sorting, and grouping to bring the right details forward. Track status, dates, priorities, categories, and more without duplicating the underlying records.
 
@@ -67,7 +67,7 @@ Day details show scheduled items, planned time, occupied time, and overlaps. Imp
 | Keep your rhythm | Stay close to the work |
 | :--- | :--- |
 | **Daily notes** | Open a date-titled page in your Journal from the command palette or with Ctrl+Alt+D. |
-| **Quick capture** | Catch an idea without leaving your flow, with configurable global shortcuts. |
+| **Quick capture** | Catch an idea without leaving your flow, from the command palette or a keyboard shortcut. |
 | **Search and saved searches** | Find pages and content from the command palette; save searches you return to often. |
 | **Reminders** | Set page and event reminders. Notifications arrive while Suivelle is running, including in the tray. |
 | **Tabs and recent pages** | Keep pages open, reopen a closed tab, and return to recent work from the tray menu. |

@@ -121,6 +121,66 @@ export interface Backlink {
   parentTitle: string | null;
   sourceBlockId: string;
   snippet: string;
+  contextKind: "paragraph" | "table_row";
+  rowIndex: number | null;
+  header: string[];
+  cells: string[];
+}
+
+export interface CanvasItem {
+  id: string;
+  kind: "record" | "page" | "note" | "image";
+  recordId: string | null;
+  /** The page a `page` card shows (workspace boards only). */
+  pageId?: string | null;
+  text: string;
+  attachmentHash: string | null;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+  color: string | null;
+}
+
+export interface CanvasEdge {
+  id: string;
+  fromItem: string;
+  toItem: string;
+  label: string;
+}
+
+export interface CanvasBoard {
+  id: string;
+  workspaceId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CanvasData {
+  items: CanvasItem[];
+  edges: CanvasEdge[];
+}
+
+export type CanvasOp =
+  | { op: "upsert_item"; item: CanvasItem }
+  | { op: "delete_item"; id: string }
+  | { op: "upsert_edge"; edge: CanvasEdge }
+  | { op: "delete_edge"; id: string };
+
+export interface PreviewLine {
+  kind: string;
+  text: string;
+}
+
+export interface PagePreview {
+  id: string;
+  title: string;
+  icon: string | null;
+  deleted: boolean;
+  lines: PreviewLine[];
+  imageHash: string | null;
 }
 
 export interface PageTitle {
@@ -309,7 +369,7 @@ export interface FilterGroup {
 
 export type FilterNode = FilterGroup | FilterLeaf;
 
-export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "chart" | "form" | "feed";
+export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "chart" | "form" | "feed" | "canvas";
 
 export type ChartType = "bar" | "line" | "area" | "pie" | "donut" | "kpi";
 export type Aggregation = "count" | "sum" | "average" | "min" | "max";

@@ -156,6 +156,18 @@ const blockText = (b: any) => {
   }
 };
 
+/** A block as running text with each page mention shown as its page title. */
+const contextText = (b: any) => {
+  try {
+    return (JSON.parse(b.dataJson).content ?? []).map((n: any) => n.type === "pageMention" ? db.pages.find((x) => x.id === n.attrs?.pageId)?.title ?? "" : n.text ?? "").join("");
+  } catch {
+    return "";
+  }
+};
+
+/** Whether a block's JSON holds a mention of, or a link to, the page. */
+const mentionsPage = (dataJson: string, pageId: string) => dataJson.includes(`"pageId":"${pageId}"`) || dataJson.includes(`://page/${pageId}`);
+
 function search(input: any) {
   const q = (input.query ?? "").trim();
   if (!q) return [];
@@ -184,14 +196,15 @@ function touchPage(id: string) {
   }
 }
 
+const BOARD_ID = "0198f0aa-0000-7000-8000-00000000b0a4";
 const READ_COMMANDS = new Set([
   "calendar_snapshot",
   "workspace_list", "workspace_get", "workspace_stats", "page_list_children", "page_list_favorites",
-  "page_list_trash", "page_list_recent", "page_get", "page_ancestors", "page_titles", "page_backlinks",
+  "page_list_trash", "page_list_recent", "page_get", "page_ancestors", "page_titles", "page_backlinks", "page_preview", "canvas_load", "canvas_apply", "canvas_board_list", "canvas_board_load", "canvas_board_apply",
   "block_list", "history_list", "search_workspace", "database_get", "database_list", "query_records",
   "group_counts", "chart_data", "record_previews", "record_get", "record_lookup", "record_template_list",
   "automation_list", "automation_runs", "dashboard_get", "template_list", "backup_list", "attachment_list",
-  "shell_get_behavior", "quick_capture_shortcut", "formula_preview", "export_shape",
+  "shell_get_behavior", "formula_preview", "export_shape",
   "maintenance_health", "diagnostics_report", "backup_mirror_get", "app_safe_mode",
   "reminder_list", "tag_list", "tag_pages", "link_graph",
 ]);
@@ -277,7 +290,42 @@ function dispatch(cmd: string, a: any): unknown {
     case "page_titles":
       return a.ids.map((id: string) => { const p = db.pages.find((x) => x.id === id); return { id, title: p?.title ?? "", icon: p?.icon ?? null, deleted: !p || !live(p) }; });
     case "page_touch": touchPage(a.id); return null;
-    case "page_backlinks": return [];
+    case "canvas_load": {
+      // A sample board: every record as a card on a grid, with a note and an arrow between the first two.
+      const view = db.views.find((v) => v.id === a.viewId);
+      const recs = db.records.filter((r) => r.databaseId === view?.databaseId);
+      const items: any[] = recs.map((r, n) => ({ id: `c_${a.viewId}_${n}`, kind: "record", recordId: r.id, text: "", attachmentHash: null, x: (n % 4) * 280, y: Math.floor(n / 4) * 170, w: 240, h: 120, z: n, color: null }));
+      const rows = Math.ceil(recs.length / 4);
+      items.push({ id: `n_${a.viewId}`, kind: "note", recordId: null, text: "Drag cards anywhere, draw arrows between them, and pin notes like this one.", attachmentHash: null, x: 0, y: rows * 170 + 20, w: 280, h: 110, z: 99, color: "yellow" });
+      const edges = items.length > 2 ? [{ id: `e_${a.viewId}`, fromItem: items[0].id, toItem: items[1].id, label: "blocks" }] : [];
+      return { items, edges };
+    }
+    case "canvas_apply": return null;
+    case "canvas_board_apply": return null;
+    case "canvas_board_list": return [{ id: BOARD_ID, workspaceId: db.workspaces[0].id, name: "Studio map", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }];
+    case "canvas_board_load": {
+      // A sample whiteboard: a handful of real pages as cards, a note and arrows between neighbours.
+      const pages = db.pages.filter((p) => live(p) && p.kind === "page" && db.blocks.some((b) => b.pageId === p.id)).slice(0, 6);
+      const items: any[] = pages.map((p, n) => ({ id: `bp_${n}`, kind: "page", recordId: null, pageId: p.id, text: "", attachmentHash: null, x: (n % 3) * 320, y: Math.floor(n / 3) * 240, w: 260, h: 190, z: n, color: null }));
+      items.push({ id: "bn_0", kind: "note", recordId: null, pageId: null, text: "Drag pages in from the sidebar, then connect them with arrows.", attachmentHash: null, x: 0, y: Math.ceil(pages.length / 3) * 240 + 10, w: 280, h: 110, z: 99, color: "yellow" });
+      const edges = pages.slice(1).map((_, n) => ({ id: `be_${n}`, fromItem: `bp_${n}`, toItem: `bp_${n + 1}`, label: n === 0 ? "leads to" : "" }));
+      return { items, edges };
+    }
+    case "page_preview": {
+      const p = db.pages.find((x) => x.id === a.pageId);
+      if (!p) return null;
+      const lines = db.blocks.filter((b) => b.pageId === p.id).slice(0, 8).map((b) => ({ kind: b.type, text: blockText(b).slice(0, 220) })).filter((l) => l.text);
+      return { id: p.id, title: p.title, icon: p.icon ?? null, deleted: !live(p), lines, imageHash: null };
+    }
+    case "page_backlinks": {
+      const out: any[] = [];
+      for (const b of db.blocks) {
+        const src = db.pages.find((x) => x.id === b.pageId);
+        if (!src || !live(src) || src.id === a.pageId || !mentionsPage(b.dataJson, a.pageId)) continue;
+        out.push({ sourcePageId: src.id, sourcePageTitle: src.title, parentTitle: null, sourceBlockId: b.id, snippet: contextText(b).slice(0, 320), contextKind: "paragraph", rowIndex: null, header: [], cells: [] });
+      }
+      return out.slice(0, 200);
+    }
     case "page_create": {
       const i = a.input;
       const siblings = db.pages.filter((p) => p.parentPageId === (i.parentPageId ?? null));
@@ -416,7 +464,6 @@ function dispatch(cmd: string, a: any): unknown {
     case "attachment_list": return [];
     case "shell_get_behavior": return { tray: false, closeToTray: false, minimizeToTray: false, startWithSystem: false, startMinimized: false };
     case "shell_set_behavior": return a.behavior;
-    case "quick_capture_shortcut": return false;
     case "formula_preview": return { resultType: null, error: null, samples: [], properties: [] };
     case "backup_set_auto": return db.workspaces;
     default:

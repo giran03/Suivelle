@@ -4,7 +4,7 @@ export interface TipParts {
   keys: string | null;
 }
 
-const SHORTCUT = /^(.*?)\s*\(((?:Ctrl|Cmd|Alt|Shift|Control|Meta|⌘|Esc|F\d+)[^()]*)\)$/;
+const SHORTCUT = /^(.*?)\s*\(((?:(?:Ctrl|Cmd|Alt|Shift|Control|Meta|⌘|Esc|F\d+)[^()]*|[A-Z0-9\[\]\/,.;'=+-]|Space|Enter|Tab|Delete|Backspace))\)$/;
 
 export function parseTip(raw: string): TipParts {
   const m = SHORTCUT.exec(raw.trim());

@@ -576,6 +576,14 @@ fn build_project_manager(b: &Builder, software: bool) -> AppResult<Vec<String>> 
     let mut tasks = tasks_database(b, software)?;
     b.relate(&mut milestones, "Project", &mut projects, "Milestones")?;
     b.relate(&mut tasks, "Project", &mut projects, "Tasks")?;
+    // Durable IDs for palette task creation, independent of database/property names.
+    let workspace = repo::workspace::get(b.tx, &b.ws)?.ok_or_else(|| AppError::NotFound("workspace".into()))?;
+    let mut settings: Value = serde_json::from_str(&workspace.settings_json).unwrap_or_else(|_| json!({}));
+    if !settings.is_object() { settings = json!({}); }
+    let mut ids = settings.get("projectTaskRelationIds").and_then(Value::as_array).cloned().unwrap_or_default();
+    ids.push(json!(tasks.id_of("Project")?));
+    settings["projectTaskRelationIds"] = json!(ids);
+    b.tx.execute("UPDATE workspace SET settings_json = ?2 WHERE id = ?1", rusqlite::params![b.ws, settings.to_string()])?;
     b.relate(&mut tasks, "Milestone", &mut milestones, "Tasks")?;
     b.relate(&mut tasks, "Sprint", &mut sprints, "Tasks")?;
     task_structure(b, &mut tasks)?;

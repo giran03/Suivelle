@@ -68,6 +68,21 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "calendar_collections",
         include_str!("../../migrations/0013_calendar_collections.sql"),
     ),
+    (
+        14,
+        "canvas",
+        include_str!("../../migrations/0014_canvas.sql"),
+    ),
+    (
+        15,
+        "canvas_boards",
+        include_str!("../../migrations/0015_canvas_boards.sql"),
+    ),
+    (
+        16,
+        "canvas_boards_repair",
+        include_str!("../../migrations/0016_canvas_boards_repair.sql"),
+    ),
 ];
 
 /// The schema version a fully migrated database has.

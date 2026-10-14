@@ -36,7 +36,7 @@ export interface Toast {
 /** Cached title info for mention chips; `missing` means the page no longer exists. */
 export type TitleInfo = PageTitle & { missing?: boolean };
 
-export type View = "page" | "trash";
+export type View = "page" | "trash" | "canvas";
 
 interface State {
   workspace: Workspace | null;
@@ -656,6 +656,11 @@ export const useWorkspace = create<State>((set, get) => {
       try {
         const made = await ipc.templateCreate(ws.id, template, sampleData);
         if (get().workspace?.id !== ws.id) return null;
+        // Templates may add durable project/task relation IDs to the workspace settings.
+        // Refresh them before another appearance change can save an older settings object.
+        const updated = await ipc.workspaceGet(ws.id).catch(() => null);
+        if (get().workspace?.id !== ws.id) return null;
+        if (updated) set(s => ({ workspace: updated, workspaces: s.workspaces.map(w => w.id === updated.id ? updated : w) }));
         await reloadTree();
         await get().selectPage(made.pageId);
         return null;

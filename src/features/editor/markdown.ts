@@ -28,7 +28,8 @@ function inline(nodes: JSONContent[] | undefined, opts: Options): string {
       const id = String(n.attrs?.pageId ?? "");
       out += `[[${opts.pageTitle?.(id) || "page"}]]`;
     } else if (n.type === "text") {
-      const text = n.text ?? "";
+      const fileReference = hasMark(n.marks, "smartReference");
+      const text = fileReference?.attrs?.kind === "file" ? String(fileReference.attrs.value ?? n.text ?? "") : n.text ?? "";
       const m = n.marks;
       const [, lead, body, trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(text) ?? ["", "", text, ""];
       if (!body) {

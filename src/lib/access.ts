@@ -9,7 +9,7 @@ export const READ_ONLY_COMMANDS = new Set([
   "back", "forward", "copy-link", "theme-light", "theme-dark", "theme-system",
   "outline", "reopen-tab", "graph", "tags", "reminders",
   // Safe mode exists so the data can still be saved elsewhere or replaced from a backup.
-  ...(SAFE_MODE ? ["backups", "export", "export-workspace", "updates"] : []),
+  ...(SAFE_MODE ? ["backups", "export", "export-pdf", "export-workspace", "updates"] : []),
 ]);
 
 export function readingAction(label: string): boolean {

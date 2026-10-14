@@ -29,6 +29,16 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [reload, setReload] = useState(0);
+  const focusAfterReload = useRef(false);
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ pageId: string; focusEditor: Editor | null }>).detail;
+      if (detail.pageId === pageId) { focusAfterReload.current = detail.focusEditor === editor; setReload(n => n + 1); }
+    };
+    window.addEventListener("page-template-applied", refresh);
+    return () => window.removeEventListener("page-template-applied", refresh);
+  }, [pageId, editor]);
 
   const flush = useCallback((): Promise<void> => {
     window.clearTimeout(timer.current);
@@ -102,6 +112,7 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
         loaded.current = true;
           editor.setEditable(!READ_ONLY);
         setReady(true);
+        if (focusAfterReload.current) { focusAfterReload.current = false; editor.commands.focus("end"); }
       } catch (e) {
         // Never autosave over content we could not read: stay read-only and say why.
         if (!cancelled) setLoadError(toAppError(e).message);
@@ -110,7 +121,7 @@ export function useBlockSync(editor: Editor | null, pageId: string) {
     return () => {
       cancelled = true;
     };
-  }, [editor, pageId]);
+  }, [editor, pageId, reload]);
 
   // Buffer edits, and flush on the events that could lose them.
   useEffect(() => {

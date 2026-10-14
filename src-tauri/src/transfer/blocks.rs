@@ -13,6 +13,7 @@ pub enum Mark {
     Code,
     Underline,
     Link(String),
+    Smart { kind: String, value: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -127,6 +128,7 @@ fn mark_json(m: &Mark) -> Value {
         Mark::Code => json!({ "type": "code" }),
         Mark::Underline => json!({ "type": "underline" }),
         Mark::Link(href) => json!({ "type": "link", "attrs": { "href": href } }),
+        Mark::Smart { kind, value } => json!({ "type": "smartReference", "attrs": { "kind": kind, "value": value } }),
     }
 }
 
@@ -186,6 +188,7 @@ pub fn inlines_from_json(v: &Value) -> Vec<Inline> {
                                     .pointer("/attrs/href")
                                     .and_then(Value::as_str)
                                     .map(|h| Mark::Link(h.to_string())),
+                                "smartReference" => smart_mark(m.pointer("/attrs/kind")?.as_str()?, m.pointer("/attrs/value")?.as_str()?),
                                 _ => None,
                             })
                             .collect()
@@ -201,6 +204,17 @@ pub fn inlines_from_json(v: &Value) -> Vec<Inline> {
             _ => None,
         })
         .collect()
+}
+
+pub(crate) fn smart_mark(kind: &str, value: &str) -> Option<Mark> {
+    if value.len() > 4096 || value.chars().any(char::is_control) { return None; }
+    let valid = match kind {
+        "color" => value.starts_with('#') && [4, 5, 7, 9].contains(&value.len()) && value[1..].bytes().all(|c| c.is_ascii_hexdigit()),
+        "issue" => value.starts_with("https://github.com/") && value.contains("/issues/"),
+        "file" => value.starts_with('/') || value.starts_with("\\\\") || (value.as_bytes().get(1) == Some(&b':') && matches!(value.as_bytes().get(2), Some(b'\\' | b'/'))),
+        _ => false,
+    };
+    valid.then(|| Mark::Smart { kind: kind.into(), value: value.into() })
 }
 
 /// The text of inline content with no formatting.

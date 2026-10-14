@@ -4,7 +4,7 @@ import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page, TemplateInfo } from "../../types";
 import { PageGlyph } from "../pages/PageGlyph";
-import { createFromPageTemplate, listPageTemplates } from "./pageTemplates";
+import { applyPageTemplate, createFromPageTemplate, listPageTemplates } from "./pageTemplates";
 import { syncDialog } from "../../lib/dialog";
 
 import { useTemplateGallery } from "./store";
@@ -14,6 +14,9 @@ export { useTemplateGallery } from "./store";
 const ICONS: Record<string, IconName> = { project_manager: "timeline", task_tracker: "todo", software_project: "code" };
 
 function GalleryBody() {
+  const targetPageId = useTemplateGallery(s => s.targetPageId);
+  const workspaceId = useTemplateGallery(s => s.workspaceId);
+  const targetEditor = useTemplateGallery(s => s.targetEditor);
   const [templates, setTemplates] = useState<TemplateInfo[] | null>(null);
   const [mine, setMine] = useState<Page[] | null>(null);
   const [sample, setSample] = useState(true);
@@ -51,17 +54,24 @@ function GalleryBody() {
   const pickMine = async (id: string) => {
     setBusy(id);
     setError(null);
-    const message = await createFromPageTemplate(id);
+    useTemplateGallery.getState().setBusy(true);
+    const message = targetPageId && workspaceId ? await applyPageTemplate(id, targetPageId, workspaceId, targetEditor) : await createFromPageTemplate(id);
+    useTemplateGallery.getState().setBusy(false);
     if (message) {
       setError(message);
       setBusy(null);
-    } else hide();
+    } else {
+      hide();
+      if (targetEditor && !targetEditor.isDestroyed) requestAnimationFrame(() => { if (!targetEditor.isDestroyed && targetEditor.isEditable) targetEditor.commands.focus("end"); });
+    }
   };
 
   const pick = async (id: string) => {
     setBusy(id);
     setError(null);
-    const message = await createFromTemplate(id, sample);
+    useTemplateGallery.getState().setBusy(true);
+    const message = workspaceId && useWorkspace.getState().workspace?.id !== workspaceId ? "The workspace changed. Open the template picker again." : await createFromTemplate(id, sample);
+    useTemplateGallery.getState().setBusy(false);
     if (message) {
       setError(message);
       setBusy(null);
@@ -71,8 +81,8 @@ function GalleryBody() {
   return (
     <div className="tpl">
       <header className="tpl-head">
-        <h2>New from template</h2>
-        <button type="button" className="icon-btn" aria-label="Close" onClick={hide}>
+        <h2>{targetPageId ? "Pick a template" : "New from template"}</h2>
+        <button type="button" className="icon-btn" aria-label="Close" disabled={!!busy} onClick={hide}>
           <Icon name="close" />
         </button>
       </header>
@@ -81,7 +91,7 @@ function GalleryBody() {
           {error}
         </p>
       )}
-      <h3 className="tpl-section">Your page templates</h3>
+      <h3 className="tpl-section">{targetPageId ? "Apply page template here" : "Your page templates"}</h3>
       {mine && mine.length === 0 && <p className="picker-muted">Save any page as a template from its menu in the sidebar, and it will appear here.</p>}
       <ul className="tpl-list" aria-busy={!mine}>
         {mine?.map((t, i) => (
@@ -98,6 +108,7 @@ function GalleryBody() {
               className="icon-btn"
               aria-label={`Edit the template ${t.title || "Untitled"}`}
               title="Edit this template"
+              disabled={busy !== null}
               onClick={() => {
                 hide();
                 void useWorkspace.getState().selectPage(t.id);
@@ -108,8 +119,8 @@ function GalleryBody() {
           </li>
         ))}
       </ul>
-      <h3 className="tpl-section">Project starters</h3>
-      <p className="picker-muted">Each starter builds ordinary databases you can rename, extend or delete.</p>
+      <h3 className="tpl-section">{targetPageId ? "Create from project template…" : "Project starters"}</h3>
+      <p className="picker-muted">Each starter creates new pages and databases. {targetPageId ? "Your empty page stays where it is." : "You can rename, extend or delete them."}</p>
       <ul className="tpl-list" aria-busy={!templates}>
         {templates?.map((t, i) => (
           <li key={t.id}>
@@ -149,6 +160,7 @@ export function TemplateGallery() {
       className="palette tpl-dialog"
       aria-label="New from template"
       onClose={() => useTemplateGallery.getState().hide()}
+      onCancel={e => { e.preventDefault(); useTemplateGallery.getState().hide(); }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) useTemplateGallery.getState().hide();
       }}
