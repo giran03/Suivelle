@@ -1,5 +1,6 @@
 /* In-memory stand-in for the Rust backend. Enough of the command surface for the showcase flows. */
 import { seed, type Store } from "./seed";
+import { nodeMapSnapshot } from "./node-map";
 
 const db: Store = seed();
 const now = () => new Date().toISOString();
@@ -206,7 +207,7 @@ const READ_COMMANDS = new Set([
   "automation_list", "automation_runs", "dashboard_get", "template_list", "backup_list", "attachment_list",
   "shell_get_behavior", "formula_preview", "export_shape",
   "maintenance_health", "diagnostics_report", "backup_mirror_get", "app_safe_mode",
-  "reminder_list", "tag_list", "tag_pages", "link_graph",
+  "reminder_list", "tag_list", "tag_pages", "link_graph", "node_map_snapshot",
 ]);
 
 /** Only read commands and temporary display preferences cross the showcase boundary. */
@@ -461,6 +462,7 @@ function dispatch(cmd: string, a: any): unknown {
       const ids = new Set(pages.map((p) => p.id));
       return { nodes: pages.map((p) => ({ id: p.id, title: p.title, icon: p.icon, deleted: false })), edges: pages.filter((p) => p.parentPageId && ids.has(p.parentPageId)).map((p) => [p.parentPageId, p.id]) };
     }
+    case "node_map_snapshot": return nodeMapSnapshot(db, a.input);
     case "attachment_list": return [];
     case "shell_get_behavior": return { tray: false, closeToTray: false, minimizeToTray: false, startWithSystem: false, startMinimized: false };
     case "shell_set_behavior": return a.behavior;

@@ -1,4 +1,5 @@
 import { CanvasesSection } from "../canvas/CanvasesSection";
+import { useNodeMap } from "../node-map/store";
 import { dropPagesOnBoard } from "../canvas/store";
 import { key } from "../shortcuts/bindings";
 import { usePeek } from "../peek/store";
@@ -367,6 +368,8 @@ export function Sidebar() {
         <span>Search</span>
         {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
+
+      <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="layers" /><span>Node Map</span></button>
 
       {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
         {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (

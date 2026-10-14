@@ -36,7 +36,7 @@ export interface Toast {
 /** Cached title info for mention chips; `missing` means the page no longer exists. */
 export type TitleInfo = PageTitle & { missing?: boolean };
 
-export type View = "page" | "trash" | "canvas";
+export type View = "page" | "trash" | "canvas" | "node-map";
 
 interface State {
   workspace: Workspace | null;

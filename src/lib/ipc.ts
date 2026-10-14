@@ -76,7 +76,9 @@ function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, str
 }
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  return track(invoke<T>(cmd, args));
+  const result = await track(invoke<T>(cmd, args));
+  if (/^(?:page_(?:create|update|move|delete|restore)|block_apply_batch|database_set_value|record_set_value|node_map_edit)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
+  return result;
 }
 
 async function track<T>(pending: Promise<T>): Promise<T> {

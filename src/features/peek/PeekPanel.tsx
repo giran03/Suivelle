@@ -17,6 +17,7 @@ const RecordProperties = lazy(() => import("../database/RecordProperties").then(
 export function PeekPanel() {
   const pageId = usePeek((s) => s.pageId);
   const selected = useWorkspace((s) => s.selectedPageId);
+  const mainView = useWorkspace((s) => s.view);
   const workspaceId = useWorkspace((s) => s.workspace?.id);
   const epoch = useWorkspace((s) => s.dataEpoch);
   const [page, setPage] = useState<Page | null>(null);
@@ -33,14 +34,14 @@ export function PeekPanel() {
     return () => { alive = false; };
   }, [pageId, workspaceId, epoch]);
   // Opening the peeked page in the main view takes it out of the peek.
-  useEffect(() => { if (pageId && selected === pageId) usePeek.getState().hide(); }, [pageId, selected]);
+  useEffect(() => { if (pageId && selected === pageId && mainView === "page") usePeek.getState().hide(); }, [pageId, selected, mainView]);
   useEffect(() => {
     if (!pageId) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector("dialog[open], [data-popover]") && document.activeElement?.closest(".peek-panel")) usePeek.getState().hide(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [pageId]);
-  if (!pageId || selected === pageId) return null;
+  if (!pageId || (selected === pageId && mainView === "page")) return null;
   return <>
     <div className="pane-resizer" role="separator" tabIndex={0} aria-label="Resize side-by-side panes" aria-orientation="vertical" aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(width)}
       onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setWidth((w) => Math.max(25, Math.min(75, w + (e.key === "ArrowLeft" ? 5 : -5)))); } }}

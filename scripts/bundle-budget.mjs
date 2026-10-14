@@ -19,9 +19,12 @@ const BUDGETS = [
   { name: "WorkspaceCanvas", match: (file) => /^WorkspaceCanvas-.*\.js$/.test(file), max: 30 * kB },
   { name: "canvas engine", match: (file) => /^useCanvas-.*\.js$/.test(file), max: 80 * kB },
   { name: "DatabaseView", match: (file) => /^DatabaseView-.*\.js$/.test(file), max: 190 * kB },
+  { name: "MapCanvas", match: (file) => /^MapCanvas-.*\.js$/.test(file), max: 600 * kB },
+  { name: "NodeMap", match: (file) => /^NodeMap-.*\.js$/.test(file), max: 40 * kB },
 ];
 // Includes the calendar views, recurrence/import support, and date/time pickers.
-const TOTAL_JS_MAX = 2_840 * kB;
+// Three.js and the map layout worker are lazy-loaded; preserve the startup budget.
+const TOTAL_JS_MAX = (2_840 + 750) * kB;
 
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const entry = html.match(/<script[^>]+src="\/?assets\/([^"]+\.js)"/)?.[1];

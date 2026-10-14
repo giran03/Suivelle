@@ -65,6 +65,7 @@ const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialo
 const MediaPasteDialog = lazy(() => import("../features/editor/MediaPasteDialog"));
 const CalendarComposer = lazy(() => import("../features/calendar/CalendarComposer").then((m) => ({ default: m.CalendarComposer })));
 const PeekPanel = lazy(() => import("../features/peek/PeekPanel").then((m) => ({ default: m.PeekPanel })));
+const NodeMap = lazy(() => import("../features/node-map/NodeMap").then(m => ({ default: m.NodeMap })));
 const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
 const BackupsDialog = lazy(() => import("../features/backup/BackupsDialog").then((m) => ({ default: m.BackupsDialog })));
@@ -167,6 +168,7 @@ function Content() {
   const epoch = useWorkspace((s) => s.editorEpoch);
 
   if (view === "trash") return <TrashView />;
+  if (view === "node-map") return <Suspense fallback={<Loading label="Loading map…" />}><NodeMap /></Suspense>;
   if (view === "canvas") return <Suspense fallback={null}><WorkspaceCanvas /></Suspense>;
   if (selectedPageId && kind === "dashboard") {
     return (
