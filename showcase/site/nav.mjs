@@ -53,7 +53,7 @@ export const SECTIONS = [
   {
     title: "Releases",
     pages: [
-      { slug: "whats-new", title: "What's new", blurb: "Highlights of 0.1.5 (in development) and 0.1.4.", links: ["agents", "node-map", "canvases"] },
+      { slug: "whats-new", title: "What's new", blurb: "Highlights of 0.1.5 and 0.1.4.", links: ["agents", "node-map", "canvases"] },
     ],
   },
 ];
