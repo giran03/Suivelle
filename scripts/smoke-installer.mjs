@@ -1,7 +1,7 @@
 // Run only on a disposable Windows Actions runner: installs the baseline and candidate.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -28,6 +28,7 @@ async function until(check, label) {
 }
 
 function install(installer) {
+  console.log(`Installing ${installer}`);
   execFileSync('powershell.exe', ['-NoProfile', '-Command',
     '$p = Start-Process -FilePath $env:SUI_SMOKE_INSTALLER -ArgumentList "/S /D=$env:SUI_SMOKE_DIR" -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode'],
   { env: { ...process.env, SUI_SMOKE_INSTALLER: installer, SUI_SMOKE_DIR: installDir }, windowsHide: true, timeout: 180_000, stdio: 'inherit' });
@@ -82,14 +83,21 @@ function stop() {
 try {
   install(baseline);
   await launch();
+  assert.equal(await invoke('plugin:app|version'), '0.1.4');
   const workspace = await invoke('workspace_create', { input: { name: 'Installer preservation check', icon: null } });
   const page = await invoke('page_create', { input: { workspaceId: workspace.id, parentPageId: null, title: 'Keep this page through the update' } });
   const content = JSON.stringify({ text: 'Saved before the 0.1.5 installation.' });
   const block = await invoke('block_create', { input: { pageId: page.id, type: 'paragraph', dataJson: content } });
   stop();
   await delay(1000);
+  // Simulate the stable connector left by a previous agent connection. Startup only
+  // refreshes existing copies; an app with no connected agents needs no stable copy.
+  const connectorDir = join(process.env.LOCALAPPDATA, 'Suivelle', 'bin');
+  mkdirSync(connectorDir, { recursive: true });
+  writeFileSync(join(connectorDir, 'suivelle-mcp.exe'), 'outdated connector fixture');
   install(candidate);
   await launch();
+  assert.equal(await invoke('plugin:app|version'), JSON.parse(readFileSync('release-notes.json', 'utf8')).version);
   assert.equal((await invoke('page_get', { id: page.id })).title, page.title);
   assert.ok((await invoke('workspace_list')).some(w => w.id === workspace.id && w.name === workspace.name));
   assert.equal((await invoke('block_list', { pageId: page.id })).find(b => b.id === block.id)?.dataJson, content);
