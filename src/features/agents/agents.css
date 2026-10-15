@@ -1,0 +1,100 @@
+/* Agents: the Review inbox, Activity, Vault health and Settings > Agents. */
+.agx-dialog { width: min(1040px, calc(100vw - 32px)); height: min(720px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); margin: auto; }
+.agx { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 16px 18px 14px; gap: 10px; }
+.agx .picker-muted, .agx-settings .picker-muted { padding: 0; color: var(--text-muted); font-size: 0.875rem; }
+.agx .field-error, .agx-settings .field-error { margin: 4px 0 0; color: var(--danger); font-size: 0.875rem; }
+.agx .picker-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.agx .check-row, .agx-settings .check-row { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+
+.agx-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-subtle); }
+.agx-tabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--r-md) var(--r-md) 0 0; color: var(--text-secondary); font-size: 0.875rem; }
+.agx-tabs [role="tab"]:hover { background: var(--surface-hover); }
+.agx-tabs [role="tab"][aria-selected="true"] { color: var(--text-primary); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent-ui); }
+.agx-badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-soft); color: var(--text-primary); font-size: 0.75rem; font-variant-numeric: tabular-nums; text-align: center; }
+.agx-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+.agx-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 14px; }
+.agx-list { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-right: 1px solid var(--border-subtle); padding-right: 10px; }
+.agx-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.agx-list button { width: 100%; display: grid; gap: 2px; padding: 8px 10px; border-radius: var(--r-md); text-align: left; }
+.agx-list button:hover { background: var(--surface-hover); }
+.agx-list [aria-selected="true"] button { background: var(--accent-soft); }
+.agx-list strong { font-size: 0.875rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.agx-list small, .agx-activity small { color: var(--text-muted); font-size: 0.8125rem; }
+.agx-pane { min-height: 0; overflow-y: auto; padding: 10px 4px 10px 0; }
+.agx-detail { display: grid; gap: 10px; }
+.agx-detail h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.agx-rationale { white-space: pre-wrap; color: var(--text-secondary); font-size: 0.9375rem; }
+.agx-ops { margin: 0; padding-left: 20px; display: grid; gap: 12px; }
+.agx-op-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 0.9375rem; }
+.agx-link { color: var(--accent-ui); text-decoration: underline; text-underline-offset: 2px; font-size: 0.875rem; }
+.agx-diff { margin: 6px 0 0; max-height: 320px; overflow: auto; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--field); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.8125rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agx-diff > span { display: block; }
+.agx-add { background: color-mix(in srgb, var(--success) 14%, transparent); }
+.agx-del { background: color-mix(in srgb, var(--danger) 12%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.agx-gap { color: var(--text-muted); }
+.agx-decide { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.agx-decide label { font-size: 0.875rem; color: var(--text-secondary); }
+.agx-decide textarea { width: 100%; resize: vertical; padding: 8px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); font: inherit; }
+
+.agx-activity, .agx-health { flex: 1; min-height: 0; overflow-y: auto; padding-top: 10px; display: grid; align-content: start; gap: 10px; }
+.agx-activity ul, .agx-health ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.agx-activity li { padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); }
+.agx-activity li.reverted { opacity: 0.65; }
+.agx-activity-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.agx-activity-head > div { display: grid; gap: 2px; min-width: 0; }
+.agx-pages { margin: 6px 0 0; color: var(--text-secondary); font-size: 0.875rem; }
+.agx-health-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.agx-health h4 { margin: 6px 0 4px; font-size: 0.875rem; font-weight: 600; }
+.agx-health h4 small { color: var(--text-muted); font-weight: 400; }
+.agx-health li { padding: 6px 10px; border-left: 3px solid var(--border); border-radius: 0 var(--r-md) var(--r-md) 0; background: var(--surface-1); font-size: 0.875rem; }
+.agx-health li.agx-warning { border-left-color: var(--warning); }
+.agx-health li.agx-problem { border-left-color: var(--danger); }
+
+/* Settings > Agents */
+.agx-settings { display: grid; gap: 4px; }
+.agx-settings h4 { margin: 22px 0 6px; font-size: 0.9375rem; font-weight: 600; }
+.agx-cards { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.agx-card { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-1); }
+.agx-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.agx-card-head strong { font-size: 0.9375rem; }
+.agx-meta { color: var(--text-muted); font-size: 0.8125rem; }
+.agx-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.agx-form { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-1); }
+.agx-form label.agx-field { display: grid; gap: 4px; font-size: 0.875rem; color: var(--text-secondary); }
+.agx-form input[type="text"], .agx-form textarea { padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--text-primary); font: inherit; }
+.agx-form fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.agx-form legend { margin-bottom: 4px; font-size: 0.875rem; color: var(--text-secondary); }
+.agx-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.agx-token { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--accent-ui); border-radius: var(--r-md); background: var(--accent-soft); }
+.agx-copy { display: flex; gap: 6px; align-items: stretch; }
+.agx-copy code { flex: 1; min-width: 0; padding: 6px 8px; border-radius: var(--r-md); background: var(--field); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.8125rem; overflow-wrap: anywhere; user-select: all; }
+.agx-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--text-secondary); }
+.agx-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.agx-status.on::before { background: var(--success); }
+
+/* Settings > Agents > Connect apps */
+.agx-chip { flex-shrink: 0; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 0.75rem; }
+.agx-chip.on { border-color: color-mix(in srgb, var(--success) 50%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--text-primary); }
+.agx-chip.warn { border-color: color-mix(in srgb, var(--warning) 55%, transparent); background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--text-primary); }
+.agx-meta { overflow-wrap: anywhere; }
+.agx-sheet { margin-top: 8px; border-color: var(--accent-ui); }
+.agx-plan { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-secondary); font-size: 0.875rem; overflow-wrap: anywhere; }
+.agx-form select { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--text-primary); font: inherit; }
+.agx-extra { align-items: flex-start; }
+.agx-extra input { margin-top: 3px; }
+.agx-extra > span { display: grid; gap: 2px; min-width: 0; }
+.agx-extra .agx-meta { overflow-wrap: anywhere; }
+.agx-note { display: grid; gap: 6px; color: var(--text-secondary); font-size: 0.875rem; }
+.agx-note p { margin: 0; }
+.agx-copy.block { align-items: flex-start; }
+.agx-copy pre { flex: 1; min-width: 0; margin: 0; max-height: 240px; overflow: auto; padding: 8px; border-radius: var(--r-md); background: var(--field); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.8125rem; white-space: pre; user-select: all; }
+.agx-import .agx-form { margin-top: 8px; }
+.agx-sublist { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+.agx-sublist .check-row { align-items: flex-start; }
+.agx-sublist .check-row span { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .agx-split { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 35%) 1fr; }
+  .agx-list { border-right: 0; border-bottom: 1px solid var(--border-subtle); padding-right: 0; }
+}

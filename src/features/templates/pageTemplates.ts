@@ -2,6 +2,8 @@ import { ipc, toAppError } from "../../lib/ipc";
 import { specialPage } from "../../lib/specialPages";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
+import { flushAllEditors } from "../editor/flushRegistry";
+import type { Editor } from "@tiptap/core";
 
 /**
  * Page templates are ordinary pages kept inside one "Templates" page (see `specialPage`), which is
@@ -67,4 +69,16 @@ export async function createFromPageTemplate(templateId: string, parentId: strin
   } catch (e) {
     return toAppError(e).message;
   }
+}
+
+export async function applyPageTemplate(templateId: string, pageId: string, workspaceId: string, editor: Editor | null = null): Promise<string | null> {
+  try {
+    await flushAllEditors(true);
+    if (useWorkspace.getState().workspace?.id !== workspaceId) throw new Error("The workspace changed. Open the template picker again.");
+    await ipc.pageApplyTemplate(templateId, pageId);
+    window.dispatchEvent(new CustomEvent("page-template-applied", { detail: { pageId, focusEditor: editor } }));
+    try { await useWorkspace.getState().reloadTree(); }
+    catch { useWorkspace.getState().notify("Template applied. Reopen the sidebar to refresh its pages."); }
+    return null;
+  } catch (e) { return toAppError(e).message; }
 }

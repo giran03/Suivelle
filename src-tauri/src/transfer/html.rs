@@ -368,6 +368,14 @@ pub(crate) fn inline_of(nodes: &[Node], marks: &[Mark], out: &mut Vec<Inline>, d
                     continue;
                 }
                 let mut m = marks.to_vec();
+                if let (Some(kind), Some(value)) = (
+                    attr(attrs, "data-smart-kind"),
+                    attr(attrs, "data-smart-value"),
+                ) {
+                    if let Some(mark) = super::blocks::smart_mark(kind, value) {
+                        m.push(mark);
+                    }
+                }
                 match tag.as_str() {
                     "br" => {
                         out.push(Inline::Break);
@@ -1019,6 +1027,14 @@ fn inline_html(items: &[Inline], ctx: &Ctx) -> String {
                             format!("<a href=\"{}\">{s}</a>", href(h))
                         }
                         Mark::Link(_) => s,
+                        Mark::Smart { kind, value } => {
+                            let visual = if kind == "color" {
+                                format!("<span aria-hidden=\"true\" style=\"display:inline-block;width:.7em;height:.7em;border:1px solid #888;background:{};margin-right:.3em\"></span>", esc(value))
+                            } else {
+                                String::new()
+                            };
+                            format!("<span data-smart-kind=\"{}\" data-smart-value=\"{}\" title=\"{}\">{visual}{s}</span>", esc(kind), esc(value), esc(value))
+                        }
                     };
                 }
                 out.push_str(&s);

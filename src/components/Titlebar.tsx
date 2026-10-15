@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { BrandMark } from "./BrandMark";
+import { Icon } from "./Icon";
 import { toAppError } from "../lib/ipc";
 import "./titlebar.css";
 
@@ -38,9 +39,9 @@ export function Titlebar() {
     </div>
     {error && <p className="app-titlebar-error" role="alert">{error}</p>}
     <div className="app-window-controls" role="group" aria-label="Window controls">
-      <button type="button" aria-label="Minimize window" title="Minimize" onClick={() => void run("minimize")}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5h10" /></svg></button>
-      <button type="button" aria-label={maximized ? "Restore window" : "Maximize window"} title={maximized ? "Restore" : "Maximize"} onClick={() => void run("toggleMaximize")}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{maximized ? <path d="M5.5 5.5v-2h7v7h-2m-7-5h7v7h-7z" /> : <rect x="3.5" y="3.5" width="9" height="9" />}</svg></button>
-      <button type="button" className="app-window-close" aria-label="Close window" title="Close" onClick={() => void run("close")}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 3.5 9 9m0-9-9 9" /></svg></button>
+      <button type="button" aria-label="Minimize window" title="Minimize" onClick={() => void run("minimize")}><Icon name="minimize" /></button>
+      <button type="button" aria-label={maximized ? "Restore window" : "Maximize window"} title={maximized ? "Restore" : "Maximize"} onClick={() => void run("toggleMaximize")}><Icon name={maximized ? "restoreWindow" : "maximize"} /></button>
+      <button type="button" className="app-window-close" aria-label="Close window" title="Close" onClick={() => void run("close")}><Icon name="close" /></button>
     </div>
   </header>;
 }

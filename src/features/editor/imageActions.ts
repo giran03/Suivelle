@@ -52,7 +52,8 @@ export function imageItems(
   if (editor.isEditable) {
     for (const align of ["left", "center", "right"] as const)
       items.push({
-        label: `${p.align === align || (!p.align && align === "left") ? "✓ " : ""}Align ${align}`,
+        label: `Align ${align}`,
+        checked: p.align === align || (!p.align && align === "left"),
         onSelect: () => {
           const current = editor.state.doc.nodeAt(pos);
           if (current?.type.name === "image")

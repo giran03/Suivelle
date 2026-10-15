@@ -5,8 +5,8 @@
 .tab.on { background: var(--surface-1); color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent-ui); }
 .tab-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: 100%; padding: 0 4px 0 10px; text-align: left; font-size: 0.8125rem; }
 .tab-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab-main svg { color: var(--text-muted); }
-.tab.on .tab-main svg { color: var(--accent-ui); }
+.tab-main .app-icon { color: var(--text-muted); }
+.tab.on .tab-main .app-icon { color: var(--accent-ui); }
 .tab.dragging { opacity: 0.7; background: var(--surface-active); }
 .tab-main { touch-action: none; }
 .tab-close { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: var(--r-xs); color: var(--text-muted); opacity: 0; transition: opacity var(--t-fast) ease-out, background var(--t-fast) ease-out; }
@@ -17,3 +17,5 @@
 .tabbar-drop { display: none; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.8125rem; border-bottom: 1px dashed color-mix(in srgb, var(--accent-ui) 45%, transparent); background: color-mix(in srgb, var(--accent-ui) 5%, transparent); }
 body.page-drag .tabbar-drop { display: flex; }
 body.page-drag .tabbar:not(.tabbar-drop) { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-ui) 50%, transparent); }
+
+main[data-split-drop]::after { content: 'Open beside'; position: absolute; inset: 110px 8px 16px auto; width: 110px; display: grid; place-content: center; border: 2px solid var(--accent); background: var(--surface-1); color: var(--fg); z-index: 30; pointer-events: none; }

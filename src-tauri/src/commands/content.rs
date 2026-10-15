@@ -13,8 +13,7 @@ use crate::transfer::blocks::{flatten, plain, Blk};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::ipc::{InvokeBody, Request};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+use tauri::{AppHandle, Manager, State};
 
 const MAX_MARKDOWN_BYTES: usize = 2 * 1024 * 1024;
 
@@ -154,6 +153,19 @@ pub async fn page_duplicate(app: tauri::AppHandle, input: PageDuplicate) -> AppR
 }
 
 #[tauri::command]
+pub async fn page_apply_template(
+    app: tauri::AppHandle,
+    template_id: String,
+    page_id: String,
+) -> AppResult<()> {
+    blocking("page_apply_template", move || {
+        let db = app.state::<Db>();
+        lock(&db).and_then(|mut c| duplicate::apply_template(&mut c, &template_id, &page_id))
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn attachment_list(
     app: tauri::AppHandle,
     workspace_id: String,
@@ -236,56 +248,6 @@ pub async fn markdown_to_blocks(text: String) -> AppResult<Vec<BlockRowOut>> {
         Ok(markdown_rows(&text))
     })
     .await
-}
-
-/// The system-wide shortcut for quick capture. Off until the user turns it on in Settings, because a
-/// global shortcut takes a key away from every other app.
-pub fn capture_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN)
-}
-
-/// Opens only the jot window, leaving the main window's visibility and focus alone.
-pub fn open_quick_capture(app: &AppHandle) {
-    // WebView2 window creation must run outside the shortcut event handler on Windows.
-    // Serialize repeated presses so they reuse the same window even while it is loading.
-    static OPENING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let app = app.clone();
-    std::thread::spawn(move || {
-        let _opening = OPENING.lock().unwrap_or_else(|e| e.into_inner());
-        if crate::updates::preparing() {
-            return;
-        }
-        if let Some(window) = app.get_webview_window("quick-capture") {
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
-            return;
-        }
-        if let Err(error) = WebviewWindowBuilder::new(
-            &app,
-            "quick-capture",
-            WebviewUrl::App("index.html?quick-capture".into()),
-        )
-        .title("Quick capture — Suivelle")
-        .inner_size(560.0, 340.0)
-        .min_inner_size(400.0, 300.0)
-        .center()
-        .always_on_top(true)
-        .focused(true)
-        .drag_and_drop(false)
-        .build()
-        {
-            tracing::warn!(%error, "could not open quick capture window");
-        }
-    });
-}
-
-/// Turns the global quick-capture shortcut on or off. Fails with a readable message when another
-/// program already owns the key combination.
-#[tauri::command]
-pub fn quick_capture_shortcut(app: AppHandle, enabled: bool) -> AppResult<bool> {
-    crate::shortcuts::set_enabled(&app, "capture", enabled)?;
-    Ok(enabled)
 }
 
 #[cfg(test)]

@@ -21,6 +21,7 @@ import { BlockFlash } from "./flash";
 import { FindExtension } from "./find";
 import { Intake } from "./intake";
 import { PageMention } from "./mention";
+import { PageDrop } from "./pageDrop";
 import { EmbedBlock } from "./embed";
 import { LinkNavigation } from "./linkNavigation";
 import { MediaNodes } from "./media";
@@ -29,6 +30,7 @@ import { Slash } from "./slash";
 import { Tabs, TabPanel } from "./tabs";
 import { ToneMark } from "./tone";
 import { BlockSelection } from "../blockSelection";
+import { SmartReference } from "./smartReference";
 
 /** `nested` builds the set for an editor that lives inside a synced block, which cannot hold another one. */
 export function buildExtensions(options: { nested?: boolean } = {}): Extensions {
@@ -38,10 +40,11 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
       // Replaced by single-row block types below.
       blockquote: false,
       codeBlock: false,
-      link: { openOnClick: false, autolink: true, protocols: ["suivelle", LEGACY_NAME] },
+      link: { openOnClick: false, autolink: true, linkOnPaste: false, protocols: ["suivelle", LEGACY_NAME] },
     }),
     TextStyle,
     ToneMark,
+    SmartReference,
     LinkNavigation,
     RebindableShortcuts,
     BlockId,
@@ -50,6 +53,7 @@ export function buildExtensions(options: { nested?: boolean } = {}): Extensions 
     Behaviors,
     InsertBlockAbove,
     Intake,
+    PageDrop,
     FindExtension,
     Quote,
     Callout,

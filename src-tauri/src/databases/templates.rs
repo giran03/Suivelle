@@ -576,6 +576,25 @@ fn build_project_manager(b: &Builder, software: bool) -> AppResult<Vec<String>> 
     let mut tasks = tasks_database(b, software)?;
     b.relate(&mut milestones, "Project", &mut projects, "Milestones")?;
     b.relate(&mut tasks, "Project", &mut projects, "Tasks")?;
+    // Durable IDs for palette task creation, independent of database/property names.
+    let workspace =
+        repo::workspace::get(b.tx, &b.ws)?.ok_or_else(|| AppError::NotFound("workspace".into()))?;
+    let mut settings: Value =
+        serde_json::from_str(&workspace.settings_json).unwrap_or_else(|_| json!({}));
+    if !settings.is_object() {
+        settings = json!({});
+    }
+    let mut ids = settings
+        .get("projectTaskRelationIds")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    ids.push(json!(tasks.id_of("Project")?));
+    settings["projectTaskRelationIds"] = json!(ids);
+    b.tx.execute(
+        "UPDATE workspace SET settings_json = ?2 WHERE id = ?1",
+        rusqlite::params![b.ws, settings.to_string()],
+    )?;
     b.relate(&mut tasks, "Milestone", &mut milestones, "Tasks")?;
     b.relate(&mut tasks, "Sprint", &mut sprints, "Tasks")?;
     task_structure(b, &mut tasks)?;
@@ -910,4 +929,103 @@ pub fn create_from_template(
         page_id: root.id,
         database_page_ids,
     })
+}
+
+// ---------------------------------------------------------------------------------------------
+// agent hub
+// ---------------------------------------------------------------------------------------------
+
+pub const MEMORY_KINDS: [(&str, &str, &str); 6] = [
+    ("Fact", "blue", ""),
+    ("Decision", "violet", ""),
+    ("Preference", "green", ""),
+    ("Feedback", "orange", ""),
+    ("Project", "blue", ""),
+    ("Reference", "gray", ""),
+];
+pub const MEMORY_STATUSES: [(&str, &str, &str); 4] = [
+    ("Active", "green", ""),
+    ("Superseded", "gray", ""),
+    ("Expired", "gray", ""),
+    ("Disputed", "orange", ""),
+];
+pub const AGENT_TASK_STATUSES: [(&str, &str, &str); 5] = [
+    ("Queued", "gray", ""),
+    ("In progress", "blue", ""),
+    ("Review", "violet", ""),
+    ("Done", "green", ""),
+    ("Failed", "red", ""),
+];
+
+/// The Memory and Agent tasks databases under `root`. Returns their database ids.
+pub(crate) fn build_agent_hub(
+    tx: &Connection,
+    workspace_id: &str,
+    root: &str,
+) -> AppResult<(String, String)> {
+    let b = Builder {
+        tx,
+        ws: workspace_id.into(),
+        root: root.into(),
+        today: chrono::Local::now().date_naive(),
+        sample: false,
+    };
+    let mut m = b.database("Memory")?;
+    b.prop(&mut m, "Kind", "select", options(&MEMORY_KINDS))?;
+    b.prop(&mut m, "Status", "select", options(&MEMORY_STATUSES))?;
+    b.prop(
+        &mut m,
+        "Confidence",
+        "select",
+        options(&[
+            ("Stated", "blue", ""),
+            ("Inferred", "gray", ""),
+            ("Verified", "green", ""),
+        ]),
+    )?;
+    b.prop(&mut m, "Scope", "text", json!({}))?;
+    b.prop(&mut m, "Source", "text", json!({}))?;
+    b.prop(&mut m, "Expires", "date", json!({}))?;
+    let me = m.id.clone();
+    b.prop(
+        &mut m,
+        "Supersedes",
+        "relation",
+        json!({ "targetDatabaseId": me, "twoWay": true, "reverseName": "Superseded by" }),
+    )?;
+    b.table(
+        &m,
+        "All memories",
+        &["Kind", "Status", "Confidence", "Scope", "Source", "Expires"],
+        None,
+    )?;
+    let status = m.p("Status")?.clone();
+    let active = m.option("Status", "Active")?;
+    b.view(&m, "board", "By kind", &["Status", "Scope", "Source"], |c| {
+        c.group = Some(group_by(m.p("Kind")?));
+        c.filter = Some(leaf(&status, "=", json!(active)));
+        Ok(())
+    })?;
+
+    let mut t = b.database("Agent tasks")?;
+    b.prop(&mut t, "Status", "select", options(&AGENT_TASK_STATUSES))?;
+    b.prop(&mut t, "Agent", "text", json!({}))?;
+    b.prop(&mut t, "Claimed by", "text", json!({}))?;
+    b.prop(&mut t, "Lease until", "text", json!({}))?;
+    b.prop(&mut t, "Attempts", "number", json!({}))?;
+    b.prop(&mut t, "Due", "date", json!({}))?;
+    b.prop(&mut t, "Source", "text", json!({}))?;
+    // "block:<id>" when the task was promoted from a to-do; finishing the task checks it.
+    b.prop(&mut t, "Origin", "text", json!({}))?;
+    b.table(
+        &t,
+        "All tasks",
+        &["Status", "Agent", "Claimed by", "Due", "Attempts", "Source"],
+        None,
+    )?;
+    b.view(&t, "board", "Board", &["Agent", "Due", "Claimed by"], |c| {
+        c.group = Some(group_by(t.p("Status")?));
+        Ok(())
+    })?;
+    Ok((m.id, t.id))
 }

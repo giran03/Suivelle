@@ -1,0 +1,502 @@
+{
+  "nodeMap": {
+    "name": "md-graph_outline",
+    "codepoint": 987210
+  },
+  "agent": {
+    "name": "md-robot_outline",
+    "codepoint": 988794
+  },
+  "inbox": {
+    "name": "md-inbox_outline",
+    "codepoint": 987764
+  },
+  "orbit": {
+    "name": "md-orbit",
+    "codepoint": 983064
+  },
+  "corner-sharp": {
+    "name": "md-crop_square",
+    "codepoint": 983458
+  },
+  "corner-soft": {
+    "name": "md-square_rounded_outline",
+    "codepoint": 988412
+  },
+  "corner-round": {
+    "name": "md-rounded_corner",
+    "codepoint": 984583
+  },
+  "alignLeft": {
+    "name": "md-format_align_left",
+    "codepoint": 983650
+  },
+  "alignCenter": {
+    "name": "md-format_align_center",
+    "codepoint": 983648
+  },
+  "alignRight": {
+    "name": "md-format_align_right",
+    "codepoint": 983651
+  },
+  "caption": {
+    "name": "md-closed_caption_outline",
+    "codepoint": 986557
+  },
+  "expand": {
+    "name": "md-arrow_expand_all",
+    "codepoint": 983116
+  },
+  "comment": {
+    "name": "md-comment_text_outline",
+    "codepoint": 983433
+  },
+  "crop": {
+    "name": "md-crop",
+    "codepoint": 983454
+  },
+  "chevron": {
+    "name": "md-chevron_right",
+    "codepoint": 983362
+  },
+  "plus": {
+    "name": "md-plus",
+    "codepoint": 984085
+  },
+  "expandAll": {
+    "name": "md-unfold_more_horizontal",
+    "codepoint": 984399
+  },
+  "collapseAll": {
+    "name": "md-unfold_less_horizontal",
+    "codepoint": 984398
+  },
+  "star": {
+    "name": "md-star_outline",
+    "codepoint": 984274
+  },
+  "trash": {
+    "name": "md-trash_can_outline",
+    "codepoint": 985722
+  },
+  "back": {
+    "name": "md-arrow_left",
+    "codepoint": 983117
+  },
+  "forward": {
+    "name": "md-arrow_right",
+    "codepoint": 983124
+  },
+  "more": {
+    "name": "md-dots_horizontal",
+    "codepoint": 983512
+  },
+  "page": {
+    "name": "md-file_document_outline",
+    "codepoint": 985582
+  },
+  "restore": {
+    "name": "md-history",
+    "codepoint": 983770
+  },
+  "grip": {
+    "name": "md-drag_vertical",
+    "codepoint": 983517
+  },
+  "text": {
+    "name": "md-text",
+    "codepoint": 985512
+  },
+  "bullet": {
+    "name": "md-format_list_bulleted",
+    "codepoint": 983673
+  },
+  "todo": {
+    "name": "md-checkbox_marked_outline",
+    "codepoint": 983349
+  },
+  "toggle": {
+    "name": "md-format_indent_increase",
+    "codepoint": 983670
+  },
+  "quote": {
+    "name": "md-format_quote_close",
+    "codepoint": 983678
+  },
+  "divider": {
+    "name": "md-minus",
+    "codepoint": 983924
+  },
+  "code": {
+    "name": "md-code_tags",
+    "codepoint": 983412
+  },
+  "sigma": {
+    "name": "md-sigma",
+    "codepoint": 984224
+  },
+  "table": {
+    "name": "md-table",
+    "codepoint": 984299
+  },
+  "image": {
+    "name": "md-image_outline",
+    "codepoint": 985462
+  },
+  "audio": {
+    "name": "md-waveform",
+    "codepoint": 988285
+  },
+  "video": {
+    "name": "md-video_outline",
+    "codepoint": 986076
+  },
+  "link": {
+    "name": "md-link_variant",
+    "codepoint": 983865
+  },
+  "note": {
+    "name": "md-information_outline",
+    "codepoint": 983805
+  },
+  "tip": {
+    "name": "md-check_circle_outline",
+    "codepoint": 984545
+  },
+  "warning": {
+    "name": "md-alert_outline",
+    "codepoint": 983082
+  },
+  "search": {
+    "name": "md-magnify",
+    "codepoint": 983881
+  },
+  "hash": {
+    "name": "md-pound",
+    "codepoint": 984099
+  },
+  "tag": {
+    "name": "md-tag_outline",
+    "codepoint": 984316
+  },
+  "calendar": {
+    "name": "md-calendar_month_outline",
+    "codepoint": 986648
+  },
+  "mail": {
+    "name": "md-email_outline",
+    "codepoint": 983536
+  },
+  "phone": {
+    "name": "md-phone_outline",
+    "codepoint": 986608
+  },
+  "clock": {
+    "name": "md-clock_outline",
+    "codepoint": 983376
+  },
+  "arrowUp": {
+    "name": "md-arrow_up",
+    "codepoint": 983133
+  },
+  "arrowDown": {
+    "name": "md-arrow_down",
+    "codepoint": 983109
+  },
+  "filter": {
+    "name": "md-filter_variant",
+    "codepoint": 983606
+  },
+  "columns": {
+    "name": "md-view_column_outline",
+    "codepoint": 988295
+  },
+  "eye": {
+    "name": "md-eye_outline",
+    "codepoint": 984784
+  },
+  "eyeOff": {
+    "name": "md-eye_off_outline",
+    "codepoint": 984785
+  },
+  "check": {
+    "name": "md-check",
+    "codepoint": 983340
+  },
+  "close": {
+    "name": "md-close",
+    "codepoint": 983382
+  },
+  "open": {
+    "name": "md-open_in_new",
+    "codepoint": 984012
+  },
+  "timeline": {
+    "name": "md-chart_timeline",
+    "codepoint": 984686
+  },
+  "function": {
+    "name": "md-function_variant",
+    "codepoint": 985201
+  },
+  "layers": {
+    "name": "md-layers_outline",
+    "codepoint": 985598
+  },
+  "download": {
+    "name": "md-download",
+    "codepoint": 983514
+  },
+  "upload": {
+    "name": "md-upload",
+    "codepoint": 984402
+  },
+  "play": {
+    "name": "md-play",
+    "codepoint": 984074
+  },
+  "bolt": {
+    "name": "md-lightning_bolt_outline",
+    "codepoint": 988172
+  },
+  "chart": {
+    "name": "md-chart_bar",
+    "codepoint": 983336
+  },
+  "form": {
+    "name": "md-form_select",
+    "codepoint": 988161
+  },
+  "canvas": {
+    "name": "md-vector_square",
+    "codepoint": 983041
+  },
+  "feed": {
+    "name": "md-view_agenda_outline",
+    "codepoint": 987608
+  },
+  "dashboard": {
+    "name": "md-view_dashboard_outline",
+    "codepoint": 985629
+  },
+  "edit": {
+    "name": "md-pencil_outline",
+    "codepoint": 986294
+  },
+  "monitor": {
+    "name": "md-monitor",
+    "codepoint": 983929
+  },
+  "sun": {
+    "name": "md-white_balance_sunny",
+    "codepoint": 984488
+  },
+  "moon": {
+    "name": "md-weather_night",
+    "codepoint": 984468
+  },
+  "gear": {
+    "name": "md-cog_outline",
+    "codepoint": 985275
+  },
+  "collapseSidebar": {
+    "name": "md-page_layout_sidebar_left",
+    "codepoint": 984829
+  },
+  "expandSidebar": {
+    "name": "md-page_layout_sidebar_right",
+    "codepoint": 984830
+  },
+  "sidebar": {
+    "name": "md-dock_left",
+    "codepoint": 987306
+  },
+  "smile": {
+    "name": "md-emoticon_happy_outline",
+    "codepoint": 983541
+  },
+  "keyboard": {
+    "name": "md-keyboard_outline",
+    "codepoint": 985467
+  },
+  "duplicate": {
+    "name": "md-content_copy",
+    "codepoint": 983439
+  },
+  "cursor": {
+    "name": "md-cursor_default_outline",
+    "codepoint": 983487
+  },
+  "move": {
+    "name": "md-cursor_move",
+    "codepoint": 983486
+  },
+  "marquee": {
+    "name": "md-selection",
+    "codepoint": 984201
+  },
+  "connect": {
+    "name": "md-vector_line",
+    "codepoint": 984414
+  },
+  "zoomIn": {
+    "name": "md-magnify_plus_outline",
+    "codepoint": 984813
+  },
+  "zoomOut": {
+    "name": "md-magnify_minus_outline",
+    "codepoint": 984812
+  },
+  "fit": {
+    "name": "md-fit_to_screen_outline",
+    "codepoint": 989429
+  },
+  "cube": {
+    "name": "md-cube_outline",
+    "codepoint": 983463
+  },
+  "square": {
+    "name": "md-square_outline",
+    "codepoint": 984931
+  },
+  "list": {
+    "name": "md-format_list_bulleted",
+    "codepoint": 983673
+  },
+  "target": {
+    "name": "md-target",
+    "codepoint": 984318
+  },
+  "undo": {
+    "name": "md-undo",
+    "codepoint": 984396
+  },
+  "redo": {
+    "name": "md-redo",
+    "codepoint": 984142
+  },
+  "pin": {
+    "name": "md-pin_outline",
+    "codepoint": 985393
+  },
+  "hand": {
+    "name": "md-hand_back_right_outline",
+    "codepoint": 989229
+  },
+  "stickyNote": {
+    "name": "md-note_text_outline",
+    "codepoint": 987607
+  },
+  "minus": {
+    "name": "md-minus",
+    "codepoint": 983924
+  },
+  "focus": {
+    "name": "md-image_filter_center_focus",
+    "codepoint": 983793
+  },
+  "minimap": {
+    "name": "md-map_outline",
+    "codepoint": 985474
+  },
+  "alignObjectsLeft": {
+    "name": "md-align_horizontal_left",
+    "codepoint": 987586
+  },
+  "alignObjectsCenter": {
+    "name": "md-align_horizontal_center",
+    "codepoint": 987587
+  },
+  "alignObjectsRight": {
+    "name": "md-align_horizontal_right",
+    "codepoint": 987588
+  },
+  "alignTop": {
+    "name": "md-align_vertical_top",
+    "codepoint": 987591
+  },
+  "alignMiddle": {
+    "name": "md-align_vertical_center",
+    "codepoint": 987590
+  },
+  "alignBottom": {
+    "name": "md-align_vertical_bottom",
+    "codepoint": 987589
+  },
+  "distributeX": {
+    "name": "md-distribute_horizontal_center",
+    "codepoint": 987593
+  },
+  "distributeY": {
+    "name": "md-distribute_vertical_center",
+    "codepoint": 987596
+  },
+  "front": {
+    "name": "md-arrange_bring_to_front",
+    "codepoint": 983102
+  },
+  "sendBack": {
+    "name": "md-arrange_send_to_back",
+    "codepoint": 983104
+  },
+  "palette": {
+    "name": "md-palette_outline",
+    "codepoint": 986636
+  },
+  "snap": {
+    "name": "md-magnet",
+    "codepoint": 983879
+  },
+  "minimize": {
+    "name": "md-window_minimize",
+    "codepoint": 984496
+  },
+  "maximize": {
+    "name": "md-window_maximize",
+    "codepoint": 984495
+  },
+  "restoreWindow": {
+    "name": "md-window_restore",
+    "codepoint": 984498
+  },
+  "densityCompact": {
+    "name": "md-view_compact_outline",
+    "codepoint": 986732
+  },
+  "densityNormal": {
+    "name": "md-view_agenda_outline",
+    "codepoint": 987608
+  },
+  "densityComfortable": {
+    "name": "md-view_stream_outline",
+    "codepoint": 988304
+  },
+  "chevronDown": {
+    "name": "md-chevron_down",
+    "codepoint": 983360
+  },
+  "chevronLeft": {
+    "name": "md-chevron_left",
+    "codepoint": 983361
+  },
+  "chevronDoubleLeft": {
+    "name": "md-chevron_double_left",
+    "codepoint": 983357
+  },
+  "chevronDoubleRight": {
+    "name": "md-chevron_double_right",
+    "codepoint": 983358
+  },
+  "starFilled": {
+    "name": "md-star",
+    "codepoint": 984270
+  },
+  "arrowRight": {
+    "name": "md-arrow_right",
+    "codepoint": 983124
+  },
+  "lineSpacing": {
+    "name": "md-format_line_spacing",
+    "codepoint": 983672
+  }
+}

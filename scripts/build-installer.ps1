@@ -64,8 +64,10 @@ try {
     $releaseRoot = Join-Path $projectRoot 'src-tauri\target\release'
     $bundleRoot = Join-Path $releaseRoot 'bundle'
     $buildStarted = Get-Date
+    # The suivelle-mcp connector ships next to Suivelle for agent apps to run.
+    Invoke-Checked 'node.exe' @('scripts/build-mcp-bridge.mjs')
     if ($Format -eq 'nsis') {
-        Invoke-Checked 'npm.cmd' @('run', 'tauri', '--', 'build', '--bundles', 'nsis')
+        Invoke-Checked 'npm.cmd' @('run', 'tauri', '--', 'build', '--bundles', 'nsis', '--config', 'src-tauri/tauri.connector.conf.json')
         $installer = Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*-setup.exe' |
             Where-Object { $_.LastWriteTime -ge $buildStarted } |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -102,6 +104,7 @@ try {
         $staging = Join-Path $stagingRoot ([guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path (Join-Path $staging 'Assets') -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $releaseRoot $executableName) -Destination $staging
+        Copy-Item -LiteralPath (Join-Path $releaseRoot 'suivelle-mcp.exe') -Destination $staging
         foreach ($icon in @('Square44x44Logo.png', 'Square150x150Logo.png', 'StoreLogo.png')) {
             Copy-Item -LiteralPath (Join-Path $projectRoot "src-tauri\icons\$icon") -Destination (Join-Path $staging 'Assets')
         }

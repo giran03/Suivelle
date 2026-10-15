@@ -943,6 +943,12 @@ fn escape(text: &str, in_table: bool) -> String {
 }
 
 fn wrap_text(text: &str, marks: &[Mark], in_table: bool) -> String {
+    if let Some(Mark::Smart { value, .. }) = marks
+        .iter()
+        .find(|m| matches!(m, Mark::Smart { kind, .. } if kind == "file"))
+    {
+        return escape(value, in_table);
+    }
     let lead = text.len() - text.trim_start().len();
     let trail = text.len() - text.trim_end().len();
     if lead == text.len() {

@@ -1,4 +1,3 @@
-import { installGlobalShortcutSync } from "../features/shortcuts/native";
 import { installInputRouter } from "../features/shortcuts/runtime";
 import { COMMANDS } from "../features/palette/commands";
 import { useFilesDialog } from "../features/files/store";
@@ -14,6 +13,8 @@ import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
 import { usePeek } from "../features/peek/store";
 import { installReminderToasts } from "../features/explore/events";
+import { installAgentEvents } from "../features/agents/events";
+import { useAgents } from "../features/agents/store";
 import { installTrayRecent } from "../features/session/trayRecent";
 import { installDeepLinks } from "../features/session/deepLinks";
 import { registerFlusher } from "../features/editor/flushRegistry";
@@ -27,6 +28,7 @@ import { usePalette } from "../features/palette/store";
 import { Sidebar } from "../features/pages/Sidebar";
 import { Topbar } from "../features/pages/Topbar";
 import { TrashView } from "../features/pages/TrashView";
+const WorkspaceCanvas = lazy(() => import("../features/canvas/WorkspaceCanvas").then((m) => ({ default: m.WorkspaceCanvas })));
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -40,13 +42,13 @@ import { installFileDropGuard } from "../features/session/fileDropGuard";
 import { ShortcutSheet } from "../features/shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../features/settings/store";
 import { QuickCapture } from "../features/capture/QuickCapture";
-import { installCaptureWindowBridge } from "../features/capture/window";
 import { ipc, toAppError } from "../lib/ipc";
 import { useFindBar } from "../features/find/store";
-import { TabBar } from "../features/tabs/TabBar";
 import { closeTab, cycleTab, installTabs, useTabs } from "../features/tabs/tabs";
 import { installMotion } from "../features/motion/install";
 import { installTooltips } from "../features/tooltip/tooltip";
+import { usePreviewCard } from "../features/preview/store";
+import { installPagePreview } from "../features/preview/install";
 import { useAppIcon } from "../lib/appIcon";
 import { useAppearance } from "../lib/appearance";
 import { usePreferences } from "../stores/preferences";
@@ -58,14 +60,17 @@ import { PageTransferDialog, usePageTransfer } from "../features/pages/PageTrans
 // The editor (TipTap, KaTeX, syntax highlighting) is the heavy part; load it after the shell is up.
 const RecordProperties = lazy(() => import("../features/database/RecordProperties").then((m) => ({ default: m.RecordProperties })));
 const Editor = lazy(() => import("../features/editor/Editor").then((m) => ({ default: m.Editor })));
+const TabBar = lazy(() => import("../features/tabs/TabBar").then((m) => ({ default: m.TabBar })));
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
 const MediaPasteDialog = lazy(() => import("../features/editor/MediaPasteDialog"));
 const CalendarComposer = lazy(() => import("../features/calendar/CalendarComposer").then((m) => ({ default: m.CalendarComposer })));
 const PeekPanel = lazy(() => import("../features/peek/PeekPanel").then((m) => ({ default: m.PeekPanel })));
+const NodeMap = lazy(() => import("../features/node-map/NodeMap").then(m => ({ default: m.NodeMap })));
 const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
+const ReviewDialog = lazy(() => import("../features/agents/ReviewDialog").then((m) => ({ default: m.ReviewDialog })));
 const BackupsDialog = lazy(() => import("../features/backup/BackupsDialog").then((m) => ({ default: m.BackupsDialog })));
 const TransferDialog = lazy(() => import("../features/transfer/TransferDialog").then((m) => ({ default: m.TransferDialog })));
 const HistoryPanel = lazy(() => import("../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })));
@@ -74,6 +79,7 @@ const FilesDialog = lazy(() => import("../features/files/FilesDialog").then((m) 
 const FindBar = lazy(() => import("../features/find/FindBar").then((m) => ({ default: m.FindBar })));
 const DatabaseView = lazy(() => import("../features/database/DatabaseView").then((m) => ({ default: m.DatabaseView })));
 const DashboardView = lazy(() => import("../features/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
+const PagePreviewCard = lazy(() => import("../features/preview/PagePreviewCard").then((m) => ({ default: m.PagePreviewCard })));
 
 /** Load a feature on first use, then keep its shell so dialog exit and focus restoration still run. */
 /** Shown when the workspace opened read-only because its check or upgrade failed. */
@@ -166,6 +172,8 @@ function Content() {
   const epoch = useWorkspace((s) => s.editorEpoch);
 
   if (view === "trash") return <TrashView />;
+  if (view === "node-map") return <Suspense fallback={<Loading label="Loading map…" />}><NodeMap /></Suspense>;
+  if (view === "canvas") return <Suspense fallback={<Loading label="Loading canvas…" />}><WorkspaceCanvas /></Suspense>;
   if (selectedPageId && kind === "dashboard") {
     return (
       <>
@@ -186,14 +194,14 @@ function Content() {
     return (
       <>
         <PageTitle />
-        <Suspense fallback={null}>
+        <Suspense fallback={<Loading label="Loading editor…" />}>
           {kind === "record" && <RecordProperties key={`props-${selectedPageId}`} pageId={selectedPageId} />}
           <Editor key={`${selectedPageId}:${epoch}`} pageId={selectedPageId} />
         </Suspense>
       </>
     );
   }
-  if (!ready) return null;
+  if (!ready) return <Loading label="Opening workspace…" />;
   return hasPages ? (
     <p className="empty">Select a page from the sidebar{searchBinding.label ? `, or press ${searchBinding.label} to search.` : "."}</p>
   ) : (
@@ -262,9 +270,11 @@ function ConstellationArt() {
 }
 
 export function App() {
+  const previewOpen = usePreviewCard((s) => s.pageId !== null);
   const updatePreparing = useUpdates((s) => isPreparing(s.phase));
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
+  const ReviewDialogOpen = useAgents((s) => s.open);
   const WorkspaceDialogOpen = useWorkspaceDialog((s) => s.open);
   const MediaPasteDialogOpen = useMediaPaste((s) => s.requests.length > 0);
   const CalendarComposerOpen = useCalendarComposer((s) => s.request !== null);
@@ -286,7 +296,7 @@ export function App() {
   const theme = appTheme ?? legacyTheme;
   const error = useWorkspace((s) => s.error);
   const clearError = useWorkspace((s) => s.clearError);
-  const isDatabase = useWorkspace((s) => s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard"));
+  const isDatabase = useWorkspace((s) => s.view === "canvas" || s.view === "node-map" || (s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard")));
 
   useEffect(() => void init(), [init]);
   useEffect(() => {
@@ -304,27 +314,10 @@ export function App() {
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
   useEffect(() => installReminderToasts(), []);
+  useEffect(() => installAgentEvents(), []);
   useEffect(() => installTrayRecent(), []);
   useEffect(() => installDeepLinks(), []);
 
-  // The global shortcut opens a separate jot window; saves use this workspace and editor.
-  useEffect(() => {
-    let stop: (() => void) | undefined;
-    let cancelled = false;
-    installCaptureWindowBridge()
-      .then((un) => {
-        if (cancelled) { un(); return; }
-        stop = un;
-        void ipc.shortcutsMigrate(usePreferences.getState().globalCapture).then(state => {
-          usePreferences.getState().setGlobalCapture(state.config.captureEnabled);
-        }).catch(() => undefined);
-      })
-      .catch(() => undefined); // not running inside the desktop app
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, []);
   // Keep the desktop shell in step with this device's window choices, and show what is really set.
   useEffect(() => {
     void ipc
@@ -356,7 +349,7 @@ export function App() {
   }), []);
   useAppearance();
   useEffect(() => installTooltips(), []);
-  useEffect(() => installGlobalShortcutSync(), []);
+  useEffect(() => installPagePreview(), []);
   useEffect(() => installMotion(), []);
 
   useEffect(() => {
@@ -413,17 +406,20 @@ export function App() {
       <main>
         <SafeModeBanner />
         <Topbar />
-        <TabBar />
+        <Suspense fallback={null}><TabBar /></Suspense>
+        <div className="page-panes">
         <div className="main-scroll" data-fill={isDatabase ? "" : undefined}>
           {error && (
             <div className="error" role="alert">
               <span>{error}</span>
-              <button onClick={clearError}>Dismiss</button>
+              <button onClick={() => { clearError(); if (!workspaceReady) void init(); }}>{workspaceReady ? "Dismiss" : "Try again"}</button>
             </div>
           )}
           <ErrorBoundary label="This view could not be shown.">
             <Suspense fallback={<Loading label="Loading page…" />}><Content /></Suspense>
           </ErrorBoundary>
+        </div>
+        <OnDemand open={peekOpen}><PeekPanel /></OnDemand>
         </div>
         <OnDemand open={FindBarOpen}><FindBar /></OnDemand>
         <Toast />
@@ -433,6 +429,7 @@ export function App() {
       <OnDemand open={CalendarComposerOpen}><CalendarComposer /></OnDemand>
       <OnDemand open={TemplateGalleryOpen}><TemplateGallery /></OnDemand>
       <OnDemand open={BackupsDialogOpen}><BackupsDialog /></OnDemand>
+      <OnDemand open={ReviewDialogOpen}><ReviewDialog /></OnDemand>
       <PageTransferDialog />
       <OnDemand open={TransferDialogOpen}><TransferDialog /></OnDemand>
       <OnDemand open={HistoryPanelOpen}><HistoryPanel /></OnDemand>
@@ -440,12 +437,12 @@ export function App() {
       <OnDemand open={SettingsDialogOpen}><SettingsDialog /></OnDemand>
       <OnDemand open={FilesDialogOpen}><FilesDialog /></OnDemand>
       <QuickCapture />
+      <OnDemand open={previewOpen}><PagePreviewCard /></OnDemand>
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>
     <OnDemand open={MediaPasteDialogOpen}><MediaPasteDialog /></OnDemand>
     <OnDemand open={outlineOpen}><OutlinePanel /></OnDemand>
     <OnDemand open={exploreOpen}><ExploreDialog /></OnDemand>
-    <OnDemand open={peekOpen}><PeekPanel /></OnDemand>
     <UpdatesRoot />
     {workspaceBusy && <div className="workspace-pending" role="status"><Loading variant="orbit" label="Saving changes and preparing workspace…" /></div>}
     </div>

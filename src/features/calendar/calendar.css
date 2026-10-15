@@ -571,3 +571,16 @@
 @media (prefers-reduced-motion: reduce) {
   .calendar-day-row { transition: none; }
 }
+.calendar-planner { display: flex; align-items: stretch; gap: 16px; min-width: 0; }
+.calendar-planner > .calendar-surface { flex: 1; min-width: 0; overflow: auto; }
+.calendar-task-drawer { flex: 0 0 240px; min-width: 0; max-height: 620px; overflow: auto; padding-inline-start: 16px; border-inline-start: 1px solid var(--border); }
+.calendar-task-drawer header { display: flex; align-items: center; gap: 8px; }
+.calendar-task-drawer h3 { flex: 1; margin: 0; font-size: 0.875rem; }
+.calendar-task-drawer label { display: grid; gap: 6px; }
+.calendar-task-drawer ul { list-style: none; padding: 0; margin-block: 12px 0; }
+.calendar-task-drawer li + li { border-top: 1px solid var(--border-subtle); }
+.calendar-task { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 10px 6px; text-align: start; cursor: grab; touch-action: none; }
+.calendar-task:hover { background: var(--hover); }
+.calendar-task small { color: var(--text-muted); }
+.calendar-date-sources { border: 0; padding: 0; display: grid; gap: 8px; }
+@container (max-width: 760px) { .calendar-planner.with-drawer { flex-direction: column; } .calendar-task-drawer { flex-basis: auto; max-height: 280px; border-inline-start: 0; border-top: 1px solid var(--border); padding: 12px 0 0; } }

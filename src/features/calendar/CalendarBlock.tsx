@@ -5,6 +5,7 @@ import FullCalendar, {
   type EventInput,
   type EventDropInfo,
   type EventResizeDoneInfo,
+  type DropInfo,
 } from "@fullcalendar/react";
 import themePlugin from "@fullcalendar/react/themes/monarch";
 import dayGridPlugin from "@fullcalendar/react/daygrid";
@@ -41,9 +42,10 @@ import {
   type CalendarSource,
   type CalendarView,
 } from "./model";
-import { exportCalendar, importCalendar } from "./transfer";
 import { currentCalendarDay, useCalendarDay } from "./useCalendarDay";
 import { unwatchLabel, watchLabel } from "./fitLabel";
+import { readCalendarTask, useCalendarTaskDrag } from "./taskDrag";
+import { scheduleTask } from "./timeBlocking";
 import "./calendar.css";
 
 const PLUGINS = [
@@ -98,6 +100,7 @@ function Sources({
   const [detail, setDetail] = useState<DatabaseDetail | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const detailRequest = useRef(0);
   useEffect(() => {
     if (!workspaceId) return;
     let alive = true;
@@ -110,6 +113,7 @@ function Sources({
     };
   }, [workspaceId, onError]);
   const add = (s: CalendarSource) => {
+    if (config.sources.length >= 32) { onError("This calendar supports up to 32 sources. Remove one before adding another."); return; }
     if (!config.sources.some((x) => sourceKey(x) === sourceKey(s)))
       update({
         sources: [
@@ -120,9 +124,9 @@ function Sources({
   };
   return (
     <section className="calendar-sources" aria-label="Calendar sources">
-      <h3>Sources</h3>
+      <h3>Master Calendar sources</h3>
       <p className="set-hint">
-        Calendar events and database dates share this view. Removing a source
+        Overlay dates from several project tables, each with its own color. Calendar events and database dates share this view. Removing a source
         keeps its data.
       </p>
       <ul>
@@ -220,12 +224,14 @@ function Sources({
             <select
               value={detail?.page.id ?? ""}
               onChange={async (e) => {
+                const request = ++detailRequest.current;
                 setDetail(null);
                 if (e.target.value)
                   try {
-                    setDetail(await ipc.databaseGet(e.target.value));
+                    const next = await ipc.databaseGet(e.target.value);
+                    if (request === detailRequest.current) setDetail(next);
                   } catch (error) {
-                    onError(toAppError(error).message);
+                    if (request === detailRequest.current) onError(toAppError(error).message);
                   }
               }}
             >
@@ -238,35 +244,23 @@ function Sources({
             </select>
           </label>
           {detail && (
-            <label>
-              Date property
-              <select
-                value=""
-                onChange={(e) => {
-                  const p = detail.properties.find(
-                    (p) => p.id === e.target.value,
-                  );
-                  if (p)
-                    add({
+            <fieldset className="calendar-date-sources">
+              <legend>Date properties to overlay</legend>
+              {detail.properties.filter((p) => p.type === "date").map((p) => {
+                const source: CalendarSource = {
                       kind: "database",
                       pageId: detail.page.id,
                       propertyId: p.id,
                       timezone: config.timezone,
                       label: `${detail.page.title} · ${p.name}`,
                       writable: true,
-                    });
-                }}
-              >
-                <option value="">Choose a date property…</option>
-                {detail.properties
-                  .filter((p) => p.type === "date")
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
+                };
+                const connected = config.sources.some((s) => sourceKey(s) === sourceKey(source));
+                return <label key={p.id} className="check-row"><input type="checkbox" checked={connected}
+                  onChange={() => connected ? update({ sources: config.sources.filter((s) => sourceKey(s) !== sourceKey(source)) }) : add(source)} />{p.name}</label>;
+              })}
+              {!detail.properties.some((p) => p.type === "date") && <p className="set-hint">Add a date property to this table to overlay its tasks.</p>}
+            </fieldset>
           )}
         </>
       )}
@@ -380,6 +374,14 @@ export function CalendarBlock({
   const [query, setQuery] = useState("");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerLimit, setDrawerLimit] = useState(100);
+  useEffect(() => setDrawerLimit(100), [query, hidden]);
+  const [blockMinutes, setBlockMinutes] = useState(60);
+  const [scheduling, setScheduling] = useState(false);
+  const schedulingRef = useRef(false);
+  useCalendarTaskDrag();
+  const timedView = config.view === "timeGridDay" || config.view === "timeGridWeek";
   const { today, day, setDay } = useCalendarDay(config.timezone);
   const calendarNow = useMemo(() => () => new Date(), [today, config.timezone]);
   const [dayCells, setDayCells] = useState<Map<HTMLElement, string>>(() => new Map());
@@ -391,6 +393,7 @@ export function CalendarBlock({
     setDayCells((cells) => { const next = new Map(cells); next.delete(el); return next; });
   }, []);
   const [narrow, setNarrow] = useState(false);
+  const displayView = narrow && !timedView ? "listWeek" : config.view;
   const [limit, setLimit] = useState(1000);
   const [truncated, setTruncated] = useState(false);
   const [full, setFull] = useState(false);
@@ -426,8 +429,8 @@ export function CalendarBlock({
     if (fullRef.current) syncDialog(fullRef.current, full);
   }, [full]);
   useEffect(() => {
-    ref.current?.getApi().changeView(narrow ? "listWeek" : config.view);
-  }, [narrow, config.view]);
+    ref.current?.getApi().changeView(displayView);
+  }, [displayView]);
   useEffect(() => {
     if (!workspaceId) return;
     let alive = true;
@@ -807,16 +810,25 @@ export function CalendarBlock({
       setError(toAppError(e).message);
     }
   };
+  const dropTask = async (info: DropInfo) => {
+    const task = readCalendarTask(info.draggedEl);
+    if (!task || schedulingRef.current || READ_ONLY || !timedView) return;
+    schedulingRef.current = true; setScheduling(true); setError("");
+    try { await scheduleTask(task, info.dateStr, info.allDay, config.timezone, blockMinutes, config.sources); }
+    catch (e) { setError(toAppError(e).message); }
+    finally { schedulingRef.current = false; setScheduling(false); }
+  };
+  const drawerItems = undated.filter((i) => !hidden.has(sourceKey(i.source)) && (!query.trim() || `${i.row!.title} ${i.source.label ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())));
   return (
     <div className="calendar-block" ref={root}>
       <header className="calendar-block-head">
         <strong>
           <Icon name="calendar" size={16} />
-          Calendar
+          {config.sources.filter((s) => s.kind === "database").length > 1 ? "Master Calendar" : "Calendar"}
         </strong>
         <select
           aria-label="Calendar view"
-          value={narrow ? "listWeek" : config.view}
+          value={displayView}
           disabled={READ_ONLY}
           onChange={(e) => update({ view: e.target.value as CalendarView })}
         >
@@ -827,6 +839,7 @@ export function CalendarBlock({
           ))}
         </select>
         <span />
+        {timedView && <button type="button" className="btn" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(!drawerOpen)}>Unscheduled Tasks ({drawerItems.length})</button>}
         <button
           type="button"
           className="btn"
@@ -941,6 +954,7 @@ export function CalendarBlock({
           </button>
         </div>
       )}
+      <div className={`calendar-planner${drawerOpen && timedView ? " with-drawer" : ""}`}>
       <div
         className="calendar-surface"
         aria-busy={loading}
@@ -966,11 +980,18 @@ export function CalendarBlock({
         <FullCalendar
           ref={ref}
           plugins={PLUGINS}
-          initialView={narrow ? "listWeek" : config.view}
+          initialView={displayView}
           initialDate={initialDate}
-          height={expanded || narrow ? "auto" : config.height}
+          height={timedView ? (expanded ? 720 : config.height) : expanded || narrow ? "auto" : config.height}
           headerToolbar={{ start: "prev,next jumpToday", center: "title", end: "" }}
-          buttons={{ jumpToday: { text: "Today", click: goToToday } }}
+          buttons={{
+            prev: { iconContent: () => <Icon name="chevronLeft" size={20} /> },
+            next: { iconContent: () => <Icon name="chevron" size={20} /> },
+            prevYear: { iconContent: () => <Icon name="chevronDoubleLeft" size={20} /> },
+            nextYear: { iconContent: () => <Icon name="chevronDoubleRight" size={20} /> },
+            jumpToday: { text: "Today", click: goToToday },
+          }}
+          popoverCloseContent={() => <Icon name="close" size={20} />}
           now={calendarNow}
           timeZone={config.timezone}
           firstDay={config.weekStart}
@@ -979,6 +1000,12 @@ export function CalendarBlock({
           events={events}
           editable={!READ_ONLY}
           selectable={!READ_ONLY}
+          droppable={!READ_ONLY && timedView && !scheduling}
+          dropAccept={(el: HTMLElement) => !!readCalendarTask(el) && readCalendarTask(el)?.workspaceId === workspaceId}
+          drop={(info) => void dropTask(info)}
+          slotDuration="00:15:00"
+          snapDuration="00:15:00"
+          scrollTime={config.workStart}
           selectMinDistance={5}
           nowIndicator
           dayMaxEvents={3}
@@ -1023,6 +1050,26 @@ export function CalendarBlock({
           eventDrop={(info) => void move(info)}
           eventResize={(info) => void move(info)}
         />
+      </div>
+      {drawerOpen && timedView && <aside className="calendar-task-drawer" aria-label="Unscheduled Tasks" aria-busy={scheduling || loading}>
+        <header><h3>Unscheduled Tasks</h3><button type="button" className="icon-btn" aria-label="Close Unscheduled Tasks" onClick={() => setDrawerOpen(false)}><Icon name="close" size={14} /></button></header>
+        <p className="set-hint">Drag a task onto a time slot to set its date in the source table.</p>
+        <label>Time block length<select value={blockMinutes} onChange={(e) => setBlockMinutes(Number(e.target.value))}>
+          {[15, 30, 45, 60, 90, 120].map((n) => <option key={n} value={n}>{n} minutes</option>)}
+        </select></label>
+        {scheduling && <p role="status">Scheduling task…</p>}
+        {!drawerItems.length && <p className="set-hint">{loading ? "Loading tasks…" : "No unscheduled tasks in the visible sources."}</p>}
+        {!config.sources.some((s) => s.kind === "database") && <button type="button" className="btn" onClick={() => setSourceOpen(true)}>Connect a project table</button>}
+        <ul>{drawerItems.slice(0, drawerLimit).map((i) => <li key={i.input.id}>
+          <button type="button" className="calendar-task" disabled={READ_ONLY || scheduling || i.source.writable === false}
+            data-calendar-task={!READ_ONLY && !scheduling && i.source.writable !== false ? JSON.stringify({ pageId: i.row!.pageId, title: i.row!.title, workspaceId, recordId: i.row!.id, propertyId: i.source.propertyId }) : undefined}
+            title="Drag to a time slot, or click to choose a date"
+            onClick={() => { setDatabaseEdit(i); setDateDraft(day); }}>
+            <span>{i.row!.title || "Untitled"}</span><small><i className="calendar-legend-dot" style={{ background: i.source.color }} />{i.source.label || "Source table"}</small>
+          </button>
+        </li>)}</ul>
+        {drawerItems.length > drawerLimit && <button type="button" className="btn" onClick={() => setDrawerLimit((n) => n + 100)}>Show more tasks ({drawerItems.length - drawerLimit})</button>}
+      </aside>}
       </div>
       {[...dayCells].map(([cell, date]) => createPortal(
         <button type="button" className="calendar-day-add" disabled={READ_ONLY}
@@ -1102,8 +1149,10 @@ export function CalendarBlock({
             className="icon-btn"
             aria-label="Export calendar"
             title="Export calendar (.ics)"
-            onClick={() => {
+            onClick={async () => {
               try {
+                // ical.js loads only when a calendar is exported or imported.
+                const { exportCalendar } = await import("./transfer");
                 const content = exportCalendar(
                   snapshot?.events.filter((e) =>
                     config.sources.some(
@@ -1156,6 +1205,7 @@ export function CalendarBlock({
                 return;
               }
               try {
+                const { importCalendar } = await import("./transfer");
                 const imported = importCalendar(await f.text(), calendarId);
                 setTransferMessage(imported.warnings.join(" "));
                 if (
@@ -1329,7 +1379,7 @@ export function CalendarBlock({
           </div>
         </section>
       )}
-      {undated.length > 0 && (
+      {!timedView && undated.length > 0 && (
         <details className="calendar-unscheduled">
           <summary>Unscheduled database records ({undated.length})</summary>
           <ul>

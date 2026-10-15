@@ -24,6 +24,8 @@ The file is outside the repository. The `.gitignore` also excludes private signi
 4. Push a matching `vX.Y.Z` tag, or dispatch the release workflow on the intended commit. It creates a draft with the NSIS installer, `.sig`, and `latest.json`, then validates the manifest, uploaded assets, and installer signature against the embedded public key. Do not manually publish a failed workflow's draft.
 5. Smoke-test the draft's signed installer and data preservation in a disposable Windows environment, then publish as a stable release and ensure GitHub marks it latest. Keep previous release assets available. Public clients cannot fetch draft assets; the complete in-app A → B acceptance check requires an updater-enabled baseline and a newer published release. The existing `0.1.0` needs a manual bootstrap installation of `0.1.1`.
 
+The release configuration builds the `suivelle-mcp` connector first (`node scripts/build-mcp-bridge.mjs`, into the ignored `src-tauri/binaries/`) and ships it next to Suivelle through `externalBin`; `scripts/build-installer.ps1` does the same for local NSIS and MSIX packages. Connected agent apps run a copy in `%LOCALAPPDATA%\Suivelle\bin`, which installed builds refresh at startup, so check after an update that an app connected before it still reaches Suivelle.
+
 For a local signed build:
 
 ```powershell

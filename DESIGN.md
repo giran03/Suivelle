@@ -227,7 +227,9 @@ Three full palette presets are available per mode: Midnight (navy/sapphire), Gra
 **Body Font:** Segoe UI Variable Text (with Segoe UI, system-ui)
 **Label/Mono Font:** ui-monospace, Cascadia Code, Consolas, for code and equations only
 
-**Character:** The native Windows 11 variable fonts, so the app reads as part of the OS and ships no font files. Hierarchy comes from weight (650 titles, 550 selected, 500 controls) and from opacity steps, not from large size jumps. Page text can be switched to a serif or mono stack in Settings; titles and chrome keep their own face.
+**Icon Font:** Suivelle Nerd Symbols, a locally bundled subset of Nerd Fonts 3.5.1 Material Design symbols. Use only through the shared `Icon` component or generated glyph variables for native control pseudo-elements. Never apply it to prose, user emoji, or branding. Fixed square boxes inherit semantic color; favorites use a separate filled star glyph. Existing semantic names and saved page/workspace choices remain stable. Rebuild and coverage instructions: `docs/icon-system.md`.
+
+**Character:** The native Windows 11 variable fonts, so the app reads as part of the OS and bundles only its interface symbol font. Hierarchy comes from weight (650 titles, 550 selected, 500 controls) and from opacity steps, not from large size jumps. Page text can be switched to a serif or mono stack in Settings; titles and chrome keep their own face.
 
 ### Hierarchy
 - **Page title** (650, 2.125rem, 1.2, -0.02em): the editable title above every page. The welcome title uses 2rem at the same weight.
@@ -411,11 +413,6 @@ Page and workspace icon pickers share the offline Unicode Emoji 17.0 catalog: 3,
 
 Theme background roles and selection background support optional hex alpha (#RGBA or #RRGGBBAA). Their color picker provides a native 0–100% opacity slider and editable percentage, with a checkerboard preview. RGB/HSV edits preserve alpha; Use color updates the draft, and Apply persists it. Theme profiles and import/export retain alpha. Text, icon, button, hover and pressed colors retain opaque validation. Alpha reveals underlying app surfaces; it does not enable native desktop transparency. Derived colors and contrast estimates composite translucent backgrounds over the app background, with the webview's white canvas as the final backdrop.
 
-### Global app focus shortcut
-
-Ctrl+Alt+S brings the running main window forward, restores it when minimized, and shows it when hidden in the tray. It is enabled by default and can be disabled in Window and startup. The native shell registers it before the page loads, remembers the toggle per device, and reports registration conflicts when enabling it. Shortcut information lists it alongside quick capture (Ctrl+Alt+N). It does not launch an exited app.
-
-
 ### Shortcut settings
 
-The Shortcuts and input panel uses flat action rows grouped by execution context, wrapping binding chips and named Add/Disable/Reset controls. Recording is an inline focusable field with a live input preview, manual input selectors, conflict feedback and explicit Save/Cancel controls. The input detector uses the same field treatment. Settings and the reference sheet support wrapping alternatives; a zero-minimum grid track prevents high-zoom overflow. All surfaces, borders, type and density derive from existing semantic tokens. Global enabled state, actual registration state and failures appear with the corresponding action; unavailable native functionality is identified in browser builds.
+The Shortcuts and input panel uses flat action rows grouped by execution context, wrapping binding chips and named Add/Disable/Reset controls. Recording is an inline focusable field with a live input preview, manual input selectors, conflict feedback and explicit Save/Cancel controls. The input detector uses the same field treatment. Settings and the reference sheet support wrapping alternatives; a zero-minimum grid track prevents high-zoom overflow. All surfaces, borders, type and density derive from existing semantic tokens.

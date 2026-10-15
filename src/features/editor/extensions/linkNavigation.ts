@@ -3,7 +3,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { Plugin } from "@tiptap/pm/state";
 import { openExternalLink } from "../../../lib/links";
 import { pageLinkTarget } from "../../../lib/legacy";
-import { toAppError } from "../../../lib/ipc";
+import { ipc, toAppError } from "../../../lib/ipc";
 import { useWorkspace } from "../../../stores/workspace";
 import { usePeek } from "../../peek/store";
 
@@ -17,6 +17,14 @@ export async function openEditorLink(href: string, peek = false): Promise<void> 
 
 function followLink(view: EditorView, event: MouseEvent | KeyboardEvent): boolean {
   if (event.defaultPrevented || event.type === "click" && (event as MouseEvent).button !== 0 || event.type === "auxclick" && (event as MouseEvent).button !== 1 || event.type === "keydown" && (event as KeyboardEvent).key !== "Enter") return false;
+  const file = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-smart-kind="file"]') : null;
+  if (file && view.dom.contains(file)) {
+    event.preventDefault();
+    const selection = window.getSelection();
+    if (event.type === "click" && !event.ctrlKey && !event.metaKey && selection && !selection.isCollapsed) return true;
+    void ipc.localFileOpen(file.dataset.smartValue ?? "").catch(e => useWorkspace.getState().setError(toAppError(e).message));
+    return true;
+  }
   const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
   if (!link || !view.dom.contains(link)) return false;
   event.preventDefault();

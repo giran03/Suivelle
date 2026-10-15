@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod automation;
 pub mod backup;
 pub mod calendar;
@@ -13,13 +14,14 @@ pub mod files;
 pub mod history;
 mod legacy;
 pub mod maintenance;
+pub mod node_map;
 pub mod queries;
 pub mod reminders;
 pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
-pub mod shortcuts;
+mod startup;
 pub mod transfer;
 pub mod updates;
 
@@ -72,8 +74,13 @@ pub struct SafeMode(pub Option<String>);
 
 /// The safe-mode reason, asked for before the page loads so every view starts read-only.
 #[tauri::command]
-fn app_safe_mode(state: tauri::State<'_, SafeMode>) -> Option<String> {
-    state.0.clone()
+async fn app_safe_mode(
+    state: tauri::State<'_, startup::Startup>,
+) -> Result<Option<String>, String> {
+    let startup = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || startup.wait())
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// The log is started afresh past this size; the previous one is kept as suivelle.log.1.
@@ -89,15 +96,18 @@ fn init_logging(dir: &std::path::Path) {
         .create(true)
         .append(true)
         .open(&path);
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_ansi(false);
+    // RUST_LOG takes `level` or `target=level` lists; Targets avoids EnvFilter's regex engine.
+    use tracing_subscriber::{filter::Targets, prelude::*};
+    let filter = std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|v| v.parse::<Targets>().ok())
+        .unwrap_or_else(|| Targets::new().with_default(tracing::Level::INFO));
+    let layer = tracing_subscriber::fmt::layer().with_ansi(false);
+    let registry = tracing_subscriber::registry().with(filter);
     // Logs never include document contents: commands log only name, duration and error code.
     match file {
-        Ok(f) => builder.with_writer(Mutex::new(f)).init(),
-        Err(_) => builder.init(),
+        Ok(f) => registry.with(layer.with_writer(Mutex::new(f))).init(),
+        Err(_) => registry.with(layer).init(),
     }
     // A crash leaves its location in the log, so the next session's diagnostic report can show it.
     let default_hook = std::panic::take_hook();
@@ -244,17 +254,7 @@ pub fn run() {
             Some(vec![shell::AUTOSTART_ARG]),
         ))
         .manage(shell::ShellState::default())
-        .manage(shortcuts::ShortcutState::default())
         .on_window_event(shell::on_window_event)
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| {
-                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        shortcuts::dispatch(app, shortcut);
-                    }
-                })
-                .build(),
-        )
         // Answered on a worker thread: building a thumbnail or reading a large file must not
         // block the window.
         .register_asynchronous_uri_scheme_protocol("attachment", |ctx, request, responder| {
@@ -281,50 +281,71 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?.join("data");
             init_logging(&data_dir.join("logs"));
             let paths = backup::Paths::new(&data_dir);
-            // Finish or undo a restore that was interrupted, before the database is opened.
-            backup::recover(&paths);
-            // Present while the app runs; left behind only by a crash or forced shutdown.
-            let session = data_dir.join("session.open");
-            // Never refuse to open: a failed check or migration opens the data read-only instead.
-            let (conn, safe_mode) = match database::open_at_startup(&paths.db(), session.exists()) {
-                Ok(conn) => (conn, None),
-                Err(error) => {
-                    tracing::error!(%error, "opening the workspace read-only");
-                    let conn = database::open_read_only(&paths.db())
-                        .or_else(|_| database::open_in_memory())?;
-                    (conn, Some(error.to_string()))
-                }
-            };
-            let _ = std::fs::write(&session, b"");
-            app.manage(SessionMarker(session));
-            if safe_mode.is_none() {
-                search::index::ensure_index(&conn)?;
-            }
-            tracing::info!("workspace database ready");
-            app.manage(database::Db(Mutex::new(conn)));
-            app.manage(paths);
+            app.manage(backup::Paths::new(&data_dir));
             app.manage(commands::PendingRestore::default());
             app.manage(commands::ImportSessions::default());
             updates::init(app.handle())?;
             shell::init(app.handle())?;
-            if safe_mode.is_none() {
-                spawn_auto_backup(app.handle().clone());
-                spawn_automation(app.handle().clone());
-            }
-            app.manage(SafeMode(safe_mode));
             install_deep_links(app)?;
             app.manage(files::AttachmentStore {
                 root: data_dir.join("attachments"),
+            });
+            let startup = startup::Startup::default();
+            app.manage(startup.clone());
+            let app = app.handle().clone();
+            std::thread::spawn(move || {
+                let started = std::time::Instant::now();
+                tracing::info!("workspace preparation started");
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                    || -> Result<Option<String>, String> {
+                        // Finish or undo a restore that was interrupted, before the database is opened.
+                        backup::recover(&paths);
+                        // Present while the app runs; left behind only by a crash or forced shutdown.
+                        let session = data_dir.join("session.open");
+                        // Never refuse to open: a failed check or migration opens the data read-only instead.
+                        let (conn, safe_mode) =
+                            match database::open_at_startup(&paths.db(), session.exists()) {
+                                Ok(conn) => (conn, None),
+                                Err(error) => {
+                                    tracing::error!(%error, "opening the workspace read-only");
+                                    let conn = database::open_read_only(&paths.db())
+                                        .or_else(|_| database::open_in_memory())
+                                        .map_err(|e| e.to_string())?;
+                                    (conn, Some(error.to_string()))
+                                }
+                            };
+                        let _ = std::fs::write(&session, b"");
+                        app.manage(SessionMarker(session));
+                        if safe_mode.is_none() {
+                            search::index::ensure_index(&conn).map_err(|e| e.to_string())?;
+                        }
+                        tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "workspace database ready"
+                        );
+                        app.manage(database::Db(Mutex::new(conn)));
+                        if safe_mode.is_none() {
+                            spawn_auto_backup(app.clone());
+                            spawn_automation(app.clone());
+                        }
+                        app.manage(SafeMode(safe_mode.clone()));
+                        agents::server::spawn_background(app.clone());
+                        Ok(safe_mode)
+                    },
+                ))
+                .unwrap_or_else(|_| {
+                    Err("Workspace preparation failed. Restart Suivelle and try again.".into())
+                });
+                if let Err(error) = &result {
+                    tracing::error!(%error, "workspace preparation failed");
+                }
+                startup.finish(result);
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_safe_mode,
             deep_link_take,
-            shortcuts::shortcuts_get,
-            shortcuts::shortcuts_migrate,
-            shortcuts::shortcuts_set,
-            shortcuts::shortcuts_recording,
             updates::update_status,
             updates::update_preferences,
             updates::update_check,
@@ -338,6 +359,8 @@ pub fn run() {
             commands::image::image_save_crop,
             commands::image::image_copy,
             commands::image::image_open_link,
+            commands::local_file::local_file_open,
+            commands::content::page_apply_template,
             commands::export_page_preview,
             commands::export_shape,
             commands::workspace_create,
@@ -362,7 +385,6 @@ pub fn run() {
             commands::content::attachment_import_bytes,
             commands::content::page_duplicate,
             commands::content::record_bulk_set,
-            commands::content::quick_capture_shortcut,
             shell::shell_set_behavior,
             shell::shell_get_behavior,
             shell::tray_set_recent,
@@ -371,6 +393,34 @@ pub fn run() {
             commands::content::markdown_to_blocks,
             commands::page_touch,
             commands::search_rebuild,
+            commands::agents::agents_overview,
+            commands::agents::agents_save_settings,
+            commands::agents::agent_create,
+            commands::agents::agent_update,
+            commands::agents::agent_delete,
+            commands::agents::agent_token_rotate,
+            commands::agents::agent_token_revoke,
+            commands::agents::agent_audit,
+            commands::agents::proposal_list,
+            commands::agents::proposal_detail,
+            commands::agents::proposal_approve,
+            commands::agents::proposal_reject,
+            commands::agents::changeset_list,
+            commands::agents::changeset_revert,
+            commands::agents::janitor_report,
+            commands::agents::janitor_fix,
+            commands::agents::todo_promote,
+            commands::agents::mirror_get,
+            commands::agents::mirror_choose,
+            commands::agents::mirror_set_enabled,
+            commands::agents::agent_export_subagent,
+            commands::agents::agents_export_agents_md,
+            commands::agents::clients_scan,
+            commands::agents::client_connect,
+            commands::agents::client_repair,
+            commands::agents::client_disconnect,
+            commands::agents::subagents_scan,
+            commands::agents::subagents_import,
             commands::maintenance::maintenance_health,
             commands::maintenance::maintenance_sweep,
             commands::maintenance::maintenance_compact,
@@ -389,6 +439,8 @@ pub fn run() {
             queries::tag_list,
             queries::tag_pages,
             queries::link_graph,
+            queries::node_map_snapshot,
+            commands::node_map_edit,
             queries::page_unlinked_mentions,
             commands::database_create,
             commands::property_create,
@@ -429,6 +481,15 @@ pub fn run() {
             commands::view_create,
             commands::view_delete,
             commands::view_duplicate,
+            commands::canvas_load,
+            commands::canvas_apply,
+            commands::canvas_board_list,
+            commands::canvas_board_create,
+            commands::canvas_board_rename,
+            commands::canvas_board_duplicate,
+            commands::canvas_board_delete,
+            commands::canvas_board_load,
+            commands::canvas_board_apply,
             commands::block_delete,
             queries::workspace_get,
             queries::workspace_list,
@@ -444,6 +505,7 @@ pub fn run() {
             queries::page_list_recent,
             queries::page_backlinks,
             queries::page_titles,
+            queries::page_preview,
             queries::database_get,
             queries::record_get,
             queries::query_records,
@@ -473,7 +535,11 @@ pub fn run() {
                         database::close_cleanly(&conn);
                     }
                 }
-                if let Some(marker) = app.try_state::<SessionMarker>() {
+                // Closing during background preparation is not a clean database session.
+                if let Some(marker) = app
+                    .try_state::<SessionMarker>()
+                    .filter(|_| app.try_state::<SafeMode>().is_some())
+                {
                     let _ = std::fs::remove_file(&marker.0);
                 }
             }

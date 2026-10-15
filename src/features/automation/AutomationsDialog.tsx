@@ -292,7 +292,7 @@ function ActionFields({ action, props, templates, onChange }: { action: Action; 
               </option>
             ))}
           </select>
-          <span aria-hidden="true">→</span>
+          <Icon name="arrowRight" />
           <select aria-label="Option" value={action.optionId} onChange={(e) => onChange({ ...action, optionId: e.target.value })}>
             {prop && optionsOf(prop).map((o) => (
               <option key={o.id} value={o.id}>

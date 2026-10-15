@@ -1,12 +1,11 @@
 import { useEffect, useRef } from "react";
+import { Icon } from "./Icon";
 
-/** A checkmark that fades and settles in while its stroke is drawn (the transitions.dev success check). Decorative. */
+/** A decorative checkmark that fades and settles in. */
 export function SuccessCheck({ size = 16 }: { size?: number }) {
   return (
     <span className="t-success-check" data-state="in" aria-hidden="true">
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 12.5l5 5L20 6.5" />
-      </svg>
+      <Icon name="check" size={size} />
     </span>
   );
 }

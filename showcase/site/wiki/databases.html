@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><title>Databases</title></head>
+<body>
+<h1>Databases</h1>
+<p class="lede">A database is a collection of records with properties you choose. Every record is also a page with room for its own notes, and the same records can be seen in as many views as you like.</p>
+
+<h2>Records are pages</h2>
+<p>Open any record to write in it like any other page: headings, checklists, images, even another database. Its properties sit at the top. Records link, tag and show up in search exactly like pages do, which is why a task can mention a design note and the note lists the task under <em>Linked to this page</em>.</p>
+<p>Put a database anywhere with the <strong>Database view</strong> block, or give it a page of its own. Grids stay fast with thousands of records: rows are loaded in pages and only the visible ones are drawn.</p>
+
+<h2>Property types</h2>
+<p>Eighteen types cover text, numbers, choices, dates, contact details and computed values:</p>
+<ul class="chips">
+  <li>Title</li><li>Text</li><li>Number</li><li>Select</li><li>Multi-select</li><li>Status</li><li>Date</li><li>Checkbox</li><li>URL</li><li>Email</li><li>Phone</li><li>Created time</li><li>Updated time</li><li>Unique ID</li><li>Relation</li><li>Rollup</li><li>Formula</li><li>Button</li>
+</ul>
+<p>Status groups its options into to-do, doing and done groups, which boards and progress rollups understand. Unique IDs number records with an optional prefix. Buttons run an <a href="dashboards-and-automation.html">automation</a> when clicked.</p>
+
+<h2>Relations and rollups</h2>
+<p>A relation links records in one database to records in another, or the same one, and the link shows on both sides. Tasks belong to projects; a project lists its tasks. Relations within one database model subtasks and dependencies.</p>
+<p>A rollup reads through a relation and summarises what it finds: <code>count</code>, <code>count unique</code>, <code>sum</code>, <code>average</code>, <code>min</code>, <code>max</code>, <code>earliest</code>, <code>latest</code>, <code>percent checked</code> or <code>percent done</code>. That last one gives a project its live progress bar from the status of its tasks.</p>
+
+<h2>Formulas</h2>
+<p>Formula properties compute a value from other properties, with a live preview as you write. The language covers logic, maths, text and dates:</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Kind</th><th>Functions</th></tr></thead>
+  <tbody>
+    <tr><td>Logic</td><td><code>if</code> <code>ifs</code> <code>and</code> <code>or</code> <code>not</code> <code>empty</code></td></tr>
+    <tr><td>Numbers</td><td><code>round</code> <code>floor</code> <code>ceil</code> <code>abs</code> <code>min</code> <code>max</code> <code>sum</code> <code>toNumber</code></td></tr>
+    <tr><td>Text</td><td><code>concat</code> <code>contains</code> <code>length</code> <code>format</code></td></tr>
+    <tr><td>Dates</td><td><code>now</code> <code>today</code> <code>dateAdd</code> <code>dateSubtract</code> <code>formatDate</code></td></tr>
+    <tr><td>Properties</td><td><code>prop("Name")</code> reads another property of the same record</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Filter, sort and group</h2>
+<p>Filters combine conditions with AND and OR groups. Sort by several properties at once. Group records by a property, with one level of subgroups, and collapse the groups you don't need. Each view keeps its own filters, sorts, grouping and visible columns.</p>
+
+<h2>Working in the grid</h2>
+<p>The table is built for the keyboard. Arrow keys move between cells, <kbd>Enter</kbd> or <kbd>F2</kbd> edits, <kbd>Delete</kbd> clears, and <kbd>Shift</kbd> <kbd>Enter</kbd> opens the record. <kbd>Ctrl</kbd> <kbd>Space</kbd> selects rows, <kbd>Ctrl</kbd> <kbd>A</kbd> selects all loaded rows, and a bulk bar then edits, duplicates or trashes them together. Screen readers hear each selection change.</p>
+<figure class="wide">
+  <div class="shot"><img src="@img/readme-project-table-v014.png" width="2160" height="1440" alt="Sprint tasks in a table with status, priority, area, due date and estimate columns" loading="lazy" /></div>
+  <figcaption>The Sprint Board's records as a table, with status, priority, area, due date and estimate.</figcaption>
+</figure>
+
+<h2>Record templates</h2>
+<p>Give a database templates for its records: a bug report with steps to reproduce, a meeting note with an agenda, a task with a checklist. New records can start from a template, and automations can create records from one.</p>
+
+<h2>Project starters</h2>
+<p><strong>New from template</strong> builds a complete project in one step, with example records you can keep or delete:</p>
+<dl class="defs">
+  <dt>Project Manager</dt><dd>Projects, Milestones, Sprints and Tasks, wired together with subtasks, dependencies and live progress.</dd>
+  <dt>Task Tracker</dt><dd>One Tasks database with subtasks, dependencies, a board, a calendar and a timeline.</dd>
+  <dt>Software Project</dt><dd>The Project Manager setup plus a task Type (feature, bug, chore) and a Bugs view.</dd>
+</dl>
+<p>Projects made this way also register themselves with the command palette's <strong>Create task in project</strong>, so you can add a task to any project from anywhere.</p>
+
+<p class="see-also"><span>Related</span><a href="views.html">Database views</a><a href="dashboards-and-automation.html">Dashboards and automation</a><a href="calendar.html">Calendar and time</a></p>
+</body></html>

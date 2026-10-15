@@ -7,6 +7,7 @@ import { formatStamp } from "../database/model";
 import { syncDialog } from "../../lib/dialog";
 
 import { useBackupsDialog } from "./store";
+import { createSavedBackup } from "./create";
 export { useBackupsDialog } from "./store";
 
 
@@ -65,7 +66,7 @@ function Body() {
 
   const backUpNow = () =>
     run("create", async () => {
-      const info = await ipc.backupCreate();
+      const info = await createSavedBackup();
       setMessage(`Backed up ${plural(info.manifest.pages, "page", "pages")} (${formatBytes(info.size)}).`);
       await refresh();
     });

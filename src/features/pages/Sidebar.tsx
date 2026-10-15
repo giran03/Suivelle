@@ -1,3 +1,7 @@
+import { CanvasesSection } from "../canvas/CanvasesSection";
+import { useNodeMap } from "../node-map/store";
+import { useAgents } from "../agents/store";
+import { dropPagesOnBoard } from "../canvas/store";
 import { key } from "../shortcuts/bindings";
 import { usePeek } from "../peek/store";
 import {
@@ -28,6 +32,7 @@ import { ipc } from "../../lib/ipc";
 import { useSettingsDialog } from "../settings/store";
 import { sidebarRail, useLayout } from "../../stores/layout";
 import { useWorkspace } from "../../stores/workspace";
+import { dropPagesOnEditor } from "../editor/pageDropBridge";
 import { PageGlyph } from "./PageGlyph";
 import { Tree, TreeItem } from "./TreeItem";
 import { openFromAuxClick, openInNewTab } from "../tabs/tabs";
@@ -216,6 +221,8 @@ export function Sidebar() {
   const roots = useWorkspace((s) => s.children.root);
   const favorites = useWorkspace((s) => s.favorites);
   const view = useWorkspace((s) => s.view);
+  const agentsPending = useAgents((s) => s.pending);
+  const hasActiveAgents = useAgents((s) => s.hasActiveAgents);
   const selectedPageId = useWorkspace((s) => s.selectedPageId);
   const pickedIds = usePageSelection((s) => s.ids);
   const { createPage, showTrash, toggleFavorite } = useWorkspace.getState();
@@ -258,6 +265,20 @@ export function Sidebar() {
       setDragging(null);
       void openInNewTab(String(e.active.id));
       return;
+    }
+    // Dropped on a page's text: link to it (every picked page, when the dragged one is among them).
+    const start = e.activatorEvent as PointerEvent;
+    if (start && typeof start.clientX === "number") {
+      const dragged = String(e.active.id);
+      const picked = usePageSelection.getState().ids;
+      const ids = picked.includes(dragged) ? picked : [dragged];
+      const x = start.clientX + e.delta.x;
+      const y = start.clientY + e.delta.y;
+      if (dropPagesOnEditor(ids, x, y) || dropPagesOnBoard(ids, x, y)) {
+        setDropTarget(null);
+        setDragging(null);
+        return;
+      }
     }
     const drop = target(e);
     setDropTarget(null);
@@ -317,7 +338,7 @@ export function Sidebar() {
     return [
       { label: "Open", shortcut: [key("Enter")], onSelect: () => void useWorkspace.getState().openPage(page.id) },
       { label: "Open in new tab", shortcut: "page-new-tab", onSelect: () => void openInNewTab(page.id) },
-      ...((page.kind === "page" || page.kind === "record") && page.id !== useWorkspace.getState().selectedPageId ? [{ label: "Open beside", onSelect: () => usePeek.getState().show(page.id) }] : []),
+      ...(page.id !== useWorkspace.getState().selectedPageId ? [{ label: "Open beside", onSelect: () => usePeek.getState().show(page.id) }] : []),
       { label: "Cut", separated: true, disabled: page.kind === "record", onSelect: () => cutPages([page]) },
       { label: "Copy", shortcut: "page-copy", disabled: page.kind !== "page", onSelect: () => copyPages([page]) },
       { label: "Paste inside", shortcut: "page-paste", disabled: !canPasteInto(held, page), onSelect: () => void pastePages(page) },
@@ -350,6 +371,9 @@ export function Sidebar() {
         <span>Search</span>
         {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
+
+      <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="nodeMap" /><span>Node Map</span></button>
+      {(hasActiveAgents || agentsPending > 0) && <button type="button" className="foot-btn map-launch agents-launch" title="Agents: review inbox" aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"} onClick={() => useAgents.getState().show("review")}><Icon name="inbox" /><span>Inbox</span>{agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}</button>}
 
       {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
         {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (
@@ -404,6 +428,7 @@ export function Sidebar() {
         )}
 
         <Recents />
+        <CanvasesSection />
 
         <section>
           <PagesToolbar />

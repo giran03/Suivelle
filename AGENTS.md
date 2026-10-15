@@ -11,6 +11,14 @@
   `src-tauri/tauri.conf.json`, and `release-notes.json`, and refresh both lockfiles
   when bumping versions. Follow `docs/releasing.md` when preparing a release.
 
+## Frontend work
+
+- For any UI change (styling, layout, components, settings screens, empty states,
+  motion, colour, typography), use the **impeccable** skill before writing code,
+  and run its critique or polish pass before calling the change done.
+- Keep to the existing tokens and patterns in `src/styles.css` and the feature's
+  own CSS; do not add a UI library.
+
 ## graphify
 
 When the user types `/graphify`, use the installed graphify skill or its

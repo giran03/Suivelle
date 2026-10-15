@@ -1,4 +1,30 @@
-# Suivelle motion showcase
+# Suivelle website and showcase
+
+The public site at https://suivelle.cafetako.com has two parts, built into `showcase/dist`:
+
+- `/`: the home page and a wiki covering every feature (`site/`). Pages are bare `<article>`
+  HTML in `site/wiki/`; `site/layout.mjs` wraps them in the shared shell and builds the search
+  index, and `site/nav.mjs` is the table of contents (sidebar, prev/next, search and the home
+  page's turning page map all read it). Screenshots come from `docs/images/`. The animated
+  interface demos (`site/src/demos.js`) are re-enactments with the demo's sample data.
+- `/demo/`: the read-only showcase of the real app described below.
+
+```bash
+npm run showcase:build     # site, then the demo into dist/demo
+npm run showcase:preview   # serves showcase/dist on http://localhost:1490
+npx vite --config showcase/site/vite.config.ts   # site in dev mode, port 1490
+```
+
+Download buttons link straight to the `_x64-setup.exe` of the latest published GitHub release,
+looked up at build time (with `GITHUB_TOKEN` in CI) and again by the page on load, so a release
+published after the last deploy is picked up without rebuilding. While no release is published
+(drafts are private), they open the releases page. Write `@download`, `@download-meta` and
+`@releases` in site pages to use them.
+
+To add a wiki page, write `site/wiki/<slug>.html` (a `<title>`, an `<h1>`, a `.lede` paragraph
+and `<h2>` sections), then add it to `site/nav.mjs` with a blurb and the pages it links to.
+
+## The read-only demo
 
 A read-only showcase of Suivelle, plus a 60 fps product film.
 
@@ -13,7 +39,7 @@ npx vite build --config showcase/vite.config.ts
 npx vite preview --config showcase/vite.config.ts
 ```
 
-Then open http://localhost:1488. Browse pages and records, press Ctrl+K to search, explore board/table/calendar/timeline views and dashboards, or open Settings to try themes and motion preferences.
+Then open http://localhost:1488. (Built this way, the demo lives in `showcase/dist/demo`; `npm run showcase:preview` serves it at `/demo/` under the site.) Browse pages and records, press Ctrl+K to search, explore board/table/calendar/timeline views and dashboards, or open Settings to try themes and motion preferences.
 
 The showcase blocks content creation, edits, deletion, reordering, imports, uploads, and schema changes. Page text remains selectable and links remain navigable. Filters, sorting, column display, and appearance preferences are available for exploration; sample content stays unchanged.
 

@@ -3,6 +3,7 @@ import type { MouseEvent } from "react";
 import { create } from "zustand";
 import { useWorkspace } from "../../stores/workspace";
 import { ipc } from "../../lib/ipc";
+import { usePeek } from "../peek/store";
 
 /**
  * Page tabs: a short list of pages kept side by side, like browser tabs. The open page is always
@@ -72,6 +73,7 @@ const closed: { workspaceId: string; pageId: string }[] = [];
 const MAX_CLOSED = 20;
 
 export async function closeTab(id: string): Promise<void> {
+  if (usePeek.getState().pageId === id) usePeek.getState().hide();
   const ids = useTabs.getState().ids;
   const i = ids.indexOf(id);
   if (i < 0) return;
@@ -101,6 +103,7 @@ export async function reopenClosedTab(): Promise<boolean> {
 
 /** Removes a tab whose page no longer exists, without moving anywhere. */
 export function dropTab(id: string): void {
+  if (usePeek.getState().pageId === id) usePeek.getState().hide();
   const ids = useTabs.getState().ids;
   if (ids.includes(id) && useWorkspace.getState().selectedPageId !== id) commit(ids.filter((x) => x !== id));
 }
@@ -116,6 +119,16 @@ export function moveTab(id: string, to: number): void {
   next.splice(from, 1);
   next.splice(target, 0, id);
   commit(next);
+}
+
+/** Keep the current page on the left and open this tab on the right. */
+export async function openTabBeside(id: string): Promise<void> {
+  if (useWorkspace.getState().selectedPageId === id) {
+    const other = useTabs.getState().ids.find((x) => x !== id);
+    if (!other) return;
+    await useWorkspace.getState().selectPage(other);
+  }
+  usePeek.getState().show(id);
 }
 
 /** Moves to the next or previous tab, wrapping around. */
@@ -147,6 +160,7 @@ export function installTabs(): () => void {
   return useWorkspace.subscribe((state, prev) => {
     const id = state.workspace?.id ?? null;
     if (id !== current) {
+      usePeek.getState().hide();
       current = id;
       useTabs.setState({ ids: id ? read(id) : [] });
       return;

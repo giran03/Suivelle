@@ -76,9 +76,11 @@ function EventNode({ node, editor }: NodeViewProps) {
             type="button"
             className="btn"
             onClick={async () => {
-              if (!page) return;
+              const pageId = editor.view.dom.dataset.contextPage ?? page?.id;
+              if (!pageId) return;
               try {
-                const b = (await ipc.blockList(page.id)).find(
+                const owner = page?.id === pageId ? page : await ipc.pageGet(pageId);
+                const b = (await ipc.blockList(pageId)).find(
                   (b) => b.id === node.attrs.blockId,
                 );
                 if (!b)
@@ -87,10 +89,10 @@ function EventNode({ node, editor }: NodeViewProps) {
                   );
                 useCalendarComposer.getState().show({
                   event: {
-                    pageId: page.id,
+                    pageId,
                     blockId: b.id,
                     revision: b.revision,
-                    title: page.title,
+                    title: owner?.title ?? "Untitled",
                     data: JSON.parse(b.dataJson),
                   } as CalendarEvent,
                 });
@@ -107,7 +109,7 @@ function EventNode({ node, editor }: NodeViewProps) {
         {DateTime.fromISO(data.start).toLocaleString(
           data.allDay ? DateTime.DATE_MED : DateTime.DATETIME_MED,
         )}{" "}
-        →{" "}
+        <Icon name="arrowRight" />{" "}
         {DateTime.fromISO(data.end)
           .minus(data.allDay ? { days: 1 } : {})
           .toLocaleString(

@@ -1,7 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0.." || exit /b 1
-if not exist "src-tauri\target\release\Suivelle.exe" (
+node scripts\release-freshness.mjs
+if errorlevel 2 exit /b 1
+if errorlevel 1 (
+  echo Building the updated app...
   call npm run tauri -- build --no-bundle
   if errorlevel 1 (
     pause

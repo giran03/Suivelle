@@ -272,6 +272,8 @@ export function useDatabase(pageId: string, forcedViewId?: string) {
     detail,
     error,
     queryVersion,
+    /** Reloads the records a view shows (after one was added elsewhere). */
+    refreshRows: () => setQueryVersion((v) => v + 1),
     byId,
     views,
     view,

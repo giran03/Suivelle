@@ -1,5 +1,6 @@
 //! Serial admission to blocking IPC work: one worker instead of a thread per waiting DB caller.
 use crate::errors::{AppError, AppResult};
+use std::any::Any;
 use std::sync::{Arc, OnceLock};
 use tauri::async_runtime::Mutex;
 
@@ -66,6 +67,21 @@ where
     T: Send + 'static,
     F: FnOnce() -> AppResult<T> + Send + 'static,
 {
+    // Boxed so the runtime's task machinery is compiled once rather than once per command;
+    // the two small allocations are negligible next to a thread-pool handoff.
+    let result = run(gate, name, Box::new(move || Box::new(work()))).await?;
+    *result
+        .downcast::<AppResult<T>>()
+        .expect("a worker job returns its own result type")
+}
+
+type Job = Box<dyn FnOnce() -> Box<dyn Any + Send> + Send>;
+
+async fn run(
+    gate: &'static OnceLock<Arc<Mutex<()>>>,
+    name: &'static str,
+    work: Job,
+) -> AppResult<Box<dyn Any + Send>> {
     let queued = std::time::Instant::now();
     let permit = gate
         .get_or_init(|| Arc::new(Mutex::new(())))
@@ -89,7 +105,7 @@ where
             execution_ms = started.elapsed().as_millis() as u64,
             "blocking IPC completed"
         );
-        result
+        Ok(result)
     })
     .await
     .map_err(|e| AppError::Internal(format!("{name} worker failed: {e}")))?

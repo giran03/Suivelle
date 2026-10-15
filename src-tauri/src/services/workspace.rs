@@ -210,21 +210,26 @@ pub fn validate_deletion(conn: &Connection, id: &str, confirmation: &str) -> App
     Ok(())
 }
 
-/// Keep the database stable until the verified safety copy and deletion both finish.
-pub fn delete_safely(
+/// Keep confirmation, optional verified backup and deletion under one database lock.
+pub fn delete_confirmed(
     conn: &std::sync::Mutex<Connection>,
     paths: &crate::backup::Paths,
     id: &str,
     confirmation: &str,
-) -> AppResult<String> {
+    save_backup: bool,
+) -> AppResult<Option<String>> {
     let mut conn = conn
         .lock()
         .map_err(|_| AppError::Internal("database lock poisoned".into()))?;
     validate_deletion(&conn, id, confirmation)?;
-    let pending = crate::backup::begin(&conn, paths, "safety")?;
-    let backup = crate::backup::finish_in_app(paths, pending)?;
+    let backup_name = if save_backup {
+        let pending = crate::backup::begin(&conn, paths, "safety")?;
+        Some(crate::backup::finish_in_app(paths, pending)?.name)
+    } else {
+        None
+    };
     delete(&mut conn, id)?;
-    Ok(backup.name)
+    Ok(backup_name)
 }
 
 /// The backup archive includes every workspace; its daily schedule is installation-wide.

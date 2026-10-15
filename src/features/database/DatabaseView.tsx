@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
 import { anchorOf, type Anchor } from "../../components/Popover";
@@ -13,6 +13,9 @@ import { NewRecordButton } from "./RecordTemplates";
 import { CalendarView } from "./CalendarView";
 import { GalleryView } from "./GalleryView";
 import { TimelineView } from "./TimelineView";
+
+/** The canvas is the largest view and the least used, so it loads on first use. */
+const CanvasView = lazy(() => import("./canvas/CanvasView").then((m) => ({ default: m.CanvasView })));
 import { ZOOM, type Zoom } from "./calendar";
 import "./database.css";
 import { countConditions } from "./filter";
@@ -94,6 +97,9 @@ export function DatabaseView({ pageId, embedded }: { pageId: string; embedded?: 
         setFocusRequest({ row: index, nonce: Date.now() });
       } else if (usesTable) {
         table.addExtra(row);
+      } else if (type === "canvas") {
+        // The card appears on the board; the record is not opened.
+        db.refreshRows();
       } else {
         await useWorkspace.getState().openPage(row.pageId);
       }
@@ -104,7 +110,7 @@ export function DatabaseView({ pageId, embedded }: { pageId: string; embedded?: 
 
   const countLabel = ` ${table.total === 1 ? "record" : "records"}${filters ? " match" : ""}`;
 
-  const sortable = !(type === "chart" || type === "form" || type === "feed");
+  const sortable = !(type === "chart" || type === "form" || type === "feed" || type === "canvas");
   const tools = !embedded || !!embedded.tools;
 
   return (
@@ -211,7 +217,7 @@ export function DatabaseView({ pageId, embedded }: { pageId: string; embedded?: 
             </>
           )}
         </span>
-        {type !== "board" && type !== "form" && type !== "chart" && <NewRecordButton databaseId={detail.database.id} onCreate={(t) => void create(t)} />}
+        {type !== "board" && type !== "form" && type !== "chart" && <NewRecordButton databaseId={detail.database.id} skipIfPlain={type === "table"} onCreate={(t) => void create(t)} />}
       </div>
       )}
 
@@ -240,6 +246,11 @@ export function DatabaseView({ pageId, embedded }: { pageId: string; embedded?: 
       {type === "board" && <BoardView db={db} view={view} queryVersion={db.queryVersion} />}
       {type === "gallery" && <GalleryView db={db} view={view} queryVersion={db.queryVersion} onCreate={() => void create()} />}
       {type === "feed" && <FeedView db={db} view={view} queryVersion={db.queryVersion} onCreate={() => void create()} />}
+      {type === "canvas" && (
+        <Suspense fallback={<p className="empty"><Loading /></p>}>
+          <CanvasView db={db} view={view} queryVersion={db.queryVersion} />
+        </Suspense>
+      )}
       {type === "chart" && <ChartView db={db} view={view} queryVersion={db.queryVersion} bare={!!embedded} />}
       {type === "form" && <FormView db={db} view={view} locked={!!embedded} />}
       {(type === "calendar" || type === "timeline") &&

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><title>Node Map</title></head>
+<body>
+<h1>Node Map</h1>
+<p class="lede">The Node Map shows every page of every workspace as a star in space: pages, databases, records and dashboards, joined by their hierarchy, links and relations. Turn it, focus it, dive into a neighbourhood, and connect things where you see them.</p>
+<div class="note"><p>The turning map on the <a href="@root/index.html">home page</a> of this site is drawn the same way, with this wiki's pages as the stars.</p></div>
+
+<h2>Opening the map</h2>
+<p>Open <strong>Node Map</strong> from its planet-and-orbits icon in the sidebar or from the command palette. Every workspace appears at once; focusing on a workspace or a page's neighbourhood keeps that group bright and dims the rest. The eye button (<kbd>H</kbd>) hides everything outside the focus.</p>
+<p>In 3D, workspaces spread evenly over a sphere and each workspace's pages fill a sphere around it, with hierarchy levels as rings around each tree. Nodes are coloured by family (pages, databases, records, dashboards) and every page tree gets its own shade within that family, so related pages read as a group. Switch to 2D with <kbd>2</kbd> and back with <kbd>3</kbd>, instantly.</p>
+<p>The orbit icon beside the zoom controls turns the camera slowly around the map, about one revolution every two minutes. It keeps going while you work until you switch it off, and stays still in 2D, in hidden windows and with reduced motion.</p>
+
+<h2>Exploring</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>To</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td>Select a node</td><td>Click it. Its connections light up, the camera eases over and the details panel slides in with a preview, grouped connections and edit tools.</td></tr>
+    <tr><td>Dive into a neighbourhood</td><td>Double-click, or <kbd>Enter</kbd>. Step back out with the breadcrumb, <kbd>Esc</kbd> or <kbd>Backspace</kbd>.</td></tr>
+    <tr><td>Follow connections</td><td>Arrow keys</td></tr>
+    <tr><td>Open a page</td><td><kbd>O</kbd> opens it beside the map, <kbd>Shift</kbd> <kbd>O</kbd> in the main view</td></tr>
+    <tr><td>Search</td><td><kbd>/</kbd> lights up matches in place across all workspaces; <kbd>Enter</kbd> steps through them</td></tr>
+    <tr><td>Fit everything</td><td><kbd>F</kbd> or <kbd>Home</kbd></td></tr>
+    <tr><td>Switch to the list</td><td><kbd>L</kbd>, a keyboard-friendly list with the same navigation</td></tr>
+  </tbody>
+</table></div>
+<p>Workspace chips along the bar focus a workspace, and <kbd>Alt</kbd>-click hides one. Hovering a node shows its kind, workspace and number of connections. The Layers panel hides labels or connection types and doubles as the legend.</p>
+
+<h2>Layouts and saved views</h2>
+<p>Choose a layout: workspace clusters, hierarchy, an organic layout driven by links, records grouped by a chosen property, or a timeline by date. Layout is calculated away from the editor, so typing stays smooth. Save named views that remember scope, layout, records, search and camera, and optionally let the map follow the page you have open.</p>
+
+<h2>Editing from the map</h2>
+<p>The tools at the left of the map are Navigate (<kbd>V</kbd>), Move and pin (<kbd>M</kbd>), Box select (<kbd>B</kbd>) and Connect (<kbd>C</kbd>).</p>
+<ul>
+  <li><strong>Move and pin</strong> places a node and keeps it there. Pins are a navigation preference and never change content.</li>
+  <li><strong>Connect</strong> draws a live line from source to target. Add a reference, change which page a page is nested under, or choose a relation property; marking a relation as <em>blocks</em> makes it a dependency, and cycles are refused.</li>
+  <li><strong>Bulk edits</strong> apply tags, status or date changes to selected pages or records together.</li>
+</ul>
+<p>Every map edit saves open editors first, applies as one change and can be undone and redone, even after you leave the map. Undo checks that nothing newer has changed in the meantime and refuses to overwrite it.</p>
+
+<h2>Large workspaces</h2>
+<p>The map shows up to 5,000 page nodes at once and says so when a result is larger, rather than silently hiding pages. Search still covers everything, including pages outside the current view. Records are optional. If 3D rendering isn't available on a machine, the list view offers the same navigation.</p>
+
+<p class="see-also"><span>Related</span><a href="links-and-tags.html">Links, tags and backlinks</a><a href="canvases.html">Canvases</a><a href="agents.html">Local AI agents</a></p>
+</body></html>

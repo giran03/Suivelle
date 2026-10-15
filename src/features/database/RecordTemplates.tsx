@@ -69,11 +69,13 @@ function Manager({ anchor, templates, onClose, onChanged }: { anchor: Anchor; te
 }
 
 /** "New record", with a menu of this database's record templates when it has any. */
-export function NewRecordButton({ databaseId, onCreate }: { databaseId: string; onCreate: (templateId: string | null) => void }) {
+/** `skipIfPlain` hides it for a database with no templates, where the view already has its own "New record" row. */
+export function NewRecordButton({ databaseId, onCreate, skipIfPlain = false }: { databaseId: string; onCreate: (templateId: string | null) => void; skipIfPlain?: boolean }) {
   const { templates, reload } = useRecordTemplates(databaseId);
   const [menu, setMenu] = useState<Anchor | null>(null);
   const [managing, setManaging] = useState<Anchor | null>(null);
   const fallback = templates.find((t) => t.isDefault);
+  if (skipIfPlain && templates.length === 0) return null;
 
   return (
     <span className="new-record">

@@ -1,7 +1,7 @@
-import { useShortcut } from "../shortcuts/useShortcut";
 import { BackupMirror, HealthSection } from "./HealthSection";
 import { DiagnosticsButton } from "../../components/DiagnosticsButton";
 import { ShortcutSettings } from "../shortcuts/ShortcutSettings";
+import { AgentsSettings } from "../agents/AgentsSettings";
 import { useEffect, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { BrandMark } from "../../components/BrandMark";
@@ -28,6 +28,7 @@ const PAGES: { id: string; title: string; icon: IconName }[] = [
   { id: "window", title: "Window and startup", icon: "monitor" },
   { id: "keyboard", title: "Shortcuts and input", icon: "keyboard" },
   { id: "data", title: "Data and backups", icon: "layers" },
+  { id: "agents", title: "Agents", icon: "agent" },
   { id: "updates", title: "Updates", icon: "download" },
   { id: "about", title: "About", icon: "note" },
 ];
@@ -137,7 +138,6 @@ function WindowCornersRow() {
 
 /** Starting with the computer, the tray icon, and what closing or minimizing the window does. */
 function WindowSection() {
-  const focusBinding = useShortcut("global-focus");
   const shell = usePreferences((s) => s.shell);
   const setShell = usePreferences((s) => s.setShell);
   const [error, setError] = useState<string | null>(null);
@@ -160,9 +160,6 @@ function WindowSection() {
   return (
     <section>
       <h3>Window and startup</h3>
-      <Row title="Focus app from any program" hint={`${focusBinding.label || "Configure a binding in Shortcuts and input"} shows and focuses Suivelle while it is running, including from the tray.`}>
-        <Switch label="Focus app from any program" checked={shell.focusShortcut} onChange={(on) => change({ focusShortcut: on })} />
-      </Row>
       <Row title="Start with Windows" hint="Open Suivelle when you sign in.">
         <Switch label="Start with Windows" checked={shell.launchAtStartup} onChange={(on) => change({ launchAtStartup: on })} />
       </Row>
@@ -368,6 +365,11 @@ function SettingsBody() {
           <h3>Storage health</h3>
           <p className="set-hint">Everything stored on this computer, across all workspaces.</p>
           <HealthSection active={page === "data" && !query.trim()} />
+        </SettingsPage>
+
+        <SettingsPage id="agents" active={query.trim() ? "search" : page}>
+          <h3>Agents</h3>
+          <AgentsSettings active={page === "agents" && !query.trim()} />
         </SettingsPage>
 
         <SettingsPage id="keyboard" active={query.trim() ? "search" : page}>

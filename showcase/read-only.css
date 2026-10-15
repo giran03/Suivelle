@@ -12,3 +12,6 @@
 [data-showcase="read-only"] .tl-bar { cursor: pointer; }
 .showcase-access { color: var(--text-secondary); font-size: 0.75rem; white-space: nowrap; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--r-sm); }
 @media (max-width: 800px) { .showcase-access { padding-inline: 4px; } }
+.showcase-access[role="link"] { cursor: pointer; transition: border-color 150ms, color 150ms; }
+.showcase-access[role="link"]::after { content: " · Wiki"; color: var(--accent-ui, currentColor); }
+.showcase-access[role="link"]:hover { color: var(--text-primary); border-color: var(--border-strong, var(--border)); }

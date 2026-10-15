@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
+import { useLayout } from "../../stores/layout";
 import { useWorkspace } from "../../stores/workspace";
 import { modKey } from "../palette/store";
 import { useTemplateGallery } from "../templates/store";
@@ -19,6 +20,7 @@ export function PagesToolbar() {
   const expanded = useWorkspace((s) => s.expanded);
   const expanding = useWorkspace((s) => s.treeExpanding);
   const currentPage = useWorkspace((s) => s.view === "page" ? s.selectedPage : null);
+  const canvasOpen = useLayout((s) => s.canvasOpen);
   const pickedCount = usePageSelection((s) => s.ids.length);
   const [refreshing, setRefreshing] = useState(false);
   const [revealTarget, setRevealTarget] = useState<string | null>(null);
@@ -85,6 +87,9 @@ export function PagesToolbar() {
         </button>
         <button type="button" className="pages-tree-action" aria-label="Collapse all pages" title={expanding ? "Stop expanding and collapse all pages" : "Collapse all pages"} disabled={!available || (!hasExpanded && !expanding)} onClick={() => useWorkspace.getState().collapseAllPages()}>
           <Icon name="collapseAll" size={14} />
+        </button>
+        <button type="button" className="pages-tree-action" aria-label="Canvases" title={canvasOpen ? "Hide canvases" : "Show canvases"} aria-pressed={canvasOpen} onClick={() => useLayout.getState().toggleCanvases()}>
+          <Icon name="canvas" size={14} />
         </button>
         {!READ_ONLY && held && <button type="button" className="icon-btn" aria-label="Paste pages at top level" title={`Paste pages at top level${pasteShortcut.label ? ` (${pasteShortcut.label})` : ""}`} disabled={!available || pasting} onClick={() => void pastePages(null)}><Icon name="duplicate" /></button>}
         <button type="button" className="icon-btn pages-options" aria-label="Page tree options" title="Page tree options" aria-haspopup="menu" aria-expanded={menu?.kind === "options"} disabled={!available} onClick={(e) => openMenu(e.currentTarget, "options")}>

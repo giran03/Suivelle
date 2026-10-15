@@ -22,7 +22,7 @@ export function MatrixLoader({ variant = "scan", rounded = true }: { variant?: M
 /** A quiet "Loading…" line with the dot loader beside it. Screen readers get the words; the dots are for the eye. */
 export function Loading({ label = "Loading…", variant = "scan" }: { label?: string; variant?: MatrixVariant }) {
   return (
-    <span className="loading">
+    <span className="loading" role="status">
       <MatrixLoader variant={variant} />
       <span>{label}</span>
     </span>

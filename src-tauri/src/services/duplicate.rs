@@ -113,9 +113,16 @@ fn copy_one(
     repo::page::insert(tx, &page)?;
     search::index::upsert_page(tx, &page)?;
 
+    copy_blocks(tx, src, &page, vec![])?;
+    *count += 1;
+    Ok(page)
+}
+
+fn copy_blocks(tx: &Connection, src: &Page, page: &Page, delete_ids: Vec<String>) -> AppResult<()> {
+    let dest = &page.workspace_id;
     let blocks = repo::block::list(tx, &src.id)?;
     let ids: HashMap<&str, String> = blocks.iter().map(|b| (b.id.as_str(), new_id())).collect();
-    let moving = dest != src.workspace_id;
+    let moving = *dest != src.workspace_id;
     let upserts = blocks
         .iter()
         .map(|b| {
@@ -141,11 +148,77 @@ fn copy_one(
         &BlockBatch {
             page_id: page.id.clone(),
             upserts,
-            delete_ids: vec![],
+            delete_ids,
         },
     )?;
-    *count += 1;
-    Ok(page)
+    Ok(())
+}
+
+/// Apply a template only while the destination is still empty. Keep its identity and title.
+pub fn apply_template(conn: &mut Connection, template_id: &str, page_id: &str) -> AppResult<()> {
+    validate_id(template_id, "template")?;
+    validate_id(page_id, "page")?;
+    let tx = conn.transaction()?;
+    let src = repo::page::get(&tx, template_id)?
+        .filter(|p| p.deleted_at.is_none() && p.kind == "page")
+        .ok_or_else(|| AppError::NotFound("template page".into()))?;
+    let dest = repo::page::get(&tx, page_id)?
+        .filter(|p| p.deleted_at.is_none() && p.kind == "page")
+        .ok_or_else(|| AppError::NotFound("destination page".into()))?;
+    if src.id == dest.id || src.workspace_id != dest.workspace_id {
+        return Err(AppError::Validation(
+            "Choose a different page template from this workspace.".into(),
+        ));
+    }
+    let existing = repo::block::list(&tx, page_id)?;
+    let blank = existing.is_empty()
+        || (existing.len() == 1 && existing[0].block_type == "paragraph" && {
+            let data: Value = serde_json::from_str(&existing[0].data_json).map_err(|_| {
+                AppError::Validation(
+                    "This page contains unreadable content. It cannot be replaced by a template."
+                        .into(),
+                )
+            })?;
+            data.get("content")
+                .and_then(Value::as_array)
+                .is_some_and(|c| c.is_empty())
+                || (data.get("content").is_none()
+                    && data
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .is_empty())
+        });
+    if !blank {
+        return Err(AppError::Validation(
+            "This page has content now. Apply a template to an empty page instead.".into(),
+        ));
+    }
+    copy_blocks(
+        &tx,
+        &src,
+        &dest,
+        existing.into_iter().map(|b| b.id).collect(),
+    )?;
+    let kids = repo::page::list_children(&tx, &src.workspace_id, Some(&src.id))?;
+    let (mut count, mut skipped) = (0, 0);
+    copy_children(
+        &tx,
+        kids,
+        &dest.workspace_id,
+        &dest.id,
+        1,
+        &mut count,
+        &mut skipped,
+    )?;
+    if skipped > 0 {
+        return Err(AppError::Validation(
+            "This template contains a database or dashboard. Create a new page from it instead."
+                .into(),
+        ));
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 fn copy_children(
@@ -251,6 +324,31 @@ mod tests {
     use super::*;
     use crate::database::open_in_memory;
     use crate::services;
+
+    #[test]
+    fn applies_template_body_and_children_without_replacing_identity_and_refuses_nonempty() {
+        let (mut conn, ws) = setup();
+        let src = page(&mut conn, &ws, None, "Template");
+        let child = page(&mut conn, &ws, Some(&src.id), "Child");
+        let dest = page(&mut conn, &ws, None, "Keep this title");
+        let original = block(&mut conn, &src.id, None, "paragraph", "Reusable content");
+        block(&mut conn, &child.id, None, "paragraph", "Nested content");
+        apply_template(&mut conn, &src.id, &dest.id).unwrap();
+        let after = repo::page::get(&conn, &dest.id).unwrap().unwrap();
+        assert_eq!(after.title, "Keep this title");
+        let body = repo::block::list(&conn, &dest.id).unwrap();
+        assert_eq!(body.len(), 1);
+        assert_ne!(body[0].id, original.id);
+        assert!(body[0].data_json.contains("Reusable content"));
+        assert_eq!(
+            repo::page::list_children(&conn, &ws, Some(&dest.id))
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(apply_template(&mut conn, &src.id, &dest.id).is_err());
+        assert_eq!(repo::block::list(&conn, &dest.id).unwrap().len(), 1);
+    }
 
     fn setup() -> (Connection, String) {
         let mut conn = open_in_memory().unwrap();

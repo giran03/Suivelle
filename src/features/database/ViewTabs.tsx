@@ -14,9 +14,10 @@ export const VIEW_META: Record<ViewType, { label: string; icon: IconName; blurb:
   chart: { label: "Chart", icon: "chart", blurb: "Bars, lines, pies or a single number" },
   form: { label: "Form", icon: "form", blurb: "Fill in fields to add a record" },
   feed: { label: "Feed", icon: "feed", blurb: "Newest records first, by day" },
+  canvas: { label: "Canvas", icon: "canvas", blurb: "A freeform board for cards, notes, images and arrows" },
 };
 
-const ORDER: ViewType[] = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed"];
+const ORDER: ViewType[] = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed", "canvas"];
 
 /** The tab strip above the toolbar: one tab per saved view, and a menu to add another. */
 export function ViewTabs({

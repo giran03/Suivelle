@@ -1,6 +1,5 @@
 import { ACTIONS, effective, format, type Scope } from "./bindings";
 import { useShortcuts } from "./store";
-import { useGlobalShortcuts } from "./native";
 import { useSettingsDialog } from "../settings/store";
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
@@ -39,10 +38,8 @@ const GROUPS: { title: string; rows: [string, string[]][] }[] = [
 /** A read-only reference sheet; opened with Ctrl/Cmd+/ or "?" outside a text field. */
 export function ShortcutSheet() {
   const overrides = useShortcuts(s => s.overrides);
-  const native = useGlobalShortcuts(s => s.state);
-  const combined = { ...overrides, ...(native ? { "global-capture": native.config.capture, "global-focus": native.config.focus } : {}) };
-  const names: Record<Scope, string> = { workspace: "Workspace", editor: "Writing", pages: "Page tree", grid: "Database grid", tab: "Tabs", capture: "Quick capture", global: "From any program" };
-  const groups = [...Object.entries(names).map(([scope, title]) => ({ title, rows: ACTIONS.filter(a => a.scope === scope).map(a => [a.title, effective(a.id, combined).map(format).length ? effective(a.id, combined).map(format) : ["Unassigned"]] as [string, string[]]) })), ...GROUPS.filter(g => g.title === "Markdown shortcuts"), { title: "Built-in navigation", rows: [["Move focus / cancel", ["Tab", "Escape"]], ["Navigate trees and grids", ["Arrow keys"]]] as [string, string[]][] }];
+  const names: Record<Scope, string> = { workspace: "Workspace", editor: "Writing", pages: "Page tree", grid: "Database grid", map: "Node Map", tab: "Tabs", capture: "Quick capture" };
+  const groups = [...Object.entries(names).map(([scope, title]) => ({ title, rows: ACTIONS.filter(a => a.scope === scope).map(a => [a.title, effective(a.id, overrides).map(format).length ? effective(a.id, overrides).map(format) : ["Unassigned"]] as [string, string[]]) })), ...GROUPS.filter(g => g.title === "Markdown shortcuts"), { title: "Built-in navigation", rows: [["Move focus / cancel", ["Tab", "Escape"]], ["Navigate trees and grids", ["Arrow keys"]]] as [string, string[]][] }];
   const open = useShortcutSheet((s) => s.open);
   const ref = useRef<HTMLDialogElement>(null);
 

@@ -1,0 +1,46 @@
+@font-face {
+  font-family: "Suivelle Nerd Symbols";
+  src: url("/fonts/suivelle-nerd-symbols.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+:root { --font-icons: "Suivelle Nerd Symbols"; }
+
+.app-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  font-family: var(--font-icons);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  font-synthesis: none;
+  letter-spacing: 0;
+  text-transform: none;
+  text-indent: 0;
+  vertical-align: middle;
+  user-select: none;
+  pointer-events: none;
+}
+
+.app-icon::before { content: attr(data-glyph); }
+:root[data-icon-font="failed"] .app-icon::before { display: none; }
+:root[data-icon-font="failed"] .app-icon::after {
+  content: attr(data-fallback);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  line-height: 1;
+}
+
+:root[data-icon-font="failed"] input[type="checkbox"]::after,
+:root[data-icon-font="failed"] select:not([multiple]) option::checkmark {
+  content: "+";
+  font-family: var(--font-ui);
+}
+:root[data-icon-font="failed"] select:not([multiple])::picker-icon {
+  content: "v";
+  font-family: var(--font-ui);
+}

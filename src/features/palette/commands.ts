@@ -23,6 +23,9 @@ import { openDailyNote } from "../journal/journal";
 import { reopenClosedTab } from "../tabs/tabs";
 import { useOutline } from "../outline/store";
 import { useExplore } from "../explore/store";
+import { useNodeMap } from "../node-map/store";
+import { createSavedBackup } from "../backup/create";
+import { usePalette } from "./store";
 
 export interface PaletteCommand {
   id: string;
@@ -36,6 +39,7 @@ export interface PaletteCommand {
 
 const st = () => useWorkspace.getState();
 const hasPage = () => !!st().selectedPage && st().view === "page";
+let backingUp = false;
 
 export const INTERNAL_PAGE_LINK = "suivelle://page/";
 
@@ -51,7 +55,10 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "remind", title: "Remind me about this page…", keywords: "reminder alarm notify later due schedule", when: hasPage, run: () => useExplore.getState().show("remind") },
   { id: "reminders", title: "Reminders…", keywords: "reminder list upcoming due alarms", run: () => useExplore.getState().show("reminders") },
   { id: "tags", title: "Browse tags…", keywords: "tag hashtag # labels topics", run: () => useExplore.getState().show("tags") },
-  { id: "graph", title: "Link graph", keywords: "graph map links connections network backlinks", run: () => useExplore.getState().show("graph") },
+  { id: "agents-inbox", title: "Agents: review inbox", keywords: "ai agents proposals review approve reject inbox claude codex mcp", run: () => void import("../agents/store").then((m) => m.useAgents.getState().show("review")) },
+  { id: "agents-activity", title: "Agents: activity and revert", keywords: "ai agents changes history revert undo changeset", run: () => void import("../agents/store").then((m) => m.useAgents.getState().show("activity")) },
+  { id: "vault-health", title: "Vault health", keywords: "janitor broken links orphans duplicates tags cleanup tidy maintenance", run: () => void import("../agents/store").then((m) => m.useAgents.getState().show("health")) },
+  { id: "graph", title: "Node Map", keywords: "3d 2d global workspaces graph map links connections network backlinks", run: () => useNodeMap.getState().show() },
   { id: "new-database", title: "New database", keywords: "create add table records tasks", run: () => st().createDatabase(null) },
   { id: "new-dashboard", title: "New dashboard", keywords: "create add charts widgets overview kpi report", run: () => st().createDashboard(null) },
   { id: "new-from-template", title: "New from template…", keywords: "project manager tasks tracker sprint milestone software bugs", run: () => useTemplateGallery.getState().show() },
@@ -65,17 +72,24 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "history", title: "Page history", keywords: "versions restore previous undo changes", when: () => hasPage() && ["page", "record"].includes(st().selectedPage!.kind), run: () => useHistoryPanel.getState().toggle() },
   { id: "import", title: "Import…", keywords: "markdown csv html text files folder archive notion obsidian", run: () => useTransferDialog.getState().show("import") },
   { id: "export", title: "Export…", keywords: "markdown html csv archive zip save page database workspace", run: () => useTransferDialog.getState().show("export") },
+  { id: "export-pdf", title: "Export current page as PDF", keywords: "save print document", when: () => hasPage() && ["page", "record"].includes(st().selectedPage!.kind), run: () => { const s = st(); if (s.selectedPage && s.workspace) useTransferDialog.getState().showPdf(s.selectedPage, s.workspace.id); } },
+  { id: "create-project-task", title: "Create task in project…", keywords: "add todo project tasks", run: () => usePalette.getState().showTask() },
   { id: "backups", title: "Backups…", keywords: "backup restore export import safety copy data", run: () => useBackupsDialog.getState().show() },
   {
     id: "backup-now",
     title: "Back up now",
-    keywords: "backup save copy data",
+    keywords: "backup workspace now save copy data",
     run: async () => {
+      if (backingUp) return;
+      backingUp = true;
       try {
-        const b = await ipc.backupCreate();
+        st().notify("Saving edits and backing up…");
+        const b = await createSavedBackup();
         st().notify(`Backed up ${b.manifest.pages} ${b.manifest.pages === 1 ? "page" : "pages"}`);
       } catch (e) {
         st().setError(toAppError(e).message);
+      } finally {
+        backingUp = false;
       }
     },
   },

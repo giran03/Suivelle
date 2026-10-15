@@ -12,6 +12,8 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { createLowlight } from "lowlight";
+import { useEffect, useState } from "react";
+import { Icon } from "../../../components/Icon";
 
 const lowlight = createLowlight({ bash, css, javascript, json, markdown, python, rust, sql, typescript, xml, yaml });
 
@@ -31,21 +33,31 @@ export const CODE_LANGUAGES: { id: string; label: string }[] = [
 ];
 
 function CodeView({ node, updateAttributes, editor }: NodeViewProps) {
+  const [copyStatus, setCopyStatus] = useState("");
+  useEffect(() => setCopyStatus(""), [node.textContent]);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(node.textContent); setCopyStatus("Code copied."); }
+    catch { setCopyStatus("Could not copy. Select the code and use Ctrl+C or Cmd+C."); }
+  };
   return (
     <NodeViewWrapper className="code-block">
-      <select
-        contentEditable={false}
-        value={(node.attrs.language as string | null) ?? ""}
-        disabled={!editor.isEditable}
-        aria-label="Code language"
-        onChange={(e) => updateAttributes({ language: e.target.value || null })}
-      >
-        {CODE_LANGUAGES.map((l) => (
-          <option key={l.id} value={l.id}>
-            {l.label}
-          </option>
-        ))}
-      </select>
+      <div className="code-toolbar" contentEditable={false} role="group" aria-label="Code block controls">
+        <select
+          contentEditable={false}
+          value={(node.attrs.language as string | null) ?? ""}
+          disabled={!editor.isEditable}
+          aria-label="Code language"
+          onChange={(e) => updateAttributes({ language: e.target.value || null })}
+        >
+          {CODE_LANGUAGES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="icon-btn" aria-label={copyStatus === "Code copied." ? "Code copied" : "Copy code"} title={copyStatus === "Code copied." ? "Code copied" : "Copy code"} onClick={() => void copy()}><Icon name={copyStatus === "Code copied." ? "check" : "duplicate"} size={16} /></button>
+        <span className={copyStatus.startsWith("Could not") ? "code-copy-error" : "sr-only"} role="status">{copyStatus}</span>
+      </div>
       <pre spellCheck={false}>
         <NodeViewContent as="div" className="code-content" />
       </pre>

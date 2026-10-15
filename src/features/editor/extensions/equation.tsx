@@ -1,21 +1,37 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import katex from "katex";
-import "katex/dist/katex.min.css";
 import { useEffect, useMemo, useState } from "react";
 
-function render(latex: string): string {
-  if (!latex.trim()) return "";
+type Katex = typeof import("katex").default;
+
+// KaTeX and its stylesheet are fetched the first time a page shows an equation, keeping them
+// out of the editor's start-up code.
+let katex: Katex | null = null;
+let loading: Promise<Katex> | null = null;
+function loadKatex(): Promise<Katex> {
+  loading ??= Promise.all([import("katex"), import("katex/dist/katex.min.css")]).then(([mod]) => (katex = mod.default));
+  return loading;
+}
+
+function render(lib: Katex | null, latex: string): string {
+  if (!lib || !latex.trim()) return "";
   // KaTeX escapes its output and has `trust` off, so the HTML it returns is safe to inject.
-  return katex.renderToString(latex, { displayMode: true, throwOnError: false, strict: "ignore", output: "html" });
+  return lib.renderToString(latex, { displayMode: true, throwOnError: false, strict: "ignore", output: "html" });
 }
 
 function EquationView({ node, updateAttributes, selected, editor }: NodeViewProps) {
   const latex = String(node.attrs.latex ?? "");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(latex);
-  const html = useMemo(() => render(latex), [latex]);
-  const preview = useMemo(() => (editing ? render(draft) : ""), [editing, draft]);
+  const [lib, setLib] = useState(katex);
+  useEffect(() => {
+    if (lib) return;
+    let live = true;
+    loadKatex().then((loaded) => live && setLib(() => loaded), () => { loading = null; });
+    return () => { live = false; };
+  }, [lib]);
+  const html = useMemo(() => render(lib, latex), [lib, latex]);
+  const preview = useMemo(() => (editing ? render(lib, draft) : ""), [lib, editing, draft]);
 
   // A freshly inserted, empty equation opens straight into editing.
   useEffect(() => {
@@ -70,7 +86,7 @@ function EquationView({ node, updateAttributes, selected, editor }: NodeViewProp
             setEditing(true);
           }}
         >
-          {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : <span className="media-empty-label">Add an equation</span>}
+          {html ? <span dangerouslySetInnerHTML={{ __html: html }} /> : latex.trim() ? <code>{latex}</code> : <span className="media-empty-label">Add an equation</span>}
         </button>
       )}
     </NodeViewWrapper>

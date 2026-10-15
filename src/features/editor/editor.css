@@ -22,6 +22,13 @@
 .doc h3 { font-size: 1.25rem; font-weight: 600; margin-top: 0.8em; }
 .doc > :first-child { margin-top: 0; }
 .doc a { color: var(--accent-ui); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.empty-page-prompts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; font-family: var(--ui-font, inherit); font-size: 0.875rem; }
+.empty-page-prompts button { background: transparent; border: 0; border-radius: var(--r-sm); color: var(--text-muted); padding: 4px 0; cursor: pointer; }
+.empty-page-prompts button:hover { color: var(--fg); }
+.smart-reference { white-space: break-spaces; }
+.smart-issue, .smart-file { background: var(--code-bg); border: 1px solid var(--border); border-radius: 1em; padding: 1px 6px; font-size: 0.9em; }
+.smart-file { cursor: pointer; color: var(--accent-ui); }
+.smart-color::before { content: ""; display: inline-block; width: 0.75em; height: 0.75em; margin-right: 0.3em; vertical-align: baseline; border: 1px solid var(--border); border-radius: var(--r-sm); background: linear-gradient(var(--swatch-color), var(--swatch-color)), conic-gradient(var(--border) 25%, var(--field) 0 50%, var(--border) 0 75%, var(--field) 0); background-size: auto, 6px 6px; }
 .doc :not(pre) > code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.875em; background: var(--code-bg); padding: 1px 4px; border-radius: var(--r-sm); }
 .doc hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 .doc blockquote { margin: 4px 0; padding: 3px 0 3px 16px; border-left: 1px solid var(--muted); font-style: italic; line-height: 1.5; }
@@ -84,8 +91,10 @@
 
 /* code */
 .code-block { position: relative; margin: 6px 0; background: var(--code-bg); border-radius: var(--r-sm); }
-.code-block select { position: absolute; top: 6px; right: 8px; z-index: 1; font-size: 0.875rem; color: var(--muted); background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px 4px; opacity: 0; transition: opacity 120ms ease-out; }
-.code-block:hover select, .code-block:focus-within select { opacity: 1; }
+.code-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; padding: 6px 8px 0; }
+.code-toolbar .icon-btn { flex: none; width: 28px; height: 28px; }
+.code-copy-error { width: 100%; color: var(--fg); font: 0.8125rem/1.5 var(--font-ui, sans-serif); }
+.code-block select { max-width: 100%; min-width: 0; font-size: 0.875rem; color: var(--muted); background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px 4px; }
 .code-block pre { margin: 0; padding: 12px 16px; overflow-x: auto; font: 0.875rem/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; }
 .code-content { white-space: pre; }
 .hljs-keyword, .hljs-built_in, .hljs-literal, .hljs-selector-tag { color: var(--hl-keyword); }
@@ -138,11 +147,11 @@
 .media-empty { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; border: 1px dashed var(--border); border-radius: var(--r-sm); color: var(--muted); text-align: left; }
 .media-empty:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
 .file-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); }
-.file-card > svg { flex: none; color: var(--muted); }
+.file-card > .app-icon { flex: none; color: var(--muted); }
 .file-card-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-card-size { color: var(--muted); font-size: 0.875rem; white-space: nowrap; }
 .media-missing { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--r-sm); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.media-missing svg { flex: none; }
+.media-missing .app-icon { flex: none; }
 .media-image > img { cursor: zoom-in; }
 .media-image > img:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .palette.media-viewer { width: min(1120px, calc(100vw - 32px)); height: min(800px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); margin: auto; }
@@ -202,7 +211,7 @@
 /* page mentions */
 .mention { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px 0 4px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); line-height: 1.4; cursor: pointer; vertical-align: baseline; }
 .mention:hover { background: var(--hover); }
-.mention svg { flex: none; color: var(--muted); }
+.mention .app-icon { flex: none; color: var(--muted); }
 .mention.is-gone { color: var(--muted); font-style: italic; cursor: default; }
 .mention.is-gone:hover { background: var(--bg-side); }
 
@@ -218,9 +227,13 @@
 .bl-item { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 6px 8px; margin-left: -8px; border-radius: var(--r-sm); text-align: left; }
 .bl-item:hover { background: var(--hover); }
 .bl-title { display: flex; align-items: center; gap: 6px; font-weight: 500; }
-.bl-title svg { flex: none; color: var(--muted); }
+.bl-title .app-icon { flex: none; color: var(--muted); }
 .bl-path { color: var(--muted); font-weight: 400; font-size: 0.875rem; }
-.bl-snippet { color: var(--muted); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 20px; }
+.bl-snippet { color: var(--muted); font-size: 0.875rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; padding-left: 20px; }
+.bl-row { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 2px 0 0 20px; color: var(--muted); font-size: 0.875rem; }
+.bl-cell { display: inline-flex; gap: 6px; min-width: 0; }
+.bl-cell-head { color: var(--muted); opacity: 0.7; }
+.bl-cell-head::after { content: ":"; }
 
 /* jump-to-block highlight */
 @keyframes block-flash { from { background: color-mix(in srgb, var(--accent-ui) 28%, transparent); } to { background: transparent; } }
@@ -247,3 +260,6 @@
 .editor-tab-panels { padding: 8px 12px; }
 
 .editor-tab-panels > [data-node-view-content-react] > [data-type="tabPanel"] { display: none; }
+
+/* dragging a page from the sidebar over the text: dropping it there inserts a link */
+body.page-drag .ProseMirror { cursor: copy; }

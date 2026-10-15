@@ -1,3 +1,4 @@
+import { useBoards } from "../canvas/store";
 import { Icon } from "../../components/Icon";
 import { useOutline } from "../outline/store";
 import { useActiveEditor } from "../../stores/activeEditor";
@@ -67,6 +68,7 @@ export function Topbar() {
   const sidebarAction = hidden ? "Show sidebar" : "Hide sidebar";
   const history = useWorkspace((s) => s.history);
   const view = useWorkspace((s) => s.view);
+  const boardName = useBoards((s) => s.boards.find((b) => b.id === s.activeId)?.name);
   const page = useWorkspace((s) => s.selectedPage);
   const ancestors = useWorkspace((s) => s.ancestors);
   const { goBack, goForward, selectPage, toggleFavorite, trashPage } = useWorkspace.getState();
@@ -75,7 +77,7 @@ export function Topbar() {
   const crumbs: (Page | "gap")[] = ancestors.length > 3 ? [ancestors[0], "gap", ancestors[ancestors.length - 1]] : ancestors;
 
   return (
-    <div className="topbar" data-context-page={page?.id}>
+    <div className="topbar" data-context-page={view === "page" ? page?.id : undefined}>
       <div className="nav-buttons">
         <button
           type="button"
@@ -98,6 +100,8 @@ export function Topbar() {
 
       {view === "trash" ? (
         <span className="crumbs"><span className="crumb-current">Trash</span></span>
+      ) : view === "node-map" || view === "canvas" ? (
+        <nav className="crumbs" aria-label="Breadcrumb"><ol><li><span className="crumb-current" aria-current="page">{view === "node-map" ? "Node Map" : boardName || "Canvas"}</span></li></ol></nav>
       ) : (
         page && (
           <>

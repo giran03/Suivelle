@@ -1,4 +1,3 @@
-import type { GlobalConfig, GlobalState } from "../features/shortcuts/native";
 import { invoke } from "@tauri-apps/api/core";
 import type { CalendarEvent, CalendarOccurrence, CalendarSchedule } from "../features/calendar/model";
 import type {
@@ -14,6 +13,10 @@ import type {
   Automation,
   AutomationRun,
   Backlink,
+  CanvasBoard,
+  CanvasData,
+  CanvasOp,
+  PagePreview,
   ExportWritten,
   ImportPreview,
   ImportResult,
@@ -73,7 +76,9 @@ function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, str
 }
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  return track(invoke<T>(cmd, args));
+  const result = await track(invoke<T>(cmd, args));
+  if (/^(?:page_(?:create|update|move|delete|restore|duplicate|transfer)|block_apply_batch|record_(?:create|duplicate|set_value|bulk_set_value)|database_(?:create|add_property|update_property|delete_property)|calendar_(?:create|save|import|delete)|node_map_edit|proposal_approve|changeset_revert|janitor_fix|todo_promote|agent_create|client_connect|subagents_import)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
+  return result;
 }
 
 async function track<T>(pending: Promise<T>): Promise<T> {
@@ -106,10 +111,12 @@ export const ipc = {
   imageSaveCrop: (id: string, crop: import("../features/editor/imageModel").Crop) => call<boolean>("image_save_crop", { id, crop }),
   imageCopy: (id: string, crop?: import("../features/editor/imageModel").Crop, stillFrame = false) => call<void>("image_copy", { id, crop: crop ?? null, stillFrame }),
   imageOpenLink: (url: string) => call<void>("image_open_link", { url }),
+  localFileOpen: (path: string) => call<void>("local_file_open", { path }),
+  pageApplyTemplate: (templateId: string, pageId: string) => call<void>("page_apply_template", { templateId, pageId }),
   // queries
   workspaceList: () => call<import("../types").Workspace[]>("workspace_list"),
   workspaceStats: (id: string) => call<import("../types").WorkspaceStats>("workspace_stats", { id }),
-  workspaceDelete: (id: string, confirmationName: string) => call<string>("workspace_delete", { id, confirmationName }),
+  workspaceDelete: (id: string, confirmationName: string, saveBackup = true) => call<string | null>("workspace_delete", { id, confirmationName, saveBackup }),
   backupSetAuto: (enabled?: boolean, keep?: number) => call<Workspace[]>("backup_set_auto", { enabled, keep }),
   workspaceGet: (id?: string) => call<Workspace | null>("workspace_get", { id }),
   pageGet: (id: string) => call<Page>("page_get", { id }),
@@ -129,6 +136,7 @@ export const ipc = {
   }) => call<SearchHit[]>("search_workspace", { input }),
   pageListRecent: (workspaceId: string, limit = 8) => call<Page[]>("page_list_recent", { workspaceId, limit }),
   pageBacklinks: (pageId: string) => call<Backlink[]>("page_backlinks", { pageId }),
+  pagePreview: (pageId: string) => call<PagePreview | null>("page_preview", { pageId }),
   pageTitles: (ids: string[]) => call<PageTitle[]>("page_titles", { ids }),
 
   databaseGet: (pageId: string) => call<DatabaseDetail>("database_get", { pageId }),
@@ -214,6 +222,15 @@ export const ipc = {
   recordSetValue: (recordId: string, propertyId: string, value: unknown) =>
     call<RecordRow>("record_set_value", { input: { recordId, propertyId, value } }),
   recordDuplicate: (id: string) => call<RecordRow>("record_duplicate", { id }),
+  canvasLoad: (viewId: string) => call<CanvasData>("canvas_load", { viewId }),
+  canvasApply: (viewId: string, ops: CanvasOp[]) => call<void>("canvas_apply", { viewId, ops }),
+  canvasBoardList: (workspaceId: string) => call<CanvasBoard[]>("canvas_board_list", { workspaceId }),
+  canvasBoardCreate: (workspaceId: string, name: string) => call<CanvasBoard>("canvas_board_create", { workspaceId, name }),
+  canvasBoardRename: (id: string, name: string) => call<CanvasBoard>("canvas_board_rename", { id, name }),
+  canvasBoardDuplicate: (id: string) => call<CanvasBoard>("canvas_board_duplicate", { id }),
+  canvasBoardDelete: (id: string) => call<void>("canvas_board_delete", { id }),
+  canvasBoardLoad: (id: string) => call<CanvasData>("canvas_board_load", { id }),
+  canvasBoardApply: (id: string, ops: CanvasOp[]) => call<void>("canvas_board_apply", { id, ops }),
   viewUpdate: (viewId: string, config: ViewConfig, name?: string) => call<DbView>("view_update", { input: { viewId, config, name } }),
   viewCreate: (databaseId: string, type: ViewType, name?: string) => call<DbView>("view_create", { input: { databaseId, type, name } }),
   viewDuplicate: (id: string) => call<DbView>("view_duplicate", { id }),
@@ -265,18 +282,14 @@ export const ipc = {
   tagList: (workspaceId: string) => call<TagCount[]>("tag_list", { workspaceId }),
   tagPages: (workspaceId: string, tag: string) => call<PageTitle[]>("tag_pages", { workspaceId, tag }),
   linkGraph: (workspaceId: string) => call<LinkGraph>("link_graph", { workspaceId }),
+  nodeMapSnapshot: (input: import("../features/node-map/model").MapQuery) => call<import("../features/node-map/model").MapData>("node_map_snapshot", { input }),
+  nodeMapEdit: (input: import("../features/node-map/model").MapEdit) => call<import("../features/node-map/model").MapEdit>("node_map_edit", { input }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
   traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>
     rawCall<Attachment>("attachment_import_bytes", bytes, { "x-workspace-id": workspaceId, "x-file-name": name }),
-  /** Turns the system-wide quick-capture shortcut (Ctrl+Alt+N) on or off. */
-  shortcutsMigrate: (captureEnabled: boolean) => call<GlobalState>("shortcuts_migrate", { captureEnabled }),
-  shortcutsGet: () => call<GlobalState>("shortcuts_get"),
-  shortcutsSet: (config: GlobalConfig) => call<GlobalState>("shortcuts_set", { config }),
-  shortcutsRecording: (active: boolean) => call<void>("shortcuts_recording", { active }),
-  quickCaptureShortcut: (enabled: boolean) => call<boolean>("quick_capture_shortcut", { enabled }),
   /** Applies the tray, close, minimize and start-with-computer choices. Fails with a readable reason when the system refuses. */
   shellSetBehavior: (behavior: import("../stores/preferences").ShellChoices) => call<import("../stores/preferences").ShellChoices>("shell_set_behavior", { behavior }),
   windowSetCorners: (corners: string) => call<boolean>("window_set_corners", { corners }),
@@ -287,6 +300,35 @@ export const ipc = {
   attachmentList: (workspaceId: string) => call<import("../types").AttachmentInfo[]>("attachment_list", { workspaceId }),
   attachmentDeleteUnused: (workspaceId: string, ids: string[], includeHistory: boolean) =>
     call<import("../types").DeletedFiles>("attachment_delete_unused", { workspaceId, ids, includeHistory }),
+  // Local AI agents (Settings > Agents, the Review inbox and Activity).
+  agentsOverview: () => call<import("../features/agents/types").AgentsOverview>("agents_overview"),
+  agentsSaveSettings: (settings: import("../features/agents/types").AgentSettings) => call<import("../features/agents/types").AgentSettings>("agents_save_settings", { settings }),
+  agentCreate: (input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_create", { input }),
+  agentUpdate: (id: string, input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_update", { id, input }),
+  agentDelete: (id: string) => call<void>("agent_delete", { id }),
+  agentTokenRotate: (id: string) => call<string>("agent_token_rotate", { id }),
+  agentTokenRevoke: (id: string) => call<void>("agent_token_revoke", { id }),
+  agentAudit: (agentId: string | null) => call<import("../features/agents/types").AuditEntry[]>("agent_audit", { agentId }),
+  proposalList: (status: "pending" | "applied" | "rejected" | "failed" | "all") => call<import("../features/agents/types").Proposal[]>("proposal_list", { status }),
+  proposalDetail: (id: string) => call<import("../features/agents/types").Proposal>("proposal_detail", { id }),
+  proposalApprove: (id: string, only: number[] | null, note: string | null) => call<string[]>("proposal_approve", { id, only, note }),
+  proposalReject: (id: string, note: string | null) => call<void>("proposal_reject", { id, note }),
+  changesetList: (agentId: string | null, pageId: string | null) => call<import("../features/agents/types").Changeset[]>("changeset_list", { agentId, pageId }),
+  changesetRevert: (id: string) => call<string[]>("changeset_revert", { id }),
+  janitorReport: (workspaceId: string) => call<import("../features/agents/types").Finding[]>("janitor_report", { workspaceId }),
+  janitorFix: (workspaceId: string, fixes: import("../features/agents/types").Op[]) => call<string[]>("janitor_fix", { workspaceId, fixes }),
+  todoPromote: (blockId: string, agent: string | null) => call<string>("todo_promote", { blockId, agent }),
+  mirrorGet: (workspaceId: string) => call<import("../features/agents/types").MirrorConfig>("mirror_get", { workspaceId }),
+  mirrorChoose: (workspaceId: string) => call<import("../features/agents/types").MirrorConfig | null>("mirror_choose", { workspaceId }),
+  mirrorSetEnabled: (workspaceId: string, enabled: boolean) => call<import("../features/agents/types").MirrorConfig>("mirror_set_enabled", { workspaceId, enabled }),
+  agentExportSubagent: (id: string, force: boolean) => call<import("../features/agents/types").Exported | null>("agent_export_subagent", { id, force }),
+  agentsExportAgentsMd: (pageIds: string[], force: boolean) => call<import("../features/agents/types").Exported | null>("agents_export_agents_md", { pageIds, force }),
+  clientsScan: () => call<import("../features/agents/types").ClientScan>("clients_scan"),
+  clientConnect: (clientId: string, input: import("../features/agents/types").ConnectInput) => call<import("../features/agents/types").ConnectResult>("client_connect", { clientId, input }),
+  clientRepair: (clientId: string) => call<import("../features/agents/types").ConnectResult>("client_repair", { clientId }),
+  clientDisconnect: (clientId: string) => call<import("../features/agents/types").DisconnectResult>("client_disconnect", { clientId }),
+  subagentsScan: (project: boolean) => call<import("../features/agents/types").SubagentScan | null>("subagents_scan", { project }),
+  subagentsImport: (paths: string[], workspaceIds: string[], mode: import("../features/agents/types").AgentMode | null) => call<import("../features/agents/types").ImportedSubagent[]>("subagents_import", { paths, workspaceIds, mode }),
   /** Parses pasted Markdown text into block rows (the same shape the editor stores). */
   markdownToBlocks: (text: string) =>
     call<{ id: string; parentBlockId: string | null; type: BlockType; position: number; dataJson: string; schemaVersion: number }[]>("markdown_to_blocks", { text }),

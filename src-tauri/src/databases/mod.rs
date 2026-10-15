@@ -4,6 +4,7 @@
 //! module validates it and compiles it to parameterized SQL (`query`).
 
 pub mod calc;
+pub mod canvas;
 pub mod charts;
 pub mod forms;
 pub mod formula;
@@ -60,7 +61,7 @@ pub const ROLLUP_FUNCTIONS: &[&str] = &[
 ];
 
 pub const VIEW_TYPES: &[&str] = &[
-    "table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed",
+    "table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed", "canvas",
 ];
 pub const CHART_TYPES: &[&str] = &["bar", "line", "area", "pie", "donut", "kpi"];
 pub const AGGREGATIONS: &[&str] = &["count", "sum", "average", "min", "max"];

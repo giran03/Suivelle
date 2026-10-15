@@ -13,6 +13,7 @@ import { groupLabel, valueForGroup } from "./groups";
 import { isEmptyValue } from "./model";
 import type { useDatabase } from "./useDatabase";
 import { useExtraFilter, useStable } from "./extraFilter";
+import { TaskScheduleHandle } from "../calendar/taskDrag";
 
 const CARD_PAGE = 30;
 const MAX_CARD_PROPS = 6;
@@ -169,6 +170,9 @@ function Card({
         <button type="button" className="card-title" onClick={onOpen}>
           {row.title || <span className="cell-placeholder">Untitled</span>}
         </button>
+      )}
+      {!editing && (
+        <TaskScheduleHandle row={row} />
       )}
       {!editing && (
         <button type="button" className="icon-btn card-menu" aria-label={`Actions for ${row.title || "Untitled"}`} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => onMenu(e)}>

@@ -13,6 +13,7 @@ import { imageItems } from "./imageActions";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
 import { selectedBlockItems } from "./blockSelectionActions";
 import { openEditorLink } from "./extensions/linkNavigation";
+import { convertSmartReference } from "./smartPaste";
 
 export function EditorContextMenu({ editor }: { editor: Editor }) {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -66,6 +67,21 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
         const redo = items.find((item) => item.label === "Redo"); if (redo) redo.disabled = !editor.can().redo();
       }
       const target = event.target instanceof Element ? event.target : null;
+      const reference = target?.closest<HTMLElement>("[data-smart-kind]");
+      if (reference) {
+        const value = reference.dataset.smartValue ?? "";
+        const referencePos = editor.view.posAtDOM(reference, 0);
+        if (reference.dataset.smartKind === "file") {
+          items.push({ label: "Open file", separated: true, onSelect: () => void ipc.localFileOpen(value).catch(e => useWorkspace.getState().setError(toAppError(e).message)) });
+          items.push({ label: "Copy path", onSelect: () => void copyText(value) });
+        } else if (reference.dataset.smartKind === "color") {
+          items.push({ label: "Copy color", separated: true, onSelect: () => void copyText(value) });
+        }
+        if (editor.isEditable) items.push({ label: "Convert to text", separated: true, onSelect: () => {
+          restore();
+          convertSmartReference(editor, referencePos);
+        } });
+      }
       const link = target?.closest<HTMLAnchorElement>("a[href]");
       if (link) {
         items.push({ label: "Open link", separated: true, onSelect: () => void openEditorLink(link.getAttribute("href")!) });

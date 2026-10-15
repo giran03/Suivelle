@@ -149,13 +149,15 @@
   transition: background var(--check-box) var(--ease-smooth-out), border-color var(--check-box) var(--ease-smooth-out);
 }
 :where(input[type="checkbox"])::after {
-  content: "";
+  content: var(--glyph-check);
   position: absolute;
   inset: -1.5px;
-  background: var(--on-accent);
-  --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.9 2.9L12 5.2' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  -webkit-mask: var(--tick) center / 100% 100% no-repeat;
-  mask: var(--tick) center / 100% 100% no-repeat;
+  color: var(--on-accent);
+  font-family: var(--font-icons);
+  font-size: 16px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
   clip-path: inset(0 100% 0 0);
   transition: clip-path var(--check-box) var(--ease-smooth-out);
 }
@@ -276,8 +278,7 @@
 
 /* ---- Success check (transitions.dev): see components/Feedback.tsx ---- */
 .t-success-check { display: inline-block; transform-origin: center; opacity: 0; --check-rotate-from: calc(80deg * var(--k-dist)); --check-blur-from: calc(10px * var(--k-blur)); }
-.t-success-check svg { display: block; overflow: visible; }
-.t-success-check svg path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+.t-success-check .app-icon { overflow: visible; }
 .t-success-check[data-state="in"] {
   animation:
     check-fade var(--check-opacity-dur) var(--ease-smooth-out) forwards,
@@ -285,12 +286,10 @@
     check-blur var(--check-opacity-dur) var(--ease-smooth-out) forwards,
     check-bob var(--check-opacity-dur) cubic-bezier(0.34, 1.35, 0.64, 1) forwards;
 }
-.t-success-check[data-state="in"] svg path { animation: check-draw var(--check-path-dur) var(--ease-smooth-out) var(--check-path-delay) forwards; }
 @keyframes check-fade { to { opacity: 1; } }
 @keyframes check-rotate { from { rotate: var(--check-rotate-from); } to { rotate: 0deg; } }
 @keyframes check-blur { from { filter: blur(var(--check-blur-from)); } to { filter: blur(0); } }
 @keyframes check-bob { from { translate: 0 calc(var(--check-y-amount) * 0.25); } to { translate: 0 0; } }
-@keyframes check-draw { to { stroke-dashoffset: 0; } }
 
 /* ---- Number pop-in (transitions.dev): characters that changed rise in with a short stagger ---- */
 .t-digits { display: inline-flex; font-variant-numeric: tabular-nums; }

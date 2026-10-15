@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><title>Dashboards and automation</title></head>
+<body>
+<h1>Dashboards and automation</h1>
+<p class="lede">See how a project is moving at a glance, collect entries without opening a table, and let small rules take care of the steps you repeat. All of it runs on your computer.</p>
+
+<h2>Charts</h2>
+<p>Any database can be charted, either as a <a href="views.html">chart view</a> or as a dashboard widget. Charts are computed live from the records, so they are never out of date.</p>
+<ul class="chips"><li>Bar</li><li>Line</li><li>Area</li><li>Pie</li><li>Donut</li><li>Number</li></ul>
+<p>Group by any property, count records or take the sum, average, minimum or maximum of a number, and filter to the slice you care about.</p>
+
+<h2>Dashboards</h2>
+<p>A dashboard is a page of live widgets: charts, single numbers, text, and linked views that show part of a database right there. Shared filters apply to every widget at once, so one dashboard can answer the same questions for a different sprint or area. Widgets resize smoothly as you lay them out.</p>
+<figure class="wide">
+  <div class="shot"><img src="@img/readme-dashboard-v014.png" width="2160" height="1440" alt="The Studio Pulse dashboard showing task counts, planned points, status, priority and work due by week" loading="lazy" /></div>
+  <figcaption>Studio Pulse, the demo's dashboard: task counts, planned points, status, priority and work due by week.</figcaption>
+</figure>
+
+<h2>Forms</h2>
+<p>A form view turns a database into a simple form. Choose which properties it asks for and in what order, with your own labels, help text and required fields. Each submission becomes a record, validated like any other, so bug reports, ideas or reading lists can be collected without touching the table. Forms live in the app; nothing is hosted online.</p>
+
+<h2>Local automations</h2>
+<p>Each database can have automations: a trigger, optional conditions written like a filter, and one or more actions. They run inside Suivelle, on your computer, while the app is open.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Triggers</th><th>Actions</th></tr></thead>
+  <tbody>
+    <tr><td>A record is created</td><td>Update properties</td></tr>
+    <tr><td>A record is updated</td><td>Set a status</td></tr>
+    <tr><td>A property changes (optionally to a value)</td><td>Create a record, optionally from a template</td></tr>
+    <tr><td>A date is reached, with an offset and a time</td><td>Duplicate the record</td></tr>
+    <tr><td>A schedule: every few minutes or hours, daily or weekly</td><td>Archive the record</td></tr>
+    <tr><td>Suivelle starts</td><td>Move the record to the trash</td></tr>
+    <tr><td>A button property is clicked</td><td>Send a desktop notification</td></tr>
+  </tbody>
+</table></div>
+<p>Some examples: when a task's status becomes Done, stamp its completion date; every Monday at 9:00, create a weekly review record from a template; the day before a deadline, send a notification.</p>
+<p>Loop protection stops automations from triggering each other forever. The <strong>Run log</strong> records each run with its result and the record it touched, so you can see what happened and why. Automations brought in from an archive arrive paused until you turn them on.</p>
+
+<p class="see-also"><span>Related</span><a href="databases.html">Databases</a><a href="views.html">Database views</a><a href="calendar.html">Calendar and time</a></p>
+</body></html>

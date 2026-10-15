@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><title>Getting started</title></head>
+<body>
+<h1>Getting started</h1>
+<p class="lede">Suivelle is a desktop app for notes, projects and plans. It keeps everything in a workspace on your computer, works offline, and asks for no account. Here is how to go from installer to a working page in a few minutes.</p>
+
+<h2>Install</h2>
+<ol class="steps">
+  <li><strong><a href="@download">Download the installer</a></strong> (@download-meta), or browse <a href="@releases">every release on GitHub</a>.</li>
+  <li><strong>Run it.</strong> Suivelle installs for your user account and adds a Start menu entry. The installer also includes the small <code>suivelle-mcp</code> connector used by <a href="agents.html">local AI agents</a>; it does nothing until you turn agents on.</li>
+  <li><strong>Open Suivelle.</strong> A new installation opens on a short <em>Getting started</em> checklist page in your first workspace. Tick items off as you try them.</li>
+</ol>
+<div class="note"><p>Want to look around first? The <a href="@root/demo/">live demo</a> runs the real interface in your browser with a fictional game studio workspace. It is read-only, so nothing you click changes anything.</p></div>
+
+<h2>Find your way around</h2>
+<p>The window has three parts: the <strong>sidebar</strong> with your workspace, favorites, recent pages and the page tree; a <strong>top bar</strong> with back and forward, breadcrumbs, search and page tools; and the <strong>page</strong> itself, which is the one thing that is lit.</p>
+<figure class="wide">
+  <div class="shot"><img class="only-dark" src="@img/readme-workspace-dark-v014.png" width="2160" height="1440" alt="The Suivelle window: sidebar with favorites and page tree on the left, the Studio Home page in the centre" loading="lazy" /><img class="only-light" src="@img/readme-workspace-light-v014.png" width="2160" height="1440" alt="The Suivelle window in the light theme" loading="lazy" /></div>
+  <figcaption>Sample studio workspace from the demo. Your first workspace starts with the Getting started checklist instead.</figcaption>
+</figure>
+<p>Pages nest inside one another, as deep as you like. Drag them in the tree to reorder or move them, star the ones you visit often, and open several at once in tabs.</p>
+
+<h2>The five keys worth learning first</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Press</th><th>To</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>Ctrl</kbd> <kbd>K</kbd></td><td>Search pages and content, and run any command from the palette</td></tr>
+    <tr><td><kbd>Ctrl</kbd> <kbd>N</kbd></td><td>Create a new page</td></tr>
+    <tr><td><kbd>/</kbd> in a page</td><td>Open the block menu: headings, lists, tables, calendars, databases and more</td></tr>
+    <tr><td><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd></td><td>Open today's note in your Journal</td></tr>
+    <tr><td><kbd>Ctrl</kbd> <kbd>/</kbd></td><td>Show the shortcut reference</td></tr>
+  </tbody>
+</table></div>
+<p>On a Mac keyboard layout, <kbd>Cmd</kbd> takes the place of <kbd>Ctrl</kbd>. Every shortcut can be changed in <a href="shortcuts.html">Settings › Shortcuts and input</a>.</p>
+
+<h2>Make your first page</h2>
+<ol class="steps">
+  <li>Press <kbd>Ctrl</kbd> <kbd>N</kbd> and type a title.</li>
+  <li>Press <kbd>Enter</kbd> and start writing. Markdown works as you type: <code>#</code> for a heading, <code>-</code> for a list, <code>[]</code> for a to-do.</li>
+  <li>Type <kbd>/</kbd> for anything else. An empty page also offers quiet shortcuts to block commands, adding a calendar or picking a template; they disappear as soon as you write.</li>
+  <li>Type <kbd>@</kbd> or <kbd>[[</kbd> to link another page. Links work in both directions, so the other page lists this one under <em>Linked to this page</em>.</li>
+</ol>
+<p>Everything saves as you go. There is no save button, and page history keeps earlier versions if you change your mind.</p>
+
+<h2>Start a project from a template</h2>
+<p>Choose <strong>New from template</strong> to set up a ready-made project in one step. Each template creates its databases, views and a few example records you can delete:</p>
+<dl class="defs">
+  <dt>Project Manager</dt><dd>Projects, milestones, sprints and tasks with subtasks, dependencies and live progress.</dd>
+  <dt>Task Tracker</dt><dd>One Tasks database with subtasks, dependencies, a board, a calendar and a timeline.</dd>
+  <dt>Software Project</dt><dd>The Project Manager setup with a task type (feature, bug, chore) and a Bugs view.</dd>
+</dl>
+<p>Your own pages can become templates too, and <strong>Import templates…</strong> brings in template files someone has shared with you.</p>
+
+<h2>Bring your notes with you</h2>
+<p>Import Markdown, plain text, HTML, CSV, whole folders of notes, supported Notion exports and Suivelle archives. Every import shows a preview first. See <a href="data-and-safety.html">Data, backups and import</a> for the details.</p>
+
+<h2>Stay up to date</h2>
+<p>Installed copies check GitHub for new versions, download them in the background and wait for you to choose <strong>Install and restart</strong>. Before installing, Suivelle saves your work and makes a verified backup of its data. After an upgrade, the changelog opens once so you can see what changed. You can change how updates behave in <strong>Settings › Updates</strong>.</p>
+
+<p class="see-also"><span>Next</span><a href="pages-and-blocks.html">Pages and blocks</a><a href="navigation.html">Search and navigation</a><a href="shortcuts.html">Keyboard shortcuts</a></p>
+</body></html>

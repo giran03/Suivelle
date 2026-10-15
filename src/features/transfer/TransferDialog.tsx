@@ -333,7 +333,8 @@ function SwitchRow({ label, hint, checked, disabled, onChange }: { label: string
 
 /** The page (or database) export, with the choices of Notion's export dialog. */
 function PageExport({ page }: { page: { id: string; title: string; kind: string } }) {
-  const [opts, setOpts] = useState<ExportOptions>(DEFAULT_EXPORT);
+  const pdfPage = useTransferDialog(s => s.pdfPage);
+  const [opts, setOpts] = useState<ExportOptions>(() => pdfPage ? { ...DEFAULT_EXPORT, format: "pdf" } : DEFAULT_EXPORT);
   const [shape, setShape] = useState<ExportShape | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -438,13 +439,14 @@ function PageExport({ page }: { page: { id: string; title: string; kind: string 
 }
 
 function ExportTab({ workspaceOnly, workspaceId }: { workspaceOnly: boolean; workspaceId: string | null }) {
+  const pdfPage = useTransferDialog(s => s.pdfPage);
   const workspace = useWorkspace((s) => workspaceId ? s.workspaces.find((w) => w.id === workspaceId) : s.workspace);
   const page = useWorkspace((s) => s.selectedPage);
   const view = useWorkspace((s) => s.view);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const current = !workspaceOnly && view === "page" ? page : null;
+  const current = pdfPage ?? (!workspaceOnly && view === "page" ? page : null);
 
   const run = async (label: string, fn: () => Promise<string | null>) => {
     setBusy(label);

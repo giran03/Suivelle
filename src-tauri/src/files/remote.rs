@@ -64,6 +64,10 @@ pub fn validate_url(source: &str) -> AppResult<reqwest::Url> {
 }
 
 fn client() -> AppResult<Client> {
+    // reqwest is built without a bundled crypto provider; ring is shared with the updater.
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
     Client::builder()
         .timeout(Duration::from_secs(60))
         .connect_timeout(Duration::from_secs(8))

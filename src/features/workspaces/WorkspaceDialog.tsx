@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { exportWorkspaceArchive } from "../transfer/transfer";
 import { useTransferDialog } from "../transfer/store";
 import { useWorkspaceDialog, type WorkspaceDialogMode } from "./store";
@@ -18,6 +18,15 @@ import { rememberColor, rgbToHex } from "../../lib/color";
 import { radioKeys } from "../settings/radioKeys";
 
 type Mode = WorkspaceDialogMode;
+
+function selectWorkspaceName(event: MouseEvent<HTMLElement>) {
+  event.preventDefault();
+  const range = document.createRange();
+  range.selectNodeContents(event.currentTarget);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
 
 function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { mode: Mode; selectedId: string | undefined; onSelect: (id: string) => void; onDirty: (dirty: boolean) => void; onBusy: (busy: boolean) => void; close: () => void; cancel: () => void }) {
   const workspaces = useWorkspace((s) => s.workspaces);
@@ -40,6 +49,7 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [deletingWithBackup, setDeletingWithBackup] = useState(true);
   const [stats, setStats] = useState<WorkspaceStats | null>(null);
   const [statsEpoch, setStatsEpoch] = useState(0);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -60,6 +70,17 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   const patch = (p: Partial<typeof draft>) => { setDraft((d) => ({ ...d, ...("icon" in p ? { image: null } : {}), ...p })); setMessage(null); };
   const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); setMessage(null); try { await fn(); } catch (e) { setError(toAppError(e).message); } finally { setBusy(false); } };
   const exportWorkspace = () => run(async () => { if (workspace) { const result = await exportWorkspaceArchive(workspace.id); if (result) setMessage(`Workspace exported to ${result.fileName || "an archive"}.`); } });
+  const deleteWorkspace = (saveBackup: boolean) => {
+    if (locked || !stats || confirmation.trim() !== workspace?.name || !workspace) return;
+    setDeletingWithBackup(saveBackup);
+    void run(async () => { await useWorkspace.getState().deleteWorkspace(workspace.id, confirmation, saveBackup); close(); });
+  };
+  const copyWorkspaceName = async () => {
+    if (!workspace) return;
+    setError(null); setMessage(null);
+    try { await navigator.clipboard.writeText(workspace.name); setMessage("Workspace name copied."); }
+    catch { setError("Could not copy the workspace name. Select it and use Ctrl+C or Cmd+C."); }
+  };
   const uploadIcon = () => {
     // A new workspace keeps the chosen file in the draft; the picker itself is not busy work.
     if (creating) { fileInput.current?.click(); return; }
@@ -76,15 +97,15 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
   };
 
   if (mode === "delete") return <div className="ws-delete">
-    <div className="ws-identity"><WorkspaceBadge workspace={workspace} /><strong>{workspace?.name}</strong></div>
+    <div className="ws-identity"><WorkspaceBadge workspace={workspace} /><code className="ws-delete-name" onClick={(event) => event.preventDefault()} onDoubleClick={selectWorkspaceName}>{workspace?.name}</code><button type="button" className="icon-btn" aria-label="Copy workspace name" title="Copy workspace name" onClick={() => void copyWorkspaceName()}><Icon name="duplicate" size={16} /></button></div>
     <p>Deletes this workspace, its pages, records, databases, dashboards and version history. Other workspaces stay available.</p>
-    <p className="picker-muted">A verified safety backup of all workspaces is saved first. Restore it from Backups if you need to recover this workspace; restoring replaces all current workspace data.</p>
+    <p className="picker-muted">Back up and delete saves a verified safety backup of all workspaces first. Restore it from Backups if needed; restoring replaces all current workspace data. Delete permanently skips creating a new backup.</p>
     {stats ? <p className="ws-delete-counts">{stats.pages.toLocaleString()} pages · {stats.records.toLocaleString()} records · {stats.databases.toLocaleString()} databases · {stats.dashboards.toLocaleString()} dashboards{stats.trashed ? ` · includes ${stats.trashed.toLocaleString()} trashed items` : ""}</p> : !error && <p aria-live="polite">Checking workspace contents…</p>}
     {error && <p className="field-error" role="alert">{error} {!stats && <button className="link" onClick={() => setStatsEpoch((v) => v + 1)}>Try again</button>}</p>}
     {message && <p role="status" className="picker-muted">{message}</p>}
-    {workspaces.length <= 1 ? <p className="field-error">Your last workspace cannot be deleted. Create another workspace first.</p> : <form onSubmit={(e) => { e.preventDefault(); if (locked || !stats || confirmation.trim() !== workspace?.name || !workspace) return; void run(async () => { await useWorkspace.getState().deleteWorkspace(workspace.id, confirmation); close(); }); }}>
-      <label className="field"><span>Type <strong>{workspace?.name}</strong> to confirm</span><input autoFocus value={confirmation} onChange={(e) => setConfirmation(e.target.value)} disabled={locked} autoComplete="off" /></label>
-      <div className="ws-actions"><button type="button" className="btn" disabled={locked} onClick={() => void exportWorkspace()}><Icon name="download" size={14} /> Export a copy…</button><span /><button type="button" className="btn" disabled={locked} onClick={() => useWorkspaceDialog.getState().show("manage")}>Cancel</button><button type="submit" className="btn danger" disabled={locked || !stats || confirmation.trim() !== workspace?.name}>{locked ? "Saving safety backup…" : "Delete workspace"}</button></div>
+    {workspaces.length <= 1 ? <p className="field-error">Your last workspace cannot be deleted. Create another workspace first.</p> : <form onSubmit={(e) => { e.preventDefault(); deleteWorkspace(true); }}>
+      <label className="field"><span>Type <code className="ws-delete-name" onClick={(event) => event.preventDefault()} onDoubleClick={selectWorkspaceName}>{workspace?.name}</code> to confirm</span><input autoFocus value={confirmation} onChange={(e) => setConfirmation(e.target.value)} disabled={locked} autoComplete="off" /></label>
+      <div className="ws-actions"><button type="button" className="btn" disabled={locked} onClick={() => void exportWorkspace()}><Icon name="download" size={14} /> Export a copy…</button><span /><button type="button" className="btn" disabled={locked} onClick={() => useWorkspaceDialog.getState().show("manage")}>Cancel</button><button type="button" className="btn danger" disabled={locked || !stats || confirmation.trim() !== workspace?.name} onClick={() => deleteWorkspace(false)}>{locked && !deletingWithBackup ? "Deleting…" : "Delete permanently"}</button><button type="submit" className="btn danger" disabled={locked || !stats || confirmation.trim() !== workspace?.name}>{locked && deletingWithBackup ? "Saving safety backup…" : "Back up and delete"}</button></div>
     </form>}
   </div>;
 
@@ -128,7 +149,7 @@ function Body({ mode, selectedId, onSelect, onDirty, onBusy, close, cancel }: { 
         }} />
         <div className="ws-image-upload">{imageSelected && <WorkspaceBadge imageSrc={imagePreview} workspace={{ icon: draft.icon, settingsJson: "{}" }} />}<div><div className="ws-image-actions"><button type="button" className="btn" disabled={locked} onClick={() => void uploadIcon()}><Icon name="image" size={14} />{busy ? "Choosing image…" : imageSelected ? "Replace image…" : "Upload image…"}</button>{imageSelected && <button type="button" className="btn" onClick={() => patch({ icon: null })}>Remove image</button>}</div><p className="picker-muted">{creating ? "Choose an image up to 10 MB. Animated GIF, WebP and APNG keep playing." : "Images fill the icon. Animated GIF, WebP and APNG keep playing."}</p></div></div></div>
         <div className="field"><span>Icon color</span><div className="ws-color-choices" role="group" aria-label="Workspace icon color">{WORKSPACE_COLORS.map((color) => <button type="button" key={color} className="ws-color-choice" style={{ "--workspace-color": `var(--tone-${color})` } as CSSProperties} aria-label={color} aria-pressed={draft.accent === color} onClick={() => patch({ accent: color })}>{draft.accent === color && <Icon name="check" size={14} />}</button>)}<button type="button" className="btn ws-custom-color" aria-label="Choose custom icon color" aria-haspopup="dialog" onClick={openColorPicker}>{draft.accent.startsWith("#") && <span style={{ background: draft.accent }} />}{draft.accent.startsWith("#") ? draft.accent : "Custom…"}</button></div>{imageSelected && <p className="picker-muted ws-color-note">Color applies to symbols; uploaded images keep their original colors.</p>}</div>
-        <div className="field"><span id="workspace-spacing-label">Sidebar spacing</span><div className="seg ws-spacing" role="radiogroup" aria-labelledby="workspace-spacing-label" onKeyDown={radioKeys}>{(["compact", "normal", "comfortable"] as const).map((spacing, i) => <button type="button" key={spacing} role="radio" aria-checked={draft.sidebarDensity === spacing} tabIndex={draft.sidebarDensity === spacing ? 0 : -1} className={draft.sidebarDensity === spacing ? "on" : ""} onClick={() => patch({ sidebarDensity: spacing })}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">{[12 - (i + 1) * 3, 12, 12 + (i + 1) * 3].map(y => <path key={y} d={`M5 ${y}h14`} />)}</svg><span>{spacing === "compact" ? "Compact" : spacing === "normal" ? "Normal" : "Comfortable"}</span></button>)}</div></div>
+        <div className="field"><span id="workspace-spacing-label">Sidebar spacing</span><div className="seg ws-spacing" role="radiogroup" aria-labelledby="workspace-spacing-label" onKeyDown={radioKeys}>{(["compact", "normal", "comfortable"] as const).map((spacing) => <button type="button" key={spacing} role="radio" aria-checked={draft.sidebarDensity === spacing} tabIndex={draft.sidebarDensity === spacing ? 0 : -1} className={draft.sidebarDensity === spacing ? "on" : ""} onClick={() => patch({ sidebarDensity: spacing })}><Icon name={spacing === "compact" ? "densityCompact" : spacing === "normal" ? "densityNormal" : "densityComfortable"} size={22} /><span>{spacing === "compact" ? "Compact" : spacing === "normal" ? "Normal" : "Comfortable"}</span></button>)}</div></div>
       </fieldset>
       {error && <p className="field-error" role="alert">{error}</p>}{message && <p className="ws-saved" role="status"><Icon name="check" size={14} />{message}</p>}
       <div className="ws-actions"><button className="btn primary" type="submit" disabled={locked || !draft.name.trim() || (!creating && !dirty)}>{locked ? "Saving…" : creating ? "Create workspace" : "Save changes"}</button>{creating && <button type="button" className="btn" disabled={locked} onClick={cancel}>Cancel</button>}</div>

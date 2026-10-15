@@ -104,7 +104,8 @@ export function UpdatesRoot() {
   const preparing = isPreparing(phase);
   useEffect(() => { void useUpdates.getState().init(); return startUpdateScheduler(); }, []);
   useEffect(() => {
-    if (!workspaceReady) return;
+    // Poll only while there is a changelog to present, so an idle window never wakes on a timer.
+    if (!workspaceReady || (!changelog && !snapshot?.pendingChangelog)) return;
     let presenting = false;
     let canceled = false;
     let checkingVisibility = false;
