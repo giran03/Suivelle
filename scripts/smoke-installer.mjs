@@ -35,6 +35,11 @@ function install(installer) {
   assert.ok(existsSync(exe), 'Installer must honor the custom directory.');
 }
 
+function installedVersion() {
+  return execFileSync('powershell.exe', ['-NoProfile', '-Command', '(Get-Item -LiteralPath $env:SUI_SMOKE_EXE).VersionInfo.ProductVersion'],
+    { env: { ...process.env, SUI_SMOKE_EXE: exe }, windowsHide: true, encoding: 'utf8' }).trim().match(/^\d+\.\d+\.\d+/)?.[0];
+}
+
 function cdp(method, params) {
   const id = ++requestId;
   return new Promise((resolve, reject) => {
@@ -82,8 +87,8 @@ function stop() {
 
 try {
   install(baseline);
+  assert.equal(installedVersion(), '0.1.4');
   await launch();
-  assert.equal(await invoke('plugin:app|version'), '0.1.4');
   const workspace = await invoke('workspace_create', { input: { name: 'Installer preservation check', icon: null } });
   const page = await invoke('page_create', { input: { workspaceId: workspace.id, parentPageId: null, title: 'Keep this page through the update' } });
   const content = JSON.stringify({ text: 'Saved before the 0.1.5 installation.' });
@@ -96,13 +101,13 @@ try {
   mkdirSync(connectorDir, { recursive: true });
   writeFileSync(join(connectorDir, 'suivelle-mcp.exe'), 'outdated connector fixture');
   install(candidate);
+  assert.equal(installedVersion(), JSON.parse(readFileSync('release-notes.json', 'utf8')).version);
   await launch();
-  assert.equal(await invoke('plugin:app|version'), JSON.parse(readFileSync('release-notes.json', 'utf8')).version);
   assert.equal((await invoke('page_get', { id: page.id })).title, page.title);
   assert.ok((await invoke('workspace_list')).some(w => w.id === workspace.id && w.name === workspace.name));
   assert.equal((await invoke('block_list', { pageId: page.id })).find(b => b.id === block.id)?.dataJson, content);
   const shipped = readFileSync(join(installDir, 'suivelle-mcp.exe'));
-  assert.deepEqual(readFileSync(join(process.env.LOCALAPPDATA, 'Suivelle', 'bin', 'suivelle-mcp.exe')), shipped, 'Startup must refresh the stable agent connector.');
+  await until(() => readFileSync(join(connectorDir, 'suivelle-mcp.exe')).equals(shipped), 'refreshed stable agent connector');
   stop();
   await delay(1000);
   await launch();
