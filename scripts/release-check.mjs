@@ -8,10 +8,19 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateKeyPairSync, randomBytes, sign, createHash } from 'node:crypto';
 import { verifyUpdateArtifact } from './verify-update-artifact.mjs';
+import { canonicalNotes } from './finalize-update-manifest.mjs';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const notes = JSON.parse(readFileSync(new URL('../release-notes.json', import.meta.url), 'utf8'));
 const run = (script, args) => spawnSync(process.execPath, [join(root, 'scripts', script), ...args], {
   cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_REF_TYPE: 'branch' },
+});
+
+test('canonical updater notes restore transport whitespace but reject changed content', () => {
+  const expected = '## Changes\n\n- Saved pages.\n';
+  assert.equal(canonicalNotes({ notes: expected.trimEnd() }, expected).notes, expected);
+  assert.equal(canonicalNotes({ notes: expected.replaceAll('\n', '\r\n') }, expected).notes, expected);
+  assert.throws(() => canonicalNotes({ notes: 'Different content' }, expected));
+  assert.throws(() => canonicalNotes({}, expected));
 });
 
 test('artifact verification accepts Minisign signatures and rejects tampering and foreign keys', () => {

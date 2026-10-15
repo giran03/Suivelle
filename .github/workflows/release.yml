@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      verify_existing_draft:
+        description: Verify and smoke-test the existing draft without rebuilding unchanged app code
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -17,18 +22,31 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Verify existing draft has unchanged application source
+        if: inputs.verify_existing_draft == true
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw release-notes.json | ConvertFrom-Json).version
+          git fetch --depth=1 origin "refs/tags/v$version`:refs/tags/v$version"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch the built release tag.' }
+          git diff --exit-code "v$version" -- package.json package-lock.json release-notes.json index.html public src src-tauri
+          if ($LASTEXITCODE -ne 0) { throw 'App source changed; build a new installer instead of reusing the draft.' }
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.verify_existing_draft != true
       - uses: Swatinem/rust-cache@v2
+        if: inputs.verify_existing_draft != true
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+        if: inputs.verify_existing_draft != true
       - name: Validate release version and notes
         run: node scripts/check-release.mjs
       - name: Test update and application behavior
+        if: inputs.verify_existing_draft != true
         shell: pwsh
         run: |
           node --test scripts/release-check.mjs
@@ -67,6 +85,7 @@ jobs:
         run: |
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'Add TAURI_SIGNING_PRIVATE_KEY to repository Actions secrets before releasing.' }
       - name: Build installer and upload draft release
+        if: inputs.verify_existing_draft != true
         id: release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -90,8 +109,16 @@ jobs:
         run: |
           gh release download $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --pattern latest.json --dir release-check
           if ($LASTEXITCODE -ne 0) { throw 'Could not download updater manifest from draft release.' }
+          node scripts/finalize-update-manifest.mjs release-check/latest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Updater notes differ in content from the bundled notes.' }
           node scripts/validate-update-manifest.mjs release-check/latest.json
           if ($LASTEXITCODE -ne 0) { throw 'Updater manifest validation failed; do not publish this draft.' }
+          gh release upload $env:RELEASE_TAG release-check/latest.json --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload canonical updater metadata.' }
+          if (-not $env:RELEASE_ID) {
+            $env:RELEASE_ID = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" --jq '.id'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the existing draft.' }
+          }
           $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets" | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Could not inspect uploaded release assets.' }
           $manifest = Get-Content -Raw release-check/latest.json | ConvertFrom-Json
