@@ -8,7 +8,35 @@ import { PAGES, SECTIONS } from "./nav.mjs";
 // search index, so the pages stay pure content and the site has no client-side router.
 
 export const REPO = "https://github.com/giran03/Suivelle";
-export const DOWNLOAD = `${REPO}/releases/latest`;
+export const RELEASES = `${REPO}/releases`;
+
+// Download buttons point straight at the installer of the latest published release, looked up
+// once per build through the GitHub API (GITHUB_TOKEN is used when set, as in CI); the page
+// checks again when it loads (site.js), so a release published after the build is picked up
+// too. Releases still in draft are invisible to the public, so without a published one the
+// buttons open the releases page instead of a link that would 404.
+const download = { href: RELEASES, meta: "Windows x64" };
+let resolving = null;
+function resolveDownload() {
+  resolving ??= (async () => {
+    try {
+      const headers = { Accept: "application/vnd.github+json", "User-Agent": "suivelle-site-build" };
+      if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+      const res = await fetch("https://api.github.com/repos/giran03/Suivelle/releases/latest", { headers, signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+      const release = await res.json();
+      const asset = release.assets?.find(a => /_x64-setup\.exe$/i.test(a.name));
+      if (!asset) throw new Error(`no x64 installer in ${release.tag_name}`);
+      const mb = (asset.size / 1048576).toFixed(1);
+      download.href = asset.browser_download_url;
+      download.meta = `Version ${release.tag_name.replace(/^v/, "")} · ${mb} MB · Windows x64`;
+      console.log(`[site] Download links: ${asset.name}`);
+    } catch (e) {
+      console.warn(`[site] No published release found (${e.message}); download links open ${RELEASES}`);
+    }
+  })();
+  return resolving;
+}
 
 const siteDir = path.dirname(fileURLToPath(import.meta.url));
 const imagesDir = path.resolve(siteDir, "../../docs/images");
@@ -66,7 +94,7 @@ function topbar(root, home) {
         <button class="search-trigger" type="button" data-search-open aria-label="Search the wiki">${icon("search")}<span>Search</span><kbd>Ctrl K</kbd></button>
         <button class="icon-btn theme-btn" type="button" aria-label="Switch theme" title="Switch theme">${icon("sun", "icon icon-sun")}${icon("moon", "icon icon-moon")}</button>
         <a class="btn btn-secondary demo-link" href="${root}demo/">${icon("play")}<span>Live demo</span></a>
-        <a class="btn btn-primary" href="${DOWNLOAD}">${icon("download")}<span>Download</span></a>
+        <a class="btn btn-primary" href="${download.href}" title="${download.meta}">${icon("download")}<span>Download</span></a>
       </div>
     </div>
   </header>`;
@@ -80,7 +108,8 @@ function footer(root) {
       <nav aria-label="Footer">
         <a href="${root}wiki/getting-started.html">Getting started</a>
         <a href="${root}demo/">Live demo</a>
-        <a href="${DOWNLOAD}">Download for Windows</a>
+        <a href="${download.href}">Download for Windows</a>
+        <a href="${RELEASES}">All releases</a>
         <a href="${REPO}/issues">Report an issue</a>
         <a href="${REPO}/blob/main/LICENSE">MIT License</a>
       </nav>
@@ -135,6 +164,10 @@ export function render(html, file) {
   const article = (html.match(/<body[^>]*>([\s\S]*)<\/body>/)?.[1] ?? html)
     .replaceAll("@img/", serving ? `/@fs/${imagesDir.replace(/\\/g, "/")}/` : path.relative(path.dirname(file), imagesDir).replace(/\\/g, "/") + "/")
     .replaceAll("@root/", root)
+    .replaceAll('title="@download-meta"', `title="${download.meta}"`)
+    .replaceAll("@download-meta", `<span data-download-meta>${download.meta}</span>`)
+    .replaceAll("@download", download.href)
+    .replaceAll("@releases", RELEASES)
     .replace("<!--atlas-links-->", PAGES.map(p => `<a href="${root}wiki/${p.slug}.html">${p.title}</a>`).join(" · "))
     .replace(/<div class="index" data-feature-index><\/div>/, `<div class="index">${SECTIONS.map(s => `
       <div class="index-row reveal"><p>${s.title}</p><ul>${s.pages.map(p => `<li><a href="${root}wiki/${p.slug}.html"><b>${p.title}</b><span>${p.blurb}</span>${icon("arrowRight")}</a></li>`).join("")}</ul></div>`).join("")}
@@ -159,7 +192,7 @@ export function render(html, file) {
   </div>
   ${footer(root)}`;
   return `<!doctype html>
-<html lang="en" data-root="${root}">
+<html lang="en" data-root="${root}" data-download="${download.href}">
   <head>${head(root, title, description, home)}
   </head>
   <body class="${home ? "is-home" : "is-wiki"}">
@@ -173,7 +206,7 @@ function searchIndex() {
   for (const p of PAGES) {
     const file = path.join(siteDir, "wiki", `${p.slug}.html`);
     if (!fs.existsSync(file)) continue;
-    const article = idHeadings(fs.readFileSync(file, "utf8").match(/<body[^>]*>([\s\S]*)<\/body>/)?.[1] ?? "");
+    const article = idHeadings((fs.readFileSync(file, "utf8").match(/<body[^>]*>([\s\S]*)<\/body>/)?.[1] ?? "").replaceAll("@download-meta", download.meta));
     const parts = article.split(/(?=<h2 id=")/);
     entries.push({ url: `wiki/${p.slug}.html`, page: p.title, heading: p.title, text: `${p.blurb} ${strip(parts[0]).slice(0, 300)}` });
     for (const part of parts.slice(1)) {
@@ -188,7 +221,8 @@ export function wikiLayout() {
   return {
     name: "suivelle-wiki-layout",
     configResolved(config) { serving = config.command === "serve"; },
-    transformIndexHtml: { order: "pre", handler: (html, ctx) => render(html, ctx.filename) },
+    async buildStart() { await resolveDownload(); },
+    transformIndexHtml: { order: "pre", handler: async (html, ctx) => { await resolveDownload(); return render(html, ctx.filename); } },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (!req.url?.endsWith("/search-index.json")) return next();

@@ -15,6 +15,12 @@ npm run showcase:preview   # serves showcase/dist on http://localhost:1490
 npx vite --config showcase/site/vite.config.ts   # site in dev mode, port 1490
 ```
 
+Download buttons link straight to the `_x64-setup.exe` of the latest published GitHub release,
+looked up at build time (with `GITHUB_TOKEN` in CI) and again by the page on load, so a release
+published after the last deploy is picked up without rebuilding. While no release is published
+(drafts are private), they open the releases page. Write `@download`, `@download-meta` and
+`@releases` in site pages to use them.
+
 To add a wiki page, write `site/wiki/<slug>.html` (a `<title>`, an `<h1>`, a `.lede` paragraph
 and `<h2>` sections), then add it to `site/nav.mjs` with a blurb and the pages it links to.
 

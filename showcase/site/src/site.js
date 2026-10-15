@@ -200,6 +200,32 @@ addEventListener("keydown", e => {
   else if (e.key === "/" && !dialog?.open && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); openSearch(); }
 });
 
+/* Download links: the build bakes in the latest published installer; this catches a release
+   published since then. Unauthenticated GitHub API calls are rate limited per visitor, so the
+   answer is kept for the session and any failure leaves the built links as they are. */
+(async () => {
+  const built = root.dataset.download;
+  const links = [...document.querySelectorAll("a")].filter(a => a.getAttribute("href") === built);
+  if (!built || !links.length) return;
+  const key = "suivelle-latest-release";
+  let latest = null;
+  try { latest = JSON.parse(sessionStorage.getItem(key) || "null"); } catch {}
+  if (latest === "none") return;
+  if (!latest) {
+    try {
+      const res = await fetch("https://api.github.com/repos/giran03/Suivelle/releases/latest", { headers: { Accept: "application/vnd.github+json" } });
+      const release = res.ok ? await res.json() : null;
+      const asset = release?.assets?.find(a => /_x64-setup\.exe$/i.test(a.name));
+      if (!asset) { try { sessionStorage.setItem(key, '"none"'); } catch {} return; }
+      latest = { href: asset.browser_download_url, meta: `Version ${release.tag_name.replace(/^v/, "")} · ${(asset.size / 1048576).toFixed(1)} MB · Windows x64` };
+      try { sessionStorage.setItem(key, JSON.stringify(latest)); } catch {}
+    } catch { return; }
+  }
+  if (latest.href === built) return;
+  for (const a of links) { a.href = latest.href; if (a.title) a.title = latest.meta; }
+  for (const el of document.querySelectorAll("[data-download-meta]")) el.textContent = latest.meta;
+})();
+
 /* Home page atlas and the interface demos load only where they appear. */
 const atlasEl = document.querySelector("[data-atlas]");
 if (atlasEl) import("./atlas.js").then(m => m.startAtlas(atlasEl, base));
