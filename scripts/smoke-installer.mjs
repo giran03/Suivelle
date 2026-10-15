@@ -50,10 +50,10 @@ async function launch() {
     return readFileSync(log, 'utf8').includes('workspace database ready');
   }, 'installed app startup');
   assert.ok(!readFileSync(log, 'utf8').includes('opening the workspace read-only'), 'Workspace must open writable.');
-  // FindWindow also sees hidden windows; the CI launcher deliberately hides helpers.
+  // Match the owning process, rather than a title that can change during startup.
   const window = execFileSync('powershell.exe', ['-NoProfile', '-Command',
-    'Add-Type \'using System; using System.Runtime.InteropServices; public class SmokeWindow { [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title); }\'; [SmokeWindow]::FindWindow($null, "Suivelle").ToInt64()'],
-  { windowsHide: true, encoding: 'utf8' }).trim();
+    'Add-Type \'using System; using System.Runtime.InteropServices; public class SmokeWindow { public delegate bool Callback(IntPtr window, IntPtr arg); [DllImport("user32.dll")] static extern bool EnumWindows(Callback callback, IntPtr arg); [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid); public static int Count(int target) { int count=0; EnumWindows((window, arg) => { uint pid; GetWindowThreadProcessId(window, out pid); if(pid==target) count++; return true; }, IntPtr.Zero); return count; } }\'; [SmokeWindow]::Count([int]$env:SUI_SMOKE_PID)'],
+  { env: { ...process.env, SUI_SMOKE_PID: String(app.pid) }, windowsHide: true, encoding: 'utf8' }).trim();
   assert.notEqual(window, '0', 'Installed app must create its native window.');
 }
 
