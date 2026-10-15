@@ -14,7 +14,11 @@ fn fake_api(accept: bool) -> u16 {
         reader.read_line(&mut auth).unwrap();
         assert!(auth.contains("sva_test_token"), "{auth}");
         if !accept {
-            writeln!(out, r#"{{"ok":false,"error":"Unknown or revoked agent token."}}"#).unwrap();
+            writeln!(
+                out,
+                r#"{{"ok":false,"error":"Unknown or revoked agent token."}}"#
+            )
+            .unwrap();
             return;
         }
         writeln!(out, r#"{{"ok":true,"agent":"Tester"}}"#).unwrap();
@@ -47,7 +51,10 @@ fn relays_lines_after_signing_in() {
     writeln!(stdin, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#).unwrap();
     let mut reply = String::new();
     stdout.read_line(&mut reply).unwrap();
-    assert!(reply.contains(r#""id":1"#) && reply.contains("ping"), "{reply}");
+    assert!(
+        reply.contains(r#""id":1"#) && reply.contains("ping"),
+        "{reply}"
+    );
     drop(stdin);
     assert!(child.wait().unwrap().success());
 }

@@ -36,11 +36,14 @@ fn endpoint_file() -> Option<PathBuf> {
     let base = if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
     } else if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library").join("Application Support"))
+        std::env::var_os("HOME")
+            .map(|h| PathBuf::from(h).join("Library").join("Application Support"))
     } else {
         std::env::var_os("XDG_DATA_HOME")
             .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share"))
+            })
     }?;
     Some(base.join("Suivelle").join("agent-api.json"))
 }
@@ -74,13 +77,23 @@ fn app_path() -> Option<PathBuf> {
         return Some(PathBuf::from(p));
     }
     let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    let name = if cfg!(windows) { "Suivelle.exe" } else { "Suivelle" };
+    let name = if cfg!(windows) {
+        "Suivelle.exe"
+    } else {
+        "Suivelle"
+    };
     // The copy apps run (in the local app-data folder) names the program beside it.
-    let recorded = std::fs::read_to_string(dir.join("app-path")).ok().map(|p| PathBuf::from(p.trim()));
-    [Some(dir.join(name)), dir.parent().map(|d| d.join(name)), recorded]
-        .into_iter()
-        .flatten()
-        .find(|p| p.exists())
+    let recorded = std::fs::read_to_string(dir.join("app-path"))
+        .ok()
+        .map(|p| PathBuf::from(p.trim()));
+    [
+        Some(dir.join(name)),
+        dir.parent().map(|d| d.join(name)),
+        recorded,
+    ]
+    .into_iter()
+    .flatten()
+    .find(|p| p.exists())
 }
 
 /// The token saved for an agent in the Windows Credential Manager.
@@ -104,10 +117,18 @@ fn credential(agent_id: &str) -> Option<String> {
     }
     #[link(name = "advapi32")]
     extern "system" {
-        fn CredReadW(target: *const u16, kind: u32, flags: u32, credential: *mut *mut Credential) -> i32;
+        fn CredReadW(
+            target: *const u16,
+            kind: u32,
+            flags: u32,
+            credential: *mut *mut Credential,
+        ) -> i32;
         fn CredFree(buffer: *mut c_void);
     }
-    let name: Vec<u16> = format!("Suivelle agent {agent_id}").encode_utf16().chain(std::iter::once(0)).collect();
+    let name: Vec<u16> = format!("Suivelle agent {agent_id}")
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
     let mut out: *mut Credential = std::ptr::null_mut();
     // SAFETY: `name` is NUL-terminated; on success `out` is freed with CredFree.
     unsafe {
@@ -131,7 +152,11 @@ fn launch_and_connect() -> TcpStream {
     let Some(app) = app_path() else {
         fail("Suivelle is not running, and its program was not found next to suivelle-mcp. Open Suivelle (or set SUIVELLE_APP).");
     };
-    if std::process::Command::new(&app).arg("--autostart").spawn().is_err() {
+    if std::process::Command::new(&app)
+        .arg("--autostart")
+        .spawn()
+        .is_err()
+    {
         fail(&format!("could not start {}", app.display()));
     }
     let started = Instant::now();
@@ -160,7 +185,9 @@ fn main() {
         .or_else(|| std::env::var("SUIVELLE_AGENT_TOKEN").ok())
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| fail("set SUIVELLE_AGENT_TOKEN to the agent token from Suivelle (Settings > Agents)"));
+        .unwrap_or_else(|| {
+            fail("set SUIVELLE_AGENT_TOKEN to the agent token from Suivelle (Settings > Agents)")
+        });
     if !token.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         fail("that does not look like a Suivelle agent token");
     }
@@ -194,7 +221,11 @@ fn main() {
             if line.trim().is_empty() {
                 continue;
             }
-            if to_app.write_all(line.as_bytes()).and_then(|_| to_app.write_all(b"\n")).is_err() {
+            if to_app
+                .write_all(line.as_bytes())
+                .and_then(|_| to_app.write_all(b"\n"))
+                .is_err()
+            {
                 break;
             }
         }
@@ -209,7 +240,11 @@ fn main() {
             Ok(0) | Err(_) => break,
             Ok(_) => {
                 let mut out = stdout.lock();
-                if out.write_all(line.as_bytes()).and_then(|_| out.flush()).is_err() {
+                if out
+                    .write_all(line.as_bytes())
+                    .and_then(|_| out.flush())
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -222,7 +257,10 @@ fn main() {
 mod tests {
     #[test]
     fn reads_the_port() {
-        assert_eq!(super::port_from(r#"{"port": 51234, "pid": 9}"#), Some(51234));
+        assert_eq!(
+            super::port_from(r#"{"port": 51234, "pid": 9}"#),
+            Some(51234)
+        );
         assert_eq!(super::port_from(r#"{"pid":9,"port":80}"#), Some(80));
         assert_eq!(super::port_from("{}"), None);
     }
