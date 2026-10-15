@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head><title>Suivelle</title></head>
+<body>
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <h1 id="hero-title" data-words>Make space for the work that <em>matters.</em></h1>
+    <p class="hero-sub hero-fade" style="--d:650ms">A calm desktop workspace for notes, projects and the plans between them. Write freely, see what comes next, and keep every page on your own computer.</p>
+    <div class="hero-cta hero-fade" style="--d:800ms">
+      <a class="btn btn-primary btn-lg" href="https://github.com/giran03/Suivelle/releases/latest"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download for Windows</a>
+      <a class="btn btn-secondary btn-lg" href="@root/demo/">Open the live demo</a>
+      <a class="btn btn-ghost btn-lg" href="@root/wiki/getting-started.html">Read the wiki</a>
+    </div>
+    <ul class="hero-facts hero-fade" style="--d:950ms">
+      <li>Local first</li><li>Works offline</li><li>No account</li><li>MIT licensed</li>
+    </ul>
+  </div>
+  <div class="atlas hero-fade" style="--d:300ms" data-atlas>
+    <canvas role="img" aria-label="A turning star map of this wiki: eight sections, each with its pages, joined where features work together."></canvas>
+    <div class="atlas-card" aria-hidden="true"></div>
+    <p class="atlas-hint">This map is the wiki. Drag to turn it, click a star to open its page.</p>
+    <nav class="atlas-list" aria-label="Wiki pages on the map">
+<!--atlas-links--></nav>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="app-title">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <h2 id="app-title">The document is the <em>lit page.</em> Everything else waits quietly.</h2>
+      <p>A midnight canvas, one sapphire accent and nothing that moves unless you did something. Pages, databases and calendars share one calm interface, in dark or warm paper light.</p>
+    </div>
+    <div class="stage reveal">
+      <div class="stage-frame">
+        <img class="only-dark" src="@img/readme-workspace-dark-v014.png" width="2160" height="1440" alt="Suivelle in its dark theme: the Hollow Orbit studio home page with a weekly checklist, notes and code, beside a page tree with favorites" loading="lazy" />
+        <img class="only-light" src="@img/readme-workspace-light-v014.png" width="2160" height="1440" alt="The same studio home page in Suivelle's light theme" loading="lazy" />
+      </div>
+    </div>
+    <div class="stage-notes" data-stagger>
+      <div><b>Write without friction</b><p>A block editor with a slash menu, markdown shortcuts, tables, code, equations and media.</p></div>
+      <div><b>See every angle</b><p>One set of records as a table, board, calendar, timeline, gallery or freeform canvas.</p></div>
+      <div><b>Keep it close</b><p>Everything lives in a folder on your computer, with history, verified backups and readable exports.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="watch-title" style="padding-top:0">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <h2 id="watch-title">Watch it <em>work.</em></h2>
+      <p>Re-enactments of real interactions, drawn with Suivelle's own interface patterns and the demo's sample studio. The live demo lets you try them for real.</p>
+    </div>
+    <div class="theatre reveal">
+      <div class="theatre-tabs" role="tablist" aria-label="Interface demos" aria-orientation="vertical">
+        <span class="slider" aria-hidden="true"></span>
+        <button role="tab" id="t-palette" aria-controls="p-palette" aria-selected="true"><b>Jump anywhere</b><span>Ctrl K finds pages, records and commands as you type.</span><span class="bar" aria-hidden="true"><i></i></span></button>
+        <button role="tab" id="t-board" aria-controls="p-board" aria-selected="false" tabindex="-1"><b>Move the work</b><span>Drag a card across the Sprint Board; the record updates.</span><span class="bar" aria-hidden="true"><i></i></span></button>
+        <button role="tab" id="t-calendar" aria-controls="p-calendar" aria-selected="false" tabindex="-1"><b>Block out time</b><span>Drop an unscheduled task onto a 15-minute slot.</span><span class="bar" aria-hidden="true"><i></i></span></button>
+        <button role="tab" id="t-review" aria-controls="p-review" aria-selected="false" tabindex="-1"><b>Review your agents</b><span>AI agents propose; you approve, line by line.</span><span class="bar" aria-hidden="true"><i></i></span></button>
+      </div>
+      <div class="theatre-stage">
+        <div role="tabpanel" id="p-palette" aria-labelledby="t-palette"><div data-demo="palette"></div></div>
+        <div role="tabpanel" id="p-board" aria-labelledby="t-board" hidden><div data-demo="board"></div></div>
+        <div role="tabpanel" id="p-calendar" aria-labelledby="t-calendar" hidden><div data-demo="calendar"></div></div>
+        <div role="tabpanel" id="p-review" aria-labelledby="t-review" hidden><div data-demo="review"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="index-title" style="padding-top:0">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <h2 id="index-title">A field guide to <em>every feature.</em></h2>
+      <p>Fifteen pages cover what Suivelle does today, from the first keystroke to backups and local AI agents. Press <kbd>Ctrl K</kbd> or <kbd>/</kbd> to search them.</p>
+    </div>
+    <div class="index" data-feature-index></div>
+  </div>
+</section>
+
+<section class="band statement" aria-labelledby="local-title" style="padding-top:0">
+  <div class="wrap">
+    <blockquote id="local-title" class="reveal">Your workspace lives on <em>your computer.</em> It opens without the internet and leaves with you whenever you like.</blockquote>
+    <div class="facts" data-stagger>
+      <div><b>No account</b><p>Install and start writing. Nothing to sign up for, nothing synced to someone else's server.</p></div>
+      <div><b>Never lose work</b><p>Page history, a trash you can restore from, and verified daily backups, with an optional second copy on another drive.</p></div>
+      <div><b>Take it anywhere</b><p>Export pages to Markdown, HTML or PDF, databases to CSV, and whole workspaces to a readable archive.</p></div>
+      <div><b>Recover calmly</b><p>A safety copy is saved before every upgrade. If a check fails, the workspace opens read-only so you can export or restore.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="closing" aria-labelledby="close-title">
+  <svg class="mark reveal" viewBox="0 0 96 96" aria-hidden="true"><rect class="mark-tile" x="1" y="1" width="94" height="94" rx="22"/><g transform="translate(48 48) scale(1.08) translate(-55 -47)"><path class="mark-s" d="M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path class="mark-k" d="M70 13C71.6 23.5 74.5 26.4 85 28C74.5 29.6 71.6 32.5 70 43C68.4 32.5 65.5 29.6 55 28C65.5 26.4 68.4 23.5 70 13Z"/></g></svg>
+  <h2 id="close-title" class="reveal">A universe for your thoughts.</h2>
+  <p class="reveal">Try the real interface in your browser with a sample studio workspace, or install Suivelle on Windows and make it yours.</p>
+  <div class="hero-cta reveal">
+    <a class="btn btn-primary btn-lg" href="https://github.com/giran03/Suivelle/releases/latest">Download for Windows</a>
+    <a class="btn btn-secondary btn-lg" href="@root/demo/">Open the live demo</a>
+  </div>
+  <small class="reveal">Windows x64 installer. The demo is read-only and runs entirely in your browser.</small>
+</section>
+</body>
+</html>

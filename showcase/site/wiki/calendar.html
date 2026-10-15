@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><title>Calendar and time</title></head>
+<body>
+<h1>Calendar and time</h1>
+<p class="lede">Put a calendar inside any page and see events, deadlines and planned work together. Events are pages with their own notes, database dates show up beside them, and unscheduled tasks drop straight into your week.</p>
+
+<h2>Calendar blocks</h2>
+<p>Type <code>/calendar</code> in a page, then open <strong>Sources</strong> to create or connect a calendar and add database date properties. Each block keeps its own view, sources, colours, timezone and working hours.</p>
+<ul class="chips"><li>Month</li><li>Week</li><li>Day</li><li>Agenda</li><li>Year</li></ul>
+<p>Narrow blocks switch to agenda view. Week numbers and a colour legend for each source live in the block's options and filter bar.</p>
+<figure class="wide">
+  <div class="shot"><img src="@img/readme-calendar-v014.png" width="2160" height="1620" alt="An October studio calendar with focus sessions, reviews and a multi-day playtest" loading="lazy" /></div>
+  <figcaption>The demo studio's October, with focus sessions, reviews and a multi-day playtest.</figcaption>
+</figure>
+
+<h2>Events are pages</h2>
+<p>Every event is a page with a schedule and room for rich notes, and can start from a page template. Set a location, busy or free status, a colour, completion and reminders. <strong>Schedule this block</strong> in any block's menu creates an event linked to that block.</p>
+<p><strong>Quick add</strong> reads phrases like these and fills in the title and dates for you to check:</p>
+<ul>
+  <li><code>Focus session Mon–Wed 9am</code></li>
+  <li><code>Review tomorrow 2–3:30pm</code></li>
+  <li><code>Call 2026-11-02 at 14:00 for 45 min</code></li>
+</ul>
+
+<h2>Multi-day events and recurrence</h2>
+<p>Multi-day events keep their length when you move their start, and an automatic colour helps overlapping ranges stay distinct. A range that wraps across weeks draws as several bars; hovering any of them highlights them all.</p>
+<p>Repeat events daily, weekly, monthly or yearly, with an interval, chosen weekdays, and an end date or count. Edit or remove one occurrence, this and future occurrences, or the whole series. Timed events keep their local time through daylight-saving changes.</p>
+
+<h2>Your day at a glance</h2>
+<p>Click a day to open its details under the grid: everything scheduled, in time order, with notes like <em>Day 2 of 10</em> or <em>Overlaps</em>. The summary adds up planned time, occupied time and overlaps against your working hours; all-day items, completed events and events marked free don't count against them. The daily-note shortcut opens that day's journal page.</p>
+
+<h2>A Master Calendar across projects</h2>
+<p>Under <strong>Sources</strong>, choose a project database and tick the date properties to show. Repeat for other tables. Each source gets its own colour and a legend button to hide or show it without disconnecting. Moving a database item on the calendar updates its date at the source.</p>
+
+<h2>Time blocking</h2>
+<div class="demo" data-demo="calendar"></div>
+<p class="demo-cap">Illustration with sample tasks from the demo workspace.</p>
+<p>In Day or Week view, open <strong>Unscheduled Tasks</strong>. It follows the visible sources and your search. Choose a block length from 15 to 120 minutes, then drag a task onto a slot; slots snap to 15 minutes. The task's date is saved, it leaves the drawer, and <strong>Undo</strong> in the notification puts it back.</p>
+<p>To plan work without moving a deadline, open a board or table beside a Day or Week calendar and drag the small calendar handle on a card onto a slot. That creates a work session linked to the record, which you can move and resize like any event.</p>
+
+<h2>Reminders</h2>
+<p>Events and pages can remind you. For a page, choose <strong>Remind me about this page</strong> and write the time in plain words: <code>tomorrow 9am</code>, <code>friday at 14:00</code>, <code>in 3 days</code>. Reminders arrive as desktop notifications while Suivelle is running, including from the tray. <strong>Reminders…</strong> lists what is coming up and what fired in the past week.</p>
+
+<h2>Calendar files</h2>
+<p>Import and export <code>.ics</code> files from the calendar footer. Imports accept up to 1,000 events in a file under 5 MB; unsupported rules are skipped with an explanation. Workspace archives keep calendars, schedules and internal links intact, which <code>.ics</code> cannot.</p>
+<div class="note"><p>Suivelle does not sync with online calendars, and reminders don't fire while the app is fully closed.</p></div>
+
+<p class="see-also"><span>Related</span><a href="databases.html">Databases</a><a href="views.html">Database views</a><a href="navigation.html">Daily notes and reminders</a></p>
+</body></html>

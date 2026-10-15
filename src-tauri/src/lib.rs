@@ -96,15 +96,18 @@ fn init_logging(dir: &std::path::Path) {
         .create(true)
         .append(true)
         .open(&path);
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_ansi(false);
+    // RUST_LOG takes `level` or `target=level` lists; Targets avoids EnvFilter's regex engine.
+    use tracing_subscriber::{filter::Targets, prelude::*};
+    let filter = std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|v| v.parse::<Targets>().ok())
+        .unwrap_or_else(|| Targets::new().with_default(tracing::Level::INFO));
+    let layer = tracing_subscriber::fmt::layer().with_ansi(false);
+    let registry = tracing_subscriber::registry().with(filter);
     // Logs never include document contents: commands log only name, duration and error code.
     match file {
-        Ok(f) => builder.with_writer(Mutex::new(f)).init(),
-        Err(_) => builder.init(),
+        Ok(f) => registry.with(layer.with_writer(Mutex::new(f))).init(),
+        Err(_) => registry.with(layer).init(),
     }
     // A crash leaves its location in the log, so the next session's diagnostic report can show it.
     let default_hook = std::panic::take_hook();

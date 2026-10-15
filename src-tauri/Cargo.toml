@@ -31,14 +31,16 @@ sha2 = "0.11.0"
 tauri = { version = "2.12.1", features = ["image-png", "tray-icon"] }
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-notification = "2"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+# flate2 only: the zopfli encoder behind "deflate" is used only for levels above 9, which we never ask for.
+zip = { version = "2", default-features = false, features = ["deflate-flate2", "flate2"] }
 csv = "1"
 # TLS through ring, the provider the updater plugin already uses, so aws-lc-rs is not compiled in.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "blocking"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# No env-filter (it compiles a regex engine) or ansi colours; the log is a plain file.
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std", "smallvec", "tracing-log"] }
 uuid = { version = "1.27.0", features = ["v4", "v7"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><title>Data, backups and import</title></head>
+<body>
+<h1>Data, backups and import</h1>
+<p class="lede">Your workspace is a folder on your computer. Suivelle works fully offline, needs no account, and is built around one rule: never lose your work.</p>
+
+<h2>Local first</h2>
+<p>Pages, databases and settings are stored in a local database, and attachments as files beside it. Editing never touches the network. The only things that go online are the ones you ask for: web embeds when you view them, links you open, and update checks.</p>
+<div class="note"><p>Local storage still depends on your computer's health. Keep independent backups of anything important, for example by pointing the second backup copy at an external drive.</p></div>
+
+<h2>Page history and the trash</h2>
+<p>Every page keeps a version history. Preview an earlier version and restore it in one click. Deleted pages go to the Trash, where you can restore them, or remove them for good when you are sure.</p>
+
+<h2>Backups</h2>
+<dl class="defs">
+  <dt>Automatic</dt><dd>A verified backup once a day, keeping the newest three by default (anything from 1 to 1,000). Cleanup never removes manual or safety backups.</dd>
+  <dt>Manual</dt><dd><strong>Back up now</strong> from the Backups window or the command palette. It saves edits still open in any editor first.</dd>
+  <dt>Second copy</dt><dd>Each automatic backup can also be saved to another folder, such as an external drive. If it's unavailable, backups carry on as usual.</dd>
+  <dt>Restore</dt><dd>Browse saved backups and restore one safely. Backups use the <code>.suibk</code> extension; older <code>.takobak</code> backups remain readable.</dd>
+</dl>
+
+<h2>Safe upgrades and recovery</h2>
+<p>Before an upgrade changes the database, Suivelle saves a copy first; without that copy, the upgrade doesn't run. If a workspace fails its integrity check or an upgrade fails, Suivelle opens it read-only with a banner explaining why, so you can export it or restore a backup instead of facing a blank screen.</p>
+<p>App updates save your work and make a verified backup of installation data before installing.</p>
+
+<h2>Storage health</h2>
+<p><strong>Settings › Data and backups</strong> shows what is stored and how much space it takes, cleans up files nothing uses, compacts the database, checks its integrity and rebuilds search.</p>
+
+<h2>Import</h2>
+<p>Every import shows a preview before anything is created.</p>
+<ul class="chips"><li>Markdown</li><li>Plain text</li><li>HTML</li><li>CSV</li><li>Folders of notes</li><li>Notion exports</li><li>Suivelle archives</li><li>Calendar .ics</li></ul>
+<p>Importing a workspace archive creates a separate workspace by default, with collision-safe names and optional appearance. Automations arrive paused. An import that can't finish rolls back completely.</p>
+
+<h2>Export</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>What</th><th>As</th></tr></thead>
+  <tbody>
+    <tr><td>A page</td><td>Markdown, HTML or PDF, with a preview before saving</td></tr>
+    <tr><td>A database</td><td>CSV</td></tr>
+    <tr><td>Calendar events</td><td><code>.ics</code></td></tr>
+    <tr><td>A whole workspace</td><td>A readable zip archive with content, files, templates, views, dashboards, canvases, calendars, automation definitions and internal links</td></tr>
+  </tbody>
+</table></div>
+<p>Workspace export saves pending edits first and refuses to write an archive with missing or damaged files. Trash, page history, backups and automation run logs are not included; full recovery lives in Backups.</p>
+
+<h2>Reporting a problem</h2>
+<p><strong>Copy diagnostic report</strong> in Settings › About, and on the error screen, gathers technical details for a bug report. It never includes your notes. Report bugs on the <a href="https://github.com/giran03/Suivelle/issues">issue tracker</a>, and suspected vulnerabilities through the <a href="https://github.com/giran03/Suivelle/blob/main/SECURITY.md">security policy</a>.</p>
+
+<p class="see-also"><span>Related</span><a href="getting-started.html">Getting started</a><a href="workspaces-and-appearance.html">Workspaces and appearance</a><a href="agents.html">Local AI agents</a></p>
+</body></html>

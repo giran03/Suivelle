@@ -28,7 +28,7 @@ jobs:
           cache: npm
       - uses: actions/configure-pages@v5
       - run: npm ci
-      - run: npx vite build --config showcase/vite.config.ts
+      - run: npm run showcase:build
       - uses: actions/upload-pages-artifact@v5
         with:
           path: showcase/dist

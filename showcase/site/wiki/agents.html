@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><title>Local AI agents</title></head>
+<body>
+<h1>Local AI agents</h1>
+<p class="lede">Suivelle can be the shared memory for AI coding agents on your computer, such as Claude Code and Codex. Agents read your notes, record what they learn and propose changes. You decide what applies, and you can undo any of it.</p>
+<div class="note"><p>New in 0.1.5, currently in development. Suivelle never runs a model and never starts an agent. Agents connect over a private connection on your own machine, only while you have it switched on, and nothing is sent over a network.</p></div>
+
+<h2>How it works</h2>
+<ol class="steps">
+  <li><strong>Turn it on</strong> in <strong>Settings › Agents › Let local agents connect</strong>.</li>
+  <li><strong>Connect an app.</strong> <strong>Connect apps</strong> finds agent apps on this computer and connects one in a single step, showing exactly which file it will change first.</li>
+  <li><strong>Work as usual.</strong> The agent asks Suivelle for context, searches and reads pages, writes memories, and proposes edits through its own token.</li>
+  <li><strong>Review.</strong> Changes wait in the Review inbox, or apply directly, depending on the agent's mode.</li>
+</ol>
+
+<h2>Apps it can connect</h2>
+<ul class="chips"><li>Claude Code</li><li>Claude Desktop</li><li>Codex</li><li>Antigravity</li><li>Gemini CLI</li><li>Cursor</li><li>VS Code</li><li>Windsurf</li><li>opencode</li><li>Zed</li></ul>
+<p>Connect gives the app its own agent and token and adds one <code>suivelle</code> entry to the app's MCP settings, using the app's own command where it has one. Only that entry is touched; everything else in the file stays byte for byte, the previous file is kept as a backup, and <strong>Disconnect</strong> takes the entry out again. On Windows the token is kept in Credential Manager rather than in the app's files. Each app shows whether it is connected, needs a restart, or needs <strong>Repair</strong>.</p>
+<p>Connect can also add a few lines that make the app start each session from Suivelle, and four commands: <code>/suivelle_init</code>, <code>/suivelle_setup</code>, <code>/suivelle_sync</code> and <code>/suivelle_wrap-up</code>. Both options show their exact files first.</p>
+
+<h2>Review every change</h2>
+<div class="demo" data-demo="review"></div>
+<p class="demo-cap">Illustration with sample pages from the demo workspace.</p>
+<p>Each agent has a mode:</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Mode</th><th>Changes to pages</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Propose</strong> (default)</td><td>Wait in the Review inbox with a line-by-line preview</td></tr>
+    <tr><td><strong>Auto</strong></td><td>New pages, records and additions apply at once; edits to your pages wait</td></tr>
+    <tr><td><strong>Write</strong></td><td>Apply at once</td></tr>
+  </tbody>
+</table></div>
+<p>Approve all, approve some, or reject with a note the agent can read. An agent waiting on your decision carries on the moment you answer; if its session has ended, it gets a <em>Continue</em> task for next time. <strong>Activity</strong> lists every change any agent made and reverts any of them.</p>
+<p>Some pages always wait for review, whatever the mode: an agent's instructions page and pages named <em>Agent protocol</em> or <em>Agent command: …</em>, because they steer every agent that reads them. Agents never hard-delete anything, never touch settings, backups or the trash, and cannot change their own permissions.</p>
+
+<h2>Agents, memory and tasks</h2>
+<dl class="defs">
+  <dt>Agent Hub</dt><dd>Each workspace gets an Agent Hub page. Every agent has an instructions page there, and a page named <em>Agent protocol</em> is handed to all agents as shared rules.</dd>
+  <dt>Shared memory</dt><dd>Agents record facts, decisions and preferences in a Memory database, correct them by superseding rather than overwriting, and recall them by topic. A context pack gives an agent a page, what it links to, matching memories and its open tasks in one briefing.</dd>
+  <dt>Task queue</dt><dd>Queue work in the Agent tasks database, or choose <strong>Queue for an agent</strong> on a to-do. Agents claim a task for 30 minutes at a time; one that stops reporting goes back to the queue. Finishing a task that came from a to-do checks it off.</dd>
+  <dt>Permissions</dt><dd>Choose which workspaces each agent can see and what it may use: pages, links and tags, databases, memory, tasks and vault health checks.</dd>
+</dl>
+
+<h2>Plain-text mirror</h2>
+<p>Optionally keep a folder of Markdown files in step with a workspace, so agents, editors, search tools and git can use your notes as plain text. Pages link with <code>[[wikilinks]]</code>. Edits made in the folder come back through the Review inbox, or apply directly if you choose. When a page changed in both places, the folder's version is kept beside it as a <code>.conflict.md</code> file.</p>
+
+<h2>Vault health</h2>
+<p>Vault health checks a workspace for broken links, <code>[[links]]</code> to missing pages with likely matches, duplicate titles, empty and isolated pages, tag spellings, and stale agent memories and tasks. Pick the fixes you want, apply them together, and revert them from Activity if needed.</p>
+
+<h2>For developers</h2>
+<p>Import Claude Code subagents from your user folder or a project, export an agent as a Claude Code subagent file, or write an <code>AGENTS.md</code> section into a project that lists your agents and how to reach Suivelle. The connector, <code>suivelle-mcp</code>, ships with the installer and stays up to date in one place.</p>
+
+<p class="see-also"><span>Related</span><a href="data-and-safety.html">Data, backups and import</a><a href="links-and-tags.html">Links, tags and backlinks</a><a href="node-map.html">Node Map</a></p>
+</body></html>

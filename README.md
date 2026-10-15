@@ -14,7 +14,9 @@
 <p align="center">
   <a href="https://github.com/giran03/Suivelle/releases/latest"><strong>Download for Windows</strong></a>
   &nbsp; · &nbsp;
-  <a href="https://suivelle.cafetako.com/">Explore the demo</a>
+  <a href="https://suivelle.cafetako.com/demo/">Explore the demo</a>
+  &nbsp; · &nbsp;
+  <a href="https://suivelle.cafetako.com/">Read the wiki</a>
   &nbsp; · &nbsp;
   <a href="docs/changelog/0.1.4.md">What's new in 0.1.4</a>
 </p>
