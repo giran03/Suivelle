@@ -450,11 +450,18 @@ fn workspace_deletion_is_backed_up_and_recoverable() {
         )
         .unwrap()
     };
-    assert!(
-        services::workspace::delete_safely(&e.conn, &e.paths, &other.id, "Wrong name").is_err()
-    );
+    assert!(services::workspace::delete_confirmed(
+        &e.conn,
+        &e.paths,
+        &other.id,
+        "Wrong name",
+        true
+    )
+    .is_err());
     assert!(list(&e.paths).is_empty());
-    let name = services::workspace::delete_safely(&e.conn, &e.paths, &other.id, "Studio").unwrap();
+    let name = services::workspace::delete_confirmed(&e.conn, &e.paths, &other.id, "Studio", true)
+        .unwrap()
+        .unwrap();
     let path = e.paths.backups().join(&name);
     assert_eq!(inspect(&path, &name).unwrap().manifest.kind, "safety");
     {
@@ -469,7 +476,7 @@ fn workspace_deletion_is_backed_up_and_recoverable() {
             .unwrap()
             .is_some());
     }
-    assert!(services::workspace::delete_safely(&e.conn, &e.paths, &home, "Home").is_err());
+    assert!(services::workspace::delete_confirmed(&e.conn, &e.paths, &home, "Home", true).is_err());
     restore(&e.conn, &e.paths, &path).unwrap();
     let conn = e.conn.lock().unwrap();
     assert!(crate::repositories::workspace::get(&conn, &other.id)
@@ -492,7 +499,10 @@ fn failed_safety_backup_does_not_delete_a_workspace() {
     )
     .unwrap();
     fs::write(e.paths.backups(), "blocks the backup directory").unwrap();
-    assert!(services::workspace::delete_safely(&e.conn, &e.paths, &other.id, "Studio").is_err());
+    assert!(
+        services::workspace::delete_confirmed(&e.conn, &e.paths, &other.id, "Studio", true)
+            .is_err()
+    );
     assert!(
         crate::repositories::workspace::get(&e.conn.lock().unwrap(), &other.id)
             .unwrap()
@@ -548,4 +558,45 @@ fn a_second_folder_receives_copies_and_keeps_only_the_newest() {
 
 fn mirror_of(e: &Env) -> Option<String> {
     super::mirror(&e.paths).folder
+}
+
+#[test]
+fn permanent_workspace_deletion_skips_backup_but_requires_confirmation() {
+    let e = env();
+    let other = services::workspace::create(
+        &mut e.conn.lock().unwrap(),
+        WorkspaceCreate {
+            name: "Studio".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        services::workspace::delete_confirmed(&e.conn, &e.paths, &other.id, "Wrong", false)
+            .is_err()
+    );
+    assert!(
+        crate::repositories::workspace::get(&e.conn.lock().unwrap(), &other.id)
+            .unwrap()
+            .is_some()
+    );
+    // A broken backup location must not block the explicitly chosen permanent deletion.
+    fs::write(e.paths.backups(), "blocks the backup directory").unwrap();
+    assert!(
+        services::workspace::delete_confirmed(&e.conn, &e.paths, &other.id, "Studio", false)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        crate::repositories::workspace::get(&e.conn.lock().unwrap(), &other.id)
+            .unwrap()
+            .is_none()
+    );
+    let home = crate::repositories::workspace::get_first(&e.conn.lock().unwrap())
+        .unwrap()
+        .unwrap();
+    assert!(
+        services::workspace::delete_confirmed(&e.conn, &e.paths, &home.id, &home.name, false)
+            .is_err()
+    );
 }

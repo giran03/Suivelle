@@ -13,6 +13,8 @@ import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
 import { usePeek } from "../features/peek/store";
 import { installReminderToasts } from "../features/explore/events";
+import { installAgentEvents } from "../features/agents/events";
+import { useAgents } from "../features/agents/store";
 import { installTrayRecent } from "../features/session/trayRecent";
 import { installDeepLinks } from "../features/session/deepLinks";
 import { registerFlusher } from "../features/editor/flushRegistry";
@@ -68,6 +70,7 @@ const PeekPanel = lazy(() => import("../features/peek/PeekPanel").then((m) => ({
 const NodeMap = lazy(() => import("../features/node-map/NodeMap").then(m => ({ default: m.NodeMap })));
 const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
+const ReviewDialog = lazy(() => import("../features/agents/ReviewDialog").then((m) => ({ default: m.ReviewDialog })));
 const BackupsDialog = lazy(() => import("../features/backup/BackupsDialog").then((m) => ({ default: m.BackupsDialog })));
 const TransferDialog = lazy(() => import("../features/transfer/TransferDialog").then((m) => ({ default: m.TransferDialog })));
 const HistoryPanel = lazy(() => import("../features/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel })));
@@ -271,6 +274,7 @@ export function App() {
   const updatePreparing = useUpdates((s) => isPreparing(s.phase));
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
   const BackupsDialogOpen = useBackupsDialog((s) => s.open);
+  const ReviewDialogOpen = useAgents((s) => s.open);
   const WorkspaceDialogOpen = useWorkspaceDialog((s) => s.open);
   const MediaPasteDialogOpen = useMediaPaste((s) => s.requests.length > 0);
   const CalendarComposerOpen = useCalendarComposer((s) => s.request !== null);
@@ -310,6 +314,7 @@ export function App() {
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
   useEffect(() => installReminderToasts(), []);
+  useEffect(() => installAgentEvents(), []);
   useEffect(() => installTrayRecent(), []);
   useEffect(() => installDeepLinks(), []);
 
@@ -424,6 +429,7 @@ export function App() {
       <OnDemand open={CalendarComposerOpen}><CalendarComposer /></OnDemand>
       <OnDemand open={TemplateGalleryOpen}><TemplateGallery /></OnDemand>
       <OnDemand open={BackupsDialogOpen}><BackupsDialog /></OnDemand>
+      <OnDemand open={ReviewDialogOpen}><ReviewDialog /></OnDemand>
       <PageTransferDialog />
       <OnDemand open={TransferDialogOpen}><TransferDialog /></OnDemand>
       <OnDemand open={HistoryPanelOpen}><HistoryPanel /></OnDemand>

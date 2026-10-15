@@ -15,9 +15,8 @@ select:not([multiple]):not([size]):disabled { opacity: 0.5; cursor: default; }
   select:not([multiple]):not([size]), select:not([multiple]):not([size])::picker(select) { appearance: base-select; }
   select:not([multiple]):not([size]) { gap: 8px; min-inline-size: 0; align-items: center; }
   select:not([multiple]):not([size])::picker-icon {
-    margin-inline-start: auto; flex: none; color: var(--text-muted); font-size: 0; inline-size: 12px; block-size: 12px;
-    background: currentColor;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    margin-inline-start: auto; flex: none; color: var(--text-muted); font-family: var(--font-icons); font-size: 12px; line-height: 1; inline-size: 12px; block-size: 12px;
+    content: var(--glyph-chevronDown);
     transform: scaleY(1); transform-origin: center;
     transition: transform var(--acc-rows, 250ms) var(--ease-smooth-out, ease-out);
   }
@@ -42,7 +41,7 @@ select:not([multiple]):not([size]):disabled { opacity: 0.5; cursor: default; }
   select:not([multiple]):not([size]) option:not(:disabled):hover { background: var(--surface-hover); }
   select:not([multiple]):not([size]) option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   select:not([multiple]):not([size]) option:disabled { color: var(--text-muted); }
-  select:not([multiple]):not([size]) option::checkmark { order: 1; margin-inline-start: auto; color: var(--accent-ui); }
+  select:not([multiple]):not([size]) option::checkmark { font-family: var(--font-icons); content: var(--glyph-check); order: 1; margin-inline-start: auto; color: var(--accent-ui); }
   select:not([multiple]):not([size]) optgroup { padding-block: 4px; }
   select:not([multiple]):not([size]) optgroup > legend { padding: 6px 12px; color: var(--text-secondary); font-size: .75rem; }
   :root[data-motion="reduced"] select::picker(select), :root[data-motion="reduced"] select::picker-icon { transition: none; filter: none; }

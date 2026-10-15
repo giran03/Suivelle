@@ -42,7 +42,7 @@
 .set-nav [role="tab"] { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); font-size: 0.875rem; text-align: left; color: var(--text-secondary); }
 .set-nav [role="tab"]:hover { background: var(--surface-hover); }
 .set-nav [role="tab"][aria-selected="true"] { background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
-.set-nav [aria-selected="true"] svg { color: var(--accent-ui); }
+.set-nav [aria-selected="true"] .app-icon { color: var(--accent-ui); }
 .set-nav-note { margin-top: auto; padding: 16px 12px 0; color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; }
 .settings .set-body { min-width: 0; padding: 24px 28px 32px; scroll-padding-block: 24px; }
 .set-panel { min-width: 0; overflow-wrap: anywhere; }
@@ -100,7 +100,7 @@
 .settings .set-search input:not([type="checkbox"]):not([type="range"]) { padding: 0; border: 0; background: transparent; }
 .theme-group > summary, .theme-contrast > summary { cursor: pointer; padding-block: 16px; font-size: 0.9375rem; font-weight: 600; }
 .theme-contrast { margin-block: 20px; border-block: 1px solid var(--border); }
-.theme-contrast summary svg { display: inline-block; vertical-align: middle; margin-right: 8px; }
+.theme-contrast summary .app-icon { display: inline-block; vertical-align: middle; margin-right: 8px; }
 .theme-contrast ul { list-style: none; padding: 0; }
 .theme-contrast li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 0; font-size: 0.875rem; }
 .theme-library-row { display: flex; gap: 8px; margin: 6px 0 16px; }

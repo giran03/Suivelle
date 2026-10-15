@@ -1,7 +1,7 @@
 /* Workspaces extend the Quiet Desk shell: a quick switcher and one focused settings flow. */
 .ws-switcher { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px; border-radius: var(--r-md); text-align: left; }
 .ws-switcher:hover:not(:disabled) { background: var(--surface-hover); }
-.ws-switcher > svg:last-child { flex: none; transform: rotate(90deg); color: var(--text-muted); }
+.ws-switcher > .app-icon:last-child { flex: none; transform: rotate(90deg); color: var(--text-muted); }
 .ws-switcher .ws-name { flex: 1; min-width: 0; padding: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-md); color: var(--workspace-color, var(--accent-ui)); background: color-mix(in srgb, var(--workspace-color, var(--accent-ui)) 10%, transparent); overflow: hidden; }
 .ws-custom-icon { font-size: 1rem; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
@@ -21,7 +21,7 @@
 .ws-directory-row:hover:not(:disabled) { background: var(--surface-hover); }
 .ws-directory-row[aria-current="true"] { background: var(--accent-soft); }
 .ws-directory-row:focus-visible { outline-offset: -2px; }
-.ws-directory-row > svg { flex: none; }
+.ws-directory-row > .app-icon { flex: none; }
 .ws-directory-name { flex: 1 1 0%; min-width: 0; overflow-wrap: anywhere; white-space: normal; font-size: 0.875rem; line-height: 1.4; }
 .ws-directory-name small { display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 .ws-switch-actions { display: flex; align-items: center; gap: 4px; padding: 8px 4px 0; border-top: 1px solid var(--border-subtle); margin-top: 8px; }
@@ -84,6 +84,7 @@
 .ws-delete { padding: calc(20px * var(--density)) calc(24px * var(--density)) calc(24px * var(--density)); overflow-y: auto; min-height: 0; }
 .ws-delete > p { margin-top: 14px; font-size: 0.875rem; }
 .ws-identity { display: flex; align-items: center; gap: 10px; overflow-wrap: anywhere; }
+.ws-delete-name { -webkit-user-select: all; user-select: all; cursor: text; padding: 2px 5px; border-radius: var(--r-sm); background: var(--surface-hover); font-family: var(--font-mono, monospace); font-size: 0.875em; overflow-wrap: anywhere; }
 .ws-delete form { margin-top: 24px; }
 .ws-discard { display: grid; gap: calc(8px * var(--density)); padding: 16px 20px; background: var(--surface-hover); border-bottom: 1px solid var(--border-subtle); font-size: 0.875rem; }
 .ws-discard > div { display: flex; gap: 8px; }

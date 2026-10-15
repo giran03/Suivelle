@@ -83,6 +83,10 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "canvas_boards_repair",
         include_str!("../../migrations/0016_canvas_boards_repair.sql"),
     ),
+    (17, "agents", include_str!("../../migrations/0017_agents.sql")),
+    (18, "agent_clients", include_str!("../../migrations/0018_agent_clients.sql")),
+    (19, "agent_client_extras", include_str!("../../migrations/0019_agent_client_extras.sql")),
+    (20, "proposal_resume", include_str!("../../migrations/0020_proposal_resume.sql")),
 ];
 
 /// The schema version a fully migrated database has.
@@ -251,6 +255,37 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
         // Data a migration cannot derive in SQL alone.
         if *version == 11 {
             crate::search::index::backfill_tags(&tx)?;
+        }
+        if *version == 17 {
+            let has: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('page') WHERE name = 'created_by')",
+                [],
+                |r| r.get(0),
+            )?;
+            if !has {
+                tx.execute_batch("ALTER TABLE page ADD COLUMN created_by TEXT;")?;
+            }
+            tx.execute_batch("CREATE INDEX IF NOT EXISTS idx_page_created_by ON page(created_by) WHERE created_by IS NOT NULL;")?;
+        }
+        let columns: &[(&str, &str, &str)] = match *version {
+            19 => &[
+                ("agent_client", "want_instructions", "INTEGER"),
+                ("agent_client", "want_commands", "INTEGER"),
+                ("agent_client", "instructions_path", "TEXT"),
+                ("agent_client", "commands_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ],
+            20 => &[("proposal", "resume", "INTEGER NOT NULL DEFAULT 0"), ("proposal", "waiting_until", "TEXT")],
+            _ => &[],
+        };
+        for (table, column, kind) in columns {
+            let has: bool = tx.query_row(
+                &format!("SELECT EXISTS(SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1)"),
+                [column],
+                |r| r.get(0),
+            )?;
+            if !has {
+                tx.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {kind};"))?;
+            }
         }
         tx.execute(
             "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",

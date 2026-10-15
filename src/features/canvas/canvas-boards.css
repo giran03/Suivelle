@@ -30,7 +30,7 @@
 .cv-picker input:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: -1px; }
 .cv-picker ul { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; }
 .cv-picker li button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-md); text-align: left; color: var(--text-primary); font-size: 0.875rem; }
-.cv-picker li button svg { flex: none; color: var(--text-muted); }
+.cv-picker li button .app-icon { flex: none; color: var(--text-muted); }
 .cv-picker li button.on { background: var(--surface-hover); }
 .cv-pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-pick-parent { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 0.75rem; }
@@ -42,10 +42,10 @@
 .canvas-row:hover, .canvas-row:focus-within { background: var(--surface-hover); }
 .canvas-row.selected { background: var(--accent-soft); }
 .canvas-row .title { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; text-align: left; color: var(--text-secondary); }
-.canvas-row .title svg { flex: none; color: var(--text-muted); }
+.canvas-row .title .app-icon { flex: none; color: var(--text-muted); }
 .canvas-row .title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-row.selected .title { color: var(--text-primary); font-weight: 550; }
-.canvas-row.selected .title svg { color: var(--accent-ui); }
+.canvas-row.selected .title .app-icon { color: var(--accent-ui); }
 .canvas-row .actions { display: flex; opacity: 0; transition: opacity var(--t-fast) ease-out; }
 .canvas-row:hover .actions, .canvas-row:focus-within .actions { opacity: 1; }
 .canvas-row input { flex: 1; min-width: 0; margin: 2px 4px; padding: 3px 6px; border: 1px solid var(--accent-ui); border-radius: var(--r-sm); background: var(--surface-1, transparent); color: var(--fg); font: inherit; }

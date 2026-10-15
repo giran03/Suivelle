@@ -11,6 +11,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "Suivelle"
 path = "src/main.rs"
 
+[workspace]
+members = ["mcp-bridge"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -30,11 +33,13 @@ tauri-plugin-dialog = "2.8.1"
 tauri-plugin-notification = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking"] }
+# TLS through ring, the provider the updater plugin already uses, so aws-lc-rs is not compiled in.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "blocking"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-uuid = { version = "1.27.0", features = ["v7"] }
+uuid = { version = "1.27.0", features = ["v4", "v7"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 semver = "1"

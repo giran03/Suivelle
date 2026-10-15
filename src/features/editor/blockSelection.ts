@@ -252,7 +252,8 @@ export const BlockSelection = Extension.create({
             view.dom.parentElement!;
           const surface = view.dom.parentElement?.closest(".ProseMirror")
             ? root
-            : (view.dom.closest<HTMLElement>(".main-scroll") ?? root);
+            : (view.dom.closest<HTMLElement>("[data-canvas-editor]") ??
+              view.dom.closest<HTMLElement>(".main-scroll") ?? root);
           const box = document.createElement("div");
           box.className = "block-selection-marquee";
           box.setAttribute("aria-hidden", "true");
@@ -309,10 +310,17 @@ export const BlockSelection = Extension.create({
                   : 0;
             if (scrollDelta) scroller.scrollTop += scrollDelta;
             const y = d.y + d.scroll - scroller.scrollTop;
-            const left = Math.min(d.x, pointer.x),
-              top = Math.min(y, pointer.y);
-            const right = Math.max(d.x, pointer.x),
-              bottom = Math.max(y, pointer.y);
+            // The overlay lives on body, so explicitly keep it inside its editor pane.
+            const clips = [surface, view.dom.closest(".canvas-view"), view.dom.closest(".main-scroll")]
+              .filter((el): el is HTMLElement => el instanceof HTMLElement)
+              .map(el => el.getBoundingClientRect());
+            const minX = Math.max(0, ...clips.map(rect => rect.left)), minY = Math.max(0, ...clips.map(rect => rect.top));
+            const maxX = Math.max(minX, Math.min(window.innerWidth, ...clips.map(rect => rect.right)));
+            const maxY = Math.max(minY, Math.min(window.innerHeight, ...clips.map(rect => rect.bottom)));
+            const clampX = (x: number) => Math.min(maxX, Math.max(minX, x));
+            const clampY = (y: number) => Math.min(maxY, Math.max(minY, y));
+            const left = clampX(Math.min(d.x, pointer.x)), top = clampY(Math.min(y, pointer.y));
+            const right = clampX(Math.max(d.x, pointer.x)), bottom = clampY(Math.max(y, pointer.y));
             Object.assign(box.style, {
               left: `${left}px`,
               top: `${top}px`,

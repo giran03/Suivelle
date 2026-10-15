@@ -1,4 +1,5 @@
 /* In-memory stand-in for the Rust backend. Enough of the command surface for the showcase flows. */
+import { AGENT_READ_COMMANDS, agentsDispatch } from "./agents";
 import { seed, type Store } from "./seed";
 import { nodeMapSnapshot } from "./node-map";
 
@@ -208,6 +209,7 @@ const READ_COMMANDS = new Set([
   "shell_get_behavior", "formula_preview", "export_shape",
   "maintenance_health", "diagnostics_report", "backup_mirror_get", "app_safe_mode",
   "reminder_list", "tag_list", "tag_pages", "link_graph", "node_map_snapshot",
+  ...AGENT_READ_COMMANDS,
 ]);
 
 /** Only read commands and temporary display preferences cross the showcase boundary. */
@@ -237,6 +239,7 @@ export async function handle(cmd: string, a: any): Promise<unknown> {
 }
 
 function dispatch(cmd: string, a: any): unknown {
+  if (AGENT_READ_COMMANDS.includes(cmd)) return agentsDispatch(db, cmd, a);
   switch (cmd) {
     case "calendar_snapshot": {
       if (a.workspaceId !== db.workspaces[0].id) return { collections: [], events: [], occurrences: [], truncated: false, invalid: 0 };

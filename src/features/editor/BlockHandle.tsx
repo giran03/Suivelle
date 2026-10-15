@@ -1,3 +1,4 @@
+import { ipc, toAppError } from "../../lib/ipc";
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +17,19 @@ interface Hovered {
   pos: number;
 }
 
+/** Turns a to-do into an agent task in the workspace's Agent Hub; finishing the task checks the to-do. */
+async function queueForAgent(blockId: string) {
+  const s = useWorkspace.getState();
+  try {
+    const { flushAllEditors } = await import("./flushRegistry");
+    await flushAllEditors(true);
+    const taskId = await ipc.todoPromote(blockId, null);
+    s.notify("Queued for an agent", () => void useWorkspace.getState().openPage(taskId), "Open task");
+  } catch (e) {
+    s.setError(toAppError(e).message);
+  }
+}
+
 export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
     const on = (fn: () => void) => () => {
       selectBlockAt(editor, at.pos);
@@ -25,6 +39,7 @@ export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
     const columns = at.node.type.name === "columns" ? null : enclosingColumns(editor, at.pos);
     return [
       { label: "Schedule this block…", disabled: !editor.isEditable || !at.node.attrs.blockId || ["calendar","calendarEvent"].includes(at.node.type.name), onSelect: () => { const page=useWorkspace.getState().selectedPage; const pageId=editor.view.dom.dataset.contextPage??page?.id; if(pageId)useCalendarComposer.getState().show({link:{pageId,blockId:at.node.attrs.blockId,label:at.node.textContent.slice(0,200)||(page?.id===pageId?page.title:"Block")}}); } },
+      ...(at.node.type.name === "taskItem" && at.node.attrs.blockId && !at.node.attrs.checked ? [{ label: "Queue for an agent", disabled: !editor.isEditable, onSelect: () => void queueForAgent(String(at.node.attrs.blockId)) }] : []),
       { label: "Duplicate", shortcut: "duplicate-block", onSelect: on(() => duplicateBlock(editor)) },
       { label: "Move up", shortcut: "move-block-up", onSelect: on(() => moveBlock(editor, -1)) },
       { label: "Move down", shortcut: "move-block-down", onSelect: on(() => moveBlock(editor, 1)) },

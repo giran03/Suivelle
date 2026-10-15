@@ -9,7 +9,6 @@
 .app-window-controls button:hover { background: var(--surface-hover); }
 .app-window-controls button:active { background: var(--surface-active); }
 .app-window-controls button:focus-visible { outline-offset: -3px; }
-.app-window-controls svg { fill: none; stroke: currentColor; stroke-width: 1; }
 .app-window-controls .app-window-close:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, var(--toolbar-background)); }
 .app-window-controls .app-window-close:active { background: color-mix(in srgb, var(--danger) 24%, var(--toolbar-background)); }
 .app-titlebar-error { position: absolute; z-index: 100; top: 100%; right: 8px; max-width: min(420px, calc(100vw - 16px)); padding: 8px 12px; background: var(--surface-2); color: var(--danger); border: 1px solid var(--border-strong); border-radius: var(--r-sm); font-size: .8125rem; user-select: text; }

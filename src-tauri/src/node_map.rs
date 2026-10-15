@@ -41,6 +41,8 @@ pub struct MapNode {
     pub database_id: Option<String>,
     pub tags: Vec<String>,
     pub values: BTreeMap<String, Value>,
+    /// The agent that created the page, by name; absent for pages people made.
+    pub created_by: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -117,6 +119,7 @@ pub fn snapshot(conn: &Connection, input: &MapQuery) -> AppResult<MapData> {
             database_id: None,
             tags: vec![],
             values: BTreeMap::new(),
+            created_by: None,
         })
     })? {
         nodes.push(row?);
@@ -196,7 +199,7 @@ pub fn snapshot(conn: &Connection, input: &MapQuery) -> AppResult<MapData> {
         params_from_iter(args.iter()),
         |r| r.get(0),
     )?;
-    let sql=format!("SELECT p.id,p.workspace_id,p.parent_page_id,p.title,p.kind,p.icon,p.favorite,p.archived,p.created_at,p.updated_at,r.id,r.database_id FROM page p LEFT JOIN db_record r ON r.page_id=p.id WHERE {filter} ORDER BY p.created_at,p.id LIMIT {limit}");
+    let sql=format!("SELECT p.id,p.workspace_id,p.parent_page_id,p.title,p.kind,p.icon,p.favorite,p.archived,p.created_at,p.updated_at,r.id,r.database_id,ag.name FROM page p LEFT JOIN db_record r ON r.page_id=p.id LEFT JOIN agent ag ON ag.id=p.created_by WHERE {filter} ORDER BY p.created_at,p.id LIMIT {limit}");
     let mut stmt = conn.prepare(&sql)?;
     for row in stmt.query_map(params_from_iter(args.iter()), |r| {
         Ok(MapNode {
@@ -215,6 +218,7 @@ pub fn snapshot(conn: &Connection, input: &MapQuery) -> AppResult<MapData> {
             count: 0,
             tags: vec![],
             values: BTreeMap::new(),
+            created_by: r.get(12)?,
         })
     })? {
         nodes.push(row?);

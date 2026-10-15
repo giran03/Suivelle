@@ -23,7 +23,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .shell[data-rail] .ws-row { flex-direction: column; margin: 8px 6px 4px; padding: 0; gap: 4px; border: 0; background: none; }
 .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse { flex: none; justify-content: center; inline-size: 40px; block-size: 40px; padding: 0; border-radius: var(--r-md); }
 .shell[data-rail] .side-search { justify-content: center; align-self: center; inline-size: 40px; min-block-size: 40px; margin: 0 0 8px; padding: 0; }
-.shell[data-rail] .side-search > span, .shell[data-rail] .side-search > kbd, .shell[data-rail] .foot-btn > span, .shell[data-rail] .foot-btn > svg:last-child { display: none; }
+.shell[data-rail] .side-search > span, .shell[data-rail] .side-search > kbd, .shell[data-rail] .foot-btn > span, .shell[data-rail] .foot-btn > .app-icon:last-child { display: none; }
 .shell[data-rail] .sidebar .rail-pages { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border-subtle); scrollbar-width: thin; }
 .rail-page { display: flex; flex: none; align-items: center; justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; border-radius: var(--r-md); color: var(--text-secondary); }
 .rail-page:hover { background: var(--surface-hover); color: var(--fg); }
@@ -117,8 +117,8 @@ body.resizing { cursor: col-resize; user-select: none; }
 .sidebar-recents .recent-list > li { flex: none; min-width: 0; }
 .sidebar h2 .section-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 0; margin-left: -2px; color: inherit; font: inherit; letter-spacing: inherit; }
 .sidebar h2 .section-toggle:hover { color: var(--fg); }
-.section-toggle svg { transition: transform var(--t-menu) var(--ease-out); }
-.section-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.section-toggle .app-icon { transition: transform var(--t-menu) var(--ease-out); }
+.section-toggle[aria-expanded="true"] .app-icon { transform: rotate(90deg); }
 .node.plain .actions { display: none; }
 
 /* ---- save state ---- */

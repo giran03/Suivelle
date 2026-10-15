@@ -1,3 +1,4 @@
+import { Icon } from "../../../components/Icon";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../../components/ContextMenu";
 import { thumbUrl } from "../../../lib/attachments";
@@ -944,7 +945,7 @@ function EdgeEditor({ edge, at, onLabel, onDelete }: { edge: CanvasEdge; at: { l
         }}
       />
       <button type="button" className="icon-btn" aria-label="Delete arrow" onClick={onDelete}>
-        ×
+        <Icon name="close" />
       </button>
     </div>
   );

@@ -20,7 +20,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.timezone-field-trigger > svg {
+.timezone-field-trigger > .app-icon {
   rotate: 90deg;
 }
 .timezone-field-trigger:hover:not(:disabled) {

@@ -227,7 +227,9 @@ Three full palette presets are available per mode: Midnight (navy/sapphire), Gra
 **Body Font:** Segoe UI Variable Text (with Segoe UI, system-ui)
 **Label/Mono Font:** ui-monospace, Cascadia Code, Consolas, for code and equations only
 
-**Character:** The native Windows 11 variable fonts, so the app reads as part of the OS and ships no font files. Hierarchy comes from weight (650 titles, 550 selected, 500 controls) and from opacity steps, not from large size jumps. Page text can be switched to a serif or mono stack in Settings; titles and chrome keep their own face.
+**Icon Font:** Suivelle Nerd Symbols, a locally bundled subset of Nerd Fonts 3.5.1 Material Design symbols. Use only through the shared `Icon` component or generated glyph variables for native control pseudo-elements. Never apply it to prose, user emoji, or branding. Fixed square boxes inherit semantic color; favorites use a separate filled star glyph. Existing semantic names and saved page/workspace choices remain stable. Rebuild and coverage instructions: `docs/icon-system.md`.
+
+**Character:** The native Windows 11 variable fonts, so the app reads as part of the OS and bundles only its interface symbol font. Hierarchy comes from weight (650 titles, 550 selected, 500 controls) and from opacity steps, not from large size jumps. Page text can be switched to a serif or mono stack in Settings; titles and chrome keep their own face.
 
 ### Hierarchy
 - **Page title** (650, 2.125rem, 1.2, -0.02em): the editable title above every page. The welcome title uses 2rem at the same weight.

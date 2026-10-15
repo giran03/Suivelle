@@ -77,7 +77,7 @@ function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, str
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const result = await track(invoke<T>(cmd, args));
-  if (/^(?:page_(?:create|update|move|delete|restore|duplicate|transfer)|block_apply_batch|record_(?:create|duplicate|set_value|bulk_set_value)|database_(?:create|add_property|update_property|delete_property)|calendar_(?:create|save|import|delete)|node_map_edit)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
+  if (/^(?:page_(?:create|update|move|delete|restore|duplicate|transfer)|block_apply_batch|record_(?:create|duplicate|set_value|bulk_set_value)|database_(?:create|add_property|update_property|delete_property)|calendar_(?:create|save|import|delete)|node_map_edit|proposal_approve|changeset_revert|janitor_fix|todo_promote|agent_create|client_connect|subagents_import)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
   return result;
 }
 
@@ -116,7 +116,7 @@ export const ipc = {
   // queries
   workspaceList: () => call<import("../types").Workspace[]>("workspace_list"),
   workspaceStats: (id: string) => call<import("../types").WorkspaceStats>("workspace_stats", { id }),
-  workspaceDelete: (id: string, confirmationName: string) => call<string>("workspace_delete", { id, confirmationName }),
+  workspaceDelete: (id: string, confirmationName: string, saveBackup = true) => call<string | null>("workspace_delete", { id, confirmationName, saveBackup }),
   backupSetAuto: (enabled?: boolean, keep?: number) => call<Workspace[]>("backup_set_auto", { enabled, keep }),
   workspaceGet: (id?: string) => call<Workspace | null>("workspace_get", { id }),
   pageGet: (id: string) => call<Page>("page_get", { id }),
@@ -300,6 +300,35 @@ export const ipc = {
   attachmentList: (workspaceId: string) => call<import("../types").AttachmentInfo[]>("attachment_list", { workspaceId }),
   attachmentDeleteUnused: (workspaceId: string, ids: string[], includeHistory: boolean) =>
     call<import("../types").DeletedFiles>("attachment_delete_unused", { workspaceId, ids, includeHistory }),
+  // Local AI agents (Settings > Agents, the Review inbox and Activity).
+  agentsOverview: () => call<import("../features/agents/types").AgentsOverview>("agents_overview"),
+  agentsSaveSettings: (settings: import("../features/agents/types").AgentSettings) => call<import("../features/agents/types").AgentSettings>("agents_save_settings", { settings }),
+  agentCreate: (input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_create", { input }),
+  agentUpdate: (id: string, input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_update", { id, input }),
+  agentDelete: (id: string) => call<void>("agent_delete", { id }),
+  agentTokenRotate: (id: string) => call<string>("agent_token_rotate", { id }),
+  agentTokenRevoke: (id: string) => call<void>("agent_token_revoke", { id }),
+  agentAudit: (agentId: string | null) => call<import("../features/agents/types").AuditEntry[]>("agent_audit", { agentId }),
+  proposalList: (status: "pending" | "applied" | "rejected" | "failed" | "all") => call<import("../features/agents/types").Proposal[]>("proposal_list", { status }),
+  proposalDetail: (id: string) => call<import("../features/agents/types").Proposal>("proposal_detail", { id }),
+  proposalApprove: (id: string, only: number[] | null, note: string | null) => call<string[]>("proposal_approve", { id, only, note }),
+  proposalReject: (id: string, note: string | null) => call<void>("proposal_reject", { id, note }),
+  changesetList: (agentId: string | null, pageId: string | null) => call<import("../features/agents/types").Changeset[]>("changeset_list", { agentId, pageId }),
+  changesetRevert: (id: string) => call<string[]>("changeset_revert", { id }),
+  janitorReport: (workspaceId: string) => call<import("../features/agents/types").Finding[]>("janitor_report", { workspaceId }),
+  janitorFix: (workspaceId: string, fixes: import("../features/agents/types").Op[]) => call<string[]>("janitor_fix", { workspaceId, fixes }),
+  todoPromote: (blockId: string, agent: string | null) => call<string>("todo_promote", { blockId, agent }),
+  mirrorGet: (workspaceId: string) => call<import("../features/agents/types").MirrorConfig>("mirror_get", { workspaceId }),
+  mirrorChoose: (workspaceId: string) => call<import("../features/agents/types").MirrorConfig | null>("mirror_choose", { workspaceId }),
+  mirrorSetEnabled: (workspaceId: string, enabled: boolean) => call<import("../features/agents/types").MirrorConfig>("mirror_set_enabled", { workspaceId, enabled }),
+  agentExportSubagent: (id: string, force: boolean) => call<import("../features/agents/types").Exported | null>("agent_export_subagent", { id, force }),
+  agentsExportAgentsMd: (pageIds: string[], force: boolean) => call<import("../features/agents/types").Exported | null>("agents_export_agents_md", { pageIds, force }),
+  clientsScan: () => call<import("../features/agents/types").ClientScan>("clients_scan"),
+  clientConnect: (clientId: string, input: import("../features/agents/types").ConnectInput) => call<import("../features/agents/types").ConnectResult>("client_connect", { clientId, input }),
+  clientRepair: (clientId: string) => call<import("../features/agents/types").ConnectResult>("client_repair", { clientId }),
+  clientDisconnect: (clientId: string) => call<import("../features/agents/types").DisconnectResult>("client_disconnect", { clientId }),
+  subagentsScan: (project: boolean) => call<import("../features/agents/types").SubagentScan | null>("subagents_scan", { project }),
+  subagentsImport: (paths: string[], workspaceIds: string[], mode: import("../features/agents/types").AgentMode | null) => call<import("../features/agents/types").ImportedSubagent[]>("subagents_import", { paths, workspaceIds, mode }),
   /** Parses pasted Markdown text into block rows (the same shape the editor stores). */
   markdownToBlocks: (text: string) =>
     call<{ id: string; parentBlockId: string | null; type: BlockType; position: number; dataJson: string; schemaVersion: number }[]>("markdown_to_blocks", { text }),

@@ -5,6 +5,7 @@ target/
 target-perf/
 /src-tauri/gen/
 /src-tauri/bindings/
+/src-tauri/binaries/
 **/.hyperframes/
 coverage/
 .vite/

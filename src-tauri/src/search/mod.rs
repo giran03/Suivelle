@@ -89,7 +89,10 @@ pub mod index {
             None,
             page.title.trim(),
             "",
-        )
+        )?;
+        // A page that now answers to a pending [[wikilink]] turns it into a mention.
+        crate::agents::content::resolve_pending(conn, page)?;
+        Ok(())
     }
 
     /// Indexes a block's text and replaces its page references.
@@ -128,7 +131,39 @@ pub mod index {
                 params![page_id, block_id, target],
             )?;
         }
+        let targets = if text.contains("[[") {
+            crate::agents::content::block_wikilinks(block_type, schema_version, data_json)
+        } else {
+            Vec::new()
+        };
+        set_unresolved(conn, workspace_id, page_id, block_id, targets)?;
         set_tags(conn, workspace_id, page_id, block_id, &text)
+    }
+
+    /// Records the block's `[[wikilinks]]` that no page answers to yet. Wikilinks written in
+    /// code spans are examples, not links, so they are never recorded.
+    fn set_unresolved(
+        conn: &Connection,
+        workspace_id: &str,
+        page_id: &str,
+        block_id: &str,
+        targets: Vec<String>,
+    ) -> AppResult<()> {
+        conn.execute(
+            "DELETE FROM page_link_unresolved WHERE source_block_id = ?1",
+            [block_id],
+        )?;
+        use crate::agents::content::{norm, resolve_title};
+        for target in targets {
+            if resolve_title(conn, workspace_id, &target)?.is_none() {
+                conn.execute(
+                    "INSERT OR IGNORE INTO page_link_unresolved (source_block_id, source_page_id, workspace_id, target_text, target_norm)
+                     SELECT ?1, ?2, ?3, ?4, ?5 WHERE EXISTS (SELECT 1 FROM block WHERE id = ?1)",
+                    params![block_id, page_id, workspace_id, target, norm(&target)],
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn set_tags(

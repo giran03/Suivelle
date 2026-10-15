@@ -13,7 +13,7 @@
 .map-crumbs button { color: var(--text-secondary); }
 .map-crumbs button:hover { background: var(--surface-hover); color: var(--text-primary); }
 .map-crumbs [aria-current] { color: var(--text-primary); font-weight: 550; }
-.map-crumbs svg { flex: none; color: var(--text-muted); }
+.map-crumbs .app-icon { flex: none; color: var(--text-muted); }
 .map-hops { margin-left: 4px; min-height: 0; height: calc(var(--ctl-h) - 6px); padding: 0 4px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--field); color: var(--text-secondary); font-size: .75rem; }
 .map-header-tools { display: flex; align-items: center; gap: 4px; }
 .map-search { display: flex; align-items: center; gap: 6px; width: clamp(200px, 30cqi, 360px); min-height: calc(var(--ctl-h) + 2px); padding: 0 4px 0 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--text-muted); }
@@ -21,7 +21,7 @@
 .map-search input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 6px 0; color: var(--text-primary); font-size: .875rem; outline: none; }
 .map-search input::placeholder { color: var(--text-muted); }
 .map-search-count { flex: none; font-size: .75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 2px; }
-.map-search[data-searching] > svg { animation: skeleton-pulse 1.2s ease-in-out infinite; }
+.map-search[data-searching] > .app-icon { animation: skeleton-pulse 1.2s ease-in-out infinite; }
 
 /* Icon buttons shared by every cluster. */
 .map-icon-btn { display: inline-grid; place-items: center; flex: none; width: max(28px, calc(var(--ctl-h) - 2px)); height: max(28px, calc(var(--ctl-h) - 2px)); border-radius: var(--r-sm); color: var(--text-secondary); transition: background var(--duration-fast) var(--ease-smooth-out), color var(--duration-fast) var(--ease-smooth-out); }
@@ -97,7 +97,7 @@
 .map-connections h3 span { font-weight: 400; font-variant-numeric: tabular-nums; }
 .map-connections ul { list-style: none; margin: 0; padding: 0; }
 .map-connections button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border-radius: var(--r-sm); padding: 5px 6px; font-size: .8125rem; color: var(--text-secondary); }
-.map-connections button svg { flex: none; color: var(--text-muted); }
+.map-connections button .app-icon { flex: none; color: var(--text-muted); }
 .map-connections button span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-connections button small { color: var(--text-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .map-connections button:hover { background: var(--surface-hover); color: var(--text-primary); }
@@ -136,9 +136,9 @@
 .popover.map-popover.is-closing { animation: dropdown-out var(--dropdown-close-dur) var(--ease-smooth-out) forwards; pointer-events: none; }
 .map-pop-section { display: flex; flex-direction: column; gap: 2px; }
 .map-pop-option { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; padding: 6px 8px; border-radius: var(--r-sm); }
-.map-pop-option > svg { flex: none; margin-top: 2px; color: var(--accent-ui); visibility: hidden; }
+.map-pop-option > .app-icon { flex: none; margin-top: 2px; color: var(--accent-ui); visibility: hidden; }
 .map-pop-option[aria-checked=true] { background: var(--accent-soft); }
-.map-pop-option[aria-checked=true] > svg { visibility: visible; }
+.map-pop-option[aria-checked=true] > .app-icon { visibility: visible; }
 .map-pop-option:hover:not([aria-checked=true]) { background: var(--surface-hover); }
 .map-pop-option span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .map-pop-option strong { font-size: .8125rem; font-weight: 550; }
@@ -167,7 +167,7 @@
 .shell[data-rail] .map-launch > span { display: none; }
 
 :root[data-motion="reduced"] :is(.map-status-working) { animation: none; background: none; -webkit-text-fill-color: currentColor; }
-:root[data-motion="reduced"] .map-search[data-searching] > svg { animation: none; }
+:root[data-motion="reduced"] .map-search[data-searching] > .app-icon { animation: none; }
 
 @container node-map (max-width: 900px) { .map-chips { width: calc(100% - 72px); bottom: auto; top: 12px; left: 60px; } .map-tool-hint { top: 48px; } .map-inspector { flex-basis: 260px; } }
 @container node-map (max-width: 640px) {

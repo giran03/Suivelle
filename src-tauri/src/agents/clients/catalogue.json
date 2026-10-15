@@ -1,0 +1,346 @@
+{
+  "version": 2,
+  "note": "Agent apps Suivelle can connect to. Paths use {home} (the user folder) and {config} (AppData/Roaming on Windows, Application Support on macOS, ~/.config on Linux). The entry shape says where an app keeps the command, its arguments and environment. Checked against real config files on 15 October 2026. Connect can also add the session-start lines to an app's user-level instructions file (\"instructions\": a file, or a place in the app's settings when it has no file) and /suivelle_… command files to its commands folder (\"commands\": format md, cursor, toml or vscode; \"invoke\" is how the app spells a command).",
+  "clients": [
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "detect": {
+        "exe": ["claude"],
+        "paths": {
+          "any": ["{home}/.claude"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.claude.json"]
+        },
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env",
+          "extra": {
+            "type": "stdio"
+          }
+        }
+      },
+      "cli": {
+        "exe": "claude",
+        "add": ["mcp", "add-json", "--scope", "user", "suivelle", "{json}"],
+        "remove": ["mcp", "remove", "--scope", "user", "suivelle"]
+      },
+      "commands": {
+        "dir": {
+          "any": ["{home}/.claude/commands"]
+        },
+        "format": "md",
+        "invoke": "/"
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.claude/CLAUDE.md"]
+        }
+      },
+      "restart": "Start a new Claude Code session to use Suivelle."
+    },
+    {
+      "id": "claude-desktop",
+      "name": "Claude Desktop",
+      "detect": {
+        "exe": [],
+        "paths": {
+          "any": ["{config}/Claude"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{config}/Claude/claude_desktop_config.json"]
+        },
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "instructions": {
+        "place": "Claude Desktop’s Settings > Profile (personal preferences)"
+      },
+      "restart": "Quit Claude Desktop (from the tray or menu bar) and open it again."
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "detect": {
+        "exe": ["codex"],
+        "paths": {
+          "any": ["{home}/.codex"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.codex/config.toml"]
+        },
+        "format": "toml",
+        "container": ["mcp_servers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "cli": {
+        "exe": "codex",
+        "add": ["mcp", "add", "suivelle", "{envFlags}", "--", "{command}", "{args}"],
+        "remove": ["mcp", "remove", "suivelle"]
+      },
+      "commands": {
+        "dir": {
+          "any": ["{home}/.codex/prompts"]
+        },
+        "format": "md",
+        "invoke": "/prompts:"
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.codex/AGENTS.md"]
+        }
+      },
+      "restart": "Start a new Codex session to use Suivelle."
+    },
+    {
+      "id": "antigravity",
+      "name": "Antigravity",
+      "detect": {
+        "exe": ["agy", "antigravity"],
+        "paths": {
+          "any": ["{home}/.gemini/antigravity", "{config}/Antigravity"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.gemini/antigravity/mcp_config.json", "{home}/.gemini/config/mcp_config.json"]
+        },
+        "write": "all",
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.gemini/GEMINI.md"]
+        }
+      },
+      "restart": "Reload Antigravity's MCP servers (Manage MCP servers > Refresh) or restart it."
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "detect": {
+        "exe": ["gemini"],
+        "paths": {
+          "any": ["{home}/.gemini/settings.json"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.gemini/settings.json"]
+        },
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "commands": {
+        "dir": {
+          "any": ["{home}/.gemini/commands"]
+        },
+        "format": "toml",
+        "invoke": "/"
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.gemini/GEMINI.md"]
+        }
+      },
+      "restart": "Start a new Gemini CLI session to use Suivelle."
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "detect": {
+        "exe": ["cursor"],
+        "paths": {
+          "any": ["{home}/.cursor"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.cursor/mcp.json"]
+        },
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "commands": {
+        "dir": {
+          "any": ["{home}/.cursor/commands"]
+        },
+        "format": "cursor",
+        "invoke": "/"
+      },
+      "instructions": {
+        "place": "Cursor Settings > Rules > User Rules"
+      },
+      "restart": "Cursor picks the change up in Settings > MCP; restart it if Suivelle does not appear."
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code",
+      "detect": {
+        "exe": [],
+        "paths": {
+          "any": ["{config}/Code/User"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{config}/Code/User/mcp.json"]
+        },
+        "format": "json",
+        "container": ["servers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env",
+          "extra": {
+            "type": "stdio"
+          }
+        }
+      },
+      "commands": {
+        "dir": {
+          "any": ["{config}/Code/User/prompts"]
+        },
+        "format": "vscode",
+        "invoke": "/"
+      },
+      "instructions": {
+        "place": "a user instructions file (Command Palette: Chat: New Instructions File, then User Data)"
+      },
+      "restart": "VS Code starts Suivelle the next time Copilot's agent mode uses it (MCP: List Servers shows it)."
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf",
+      "detect": {
+        "exe": ["windsurf"],
+        "paths": {
+          "any": ["{home}/.codeium/windsurf"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.codeium/windsurf/mcp_config.json"]
+        },
+        "format": "json",
+        "container": ["mcpServers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.codeium/windsurf/memories/global_rules.md"]
+        }
+      },
+      "restart": "Refresh MCP servers in Windsurf's Cascade panel, or restart Windsurf."
+    },
+    {
+      "id": "opencode",
+      "name": "opencode",
+      "detect": {
+        "exe": ["opencode"],
+        "paths": {
+          "any": ["{home}/.config/opencode"]
+        }
+      },
+      "config": {
+        "paths": {
+          "any": ["{home}/.config/opencode/opencode.jsonc", "{home}/.config/opencode/opencode.json"]
+        },
+        "create": 1,
+        "format": "json",
+        "container": ["mcp"],
+        "entry": {
+          "command": "command",
+          "commandArray": true,
+          "env": "environment",
+          "extra": {
+            "type": "local",
+            "enabled": true
+          }
+        }
+      },
+      "commands": {
+        "dir": {
+          "any": ["{home}/.config/opencode/command"]
+        },
+        "format": "md",
+        "invoke": "/"
+      },
+      "instructions": {
+        "paths": {
+          "any": ["{home}/.config/opencode/AGENTS.md"]
+        }
+      },
+      "restart": "Start a new opencode session to use Suivelle."
+    },
+    {
+      "id": "zed",
+      "name": "Zed",
+      "detect": {
+        "exe": ["zed"],
+        "paths": {
+          "windows": ["{config}/Zed"],
+          "macos": ["{home}/.config/zed"],
+          "linux": ["{home}/.config/zed"]
+        }
+      },
+      "config": {
+        "paths": {
+          "windows": ["{config}/Zed/settings.json"],
+          "macos": ["{home}/.config/zed/settings.json"],
+          "linux": ["{home}/.config/zed/settings.json"]
+        },
+        "format": "json",
+        "container": ["context_servers"],
+        "entry": {
+          "command": "command",
+          "args": "args",
+          "env": "env"
+        }
+      },
+      "instructions": {
+        "place": "Zed’s Rules Library (Agent panel > Rules), as a default rule"
+      },
+      "restart": "Zed reloads its settings by itself; Suivelle appears in the Agent panel's settings."
+    }
+  ]
+}

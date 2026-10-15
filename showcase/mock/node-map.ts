@@ -9,7 +9,7 @@ export function nodeMapSnapshot(db: Store, input: MapQuery): MapData {
     const record = db.records.find(r => r.pageId === p.id || r.id === p.id);
     const blocks = db.blocks.filter(b => b.pageId === p.id);
     const tags = [...new Set<string>(blocks.flatMap(b => Array.from(b.dataJson.matchAll(/(?:^|[^\p{L}\p{N}#/&_])#(\p{L}[\p{L}\p{N}_\-/]*)/gu), (m: RegExpMatchArray) => m[1].toLowerCase())))];
-    all.push({ ...p, parentId: p.parentPageId, count: 0, recordId: record?.id ?? null, databaseId: record?.databaseId ?? null, tags, values: record?.values ?? {} });
+    all.push({ ...p, parentId: p.parentPageId, count: 0, recordId: record?.id ?? null, databaseId: record?.databaseId ?? null, tags, values: record?.values ?? {}, createdBy: String(p.title ?? "").length % 5 === 0 ? "Librarian" : null });
   }
   const edges: MapEdge[] = [];
   for (const n of all.filter(n=>n.kind!=="workspace")) if (!n.parentId || all.some(p=>p.id===n.parentId)) edges.push({id:`contains:${n.id}`,source:n.parentId??workspaceNode(n.workspaceId),target:n.id,kind:n.kind==="record"?"membership":"contains",label:n.kind==="record"?"Record of":"Contains",propertyId:null,count:1});

@@ -4,7 +4,7 @@
 .imp { display: flex; flex-direction: column; gap: 10px; }
 .imp-help { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.875rem; display: grid; gap: calc(4px * var(--density)); }
 .imp-done { display: flex; align-items: center; gap: 6px; margin: 0; overflow-wrap: anywhere; }
-.imp-done svg { color: var(--accent-ui); }
+.imp-done .app-icon { color: var(--accent-ui); }
 .imp-warn { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--tone-orange) 16%, transparent); font-size: 0.875rem; display: grid; gap: calc(3px * var(--density)); }
 .imp-tree { margin: 0; padding: 0; list-style: none; max-height: 300px; overflow: auto; overflow-x: hidden; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .imp-row { display: flex; align-items: center; gap: 8px; padding: calc(var(--row-pad) - 1px) 4px; min-width: 0; }
@@ -52,7 +52,7 @@
 /* Import: where the files came from, as a neutral chip (never another app's branding). */
 .imp-source { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
 .imp-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-primary); font-size: 0.8125rem; font-weight: 550; }
-.imp-chip svg { color: var(--accent-ui); }
+.imp-chip .app-icon { color: var(--accent-ui); }
 .imp-target-name { display: grid; gap: 4px; margin-left: 24px; }
 .imp-target-name input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); color: var(--fg); font: inherit; }
 .imp-note { display: block; color: var(--text-muted); font-size: 0.75rem; }

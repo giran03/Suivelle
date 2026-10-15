@@ -55,6 +55,16 @@ const mergeData = (base: MapData, ...extras: (MapData | null)[]): MapData => {
 /** Refreshes (window focus, graph events) usually return the same graph; keeping the old object skips a rebuild. */
 const unchanged = (next: MapData) => (prev: MapData | null) => prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
 
+/** A CSS colour (such as a theme variable) as the browser resolves it, for the WebGL renderer. */
+function resolveColor(css: string): string {
+  const probe = document.createElement("span");
+  probe.style.color = css;
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#888";
+}
+
 function IconButton({ icon, label, shortcut, pressed, disabled, onClick, className = "" }: { icon: IconName; label: string; shortcut?: string; pressed?: boolean; disabled?: boolean; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void; className?: string }) {
   const keys = useShortcut(shortcut ?? "");
   const hint = shortcut && keys.label ? `${label} (${keys.label})` : label;
@@ -169,7 +179,17 @@ export function NodeMap() {
   const {positions, working: layoutWorking, failed: layoutFailed} = usePositions(data, layout, flat, propertyId, pins, `${key}:${propertyId}`);
   const displayData = useMemo(() => data ? {...data, edges: data.edges.map(e => e.kind === "relation" && e.propertyId && dependencyProperties.includes(e.propertyId) ? {...e, kind: "dependency" as const, label: `Blocks · ${e.label}`} : e)} : null, [data, dependencyProperties]);
   const at = useMemo(() => new Map((data?.nodes ?? []).map(n => [n.id, n])), [data]);
-  const tones = useMemo(() => nodeTones(data?.nodes ?? [], nodePalettes), [data, nodePalettes]);
+  const baseTones = useMemo(() => nodeTones(data?.nodes ?? [], nodePalettes), [data, nodePalettes]);
+  // The agent lens greys out everything people made, so agent-created pages stand out.
+  const [agentLens, setAgentLens] = useState(false);
+  const agentPages = useMemo(() => (data?.nodes ?? []).filter(n => n.createdBy).length, [data]);
+  const tones = useMemo(() => {
+    if (!agentLens) return baseTones;
+    const dim = resolveColor("var(--tone-gray)");
+    const out = { ...baseTones };
+    for (const n of data?.nodes ?? []) if (n.kind !== "workspace" && !n.createdBy) out[n.id] = dim;
+    return out;
+  }, [agentLens, baseTones, data]);
   const matches = useMemo(() => (found?.nodes ?? []).filter(n => n.kind !== "workspace" && at.has(n.id)).sort((a, b) => (a.title || "Untitled").localeCompare(b.title || "Untitled")), [found, at]);
   const scopeFocus = useMemo(() => {
     if (global || !data) return null;
@@ -283,6 +303,7 @@ export function NodeMap() {
           {query && !searching && <span className="map-search-count" role="status">{matches.length ? `${match + 1} of ${matches.length}` : "No matches"}</span>}
           {matches.length > 1 && <><button type="button" className="map-icon-btn small" aria-label="Previous match" title="Previous match (Shift+Enter)" onClick={() => cycle(-1)}><Icon name="arrowUp" size={14} /></button><button type="button" className="map-icon-btn small" aria-label="Next match" title="Next match (Enter)" onClick={() => cycle(1)}><Icon name="arrowDown" size={14} /></button></>}
         </label>
+        <IconButton icon="agent" label={agentLens ? "Show every page in colour" : agentPages ? `Highlight the ${agentPages} page${agentPages === 1 ? "" : "s"} agents created` : "No pages were created by agents"} pressed={agentLens} disabled={!agentPages && !agentLens} onClick={() => setAgentLens(v => !v)} />
         <IconButton icon="target" label={follow ? "Stop following the active page" : "Follow the active page"} pressed={follow} disabled={!activePage && !follow} onClick={followActive} />
         <IconButton icon="sidebar" label={inspectorOpen ? "Hide details" : "Show details"} pressed={inspectorOpen} onClick={() => configure({ inspector: !inspectorOpen })} />
       </div>
@@ -338,7 +359,7 @@ export function NodeMap() {
       </div>
       {inspectorOpen && node && <aside className="map-inspector" aria-label="Selected node">
         <div className="map-inspector-head">
-          <small><span className="map-chip-dot" style={{ background: workspaceColors[node.workspaceId] }} />{node.kind === "workspace" ? "Workspace" : `${node.kind[0].toUpperCase()}${node.kind.slice(1)} · ${workspaceNames[node.workspaceId] ?? "Workspace"}`}</small>
+          <small><span className="map-chip-dot" style={{ background: workspaceColors[node.workspaceId] }} />{node.kind === "workspace" ? "Workspace" : `${node.kind[0].toUpperCase()}${node.kind.slice(1)} · ${workspaceNames[node.workspaceId] ?? "Workspace"}${node.createdBy ? ` · created by ${node.createdBy}` : ""}`}</small>
           <IconButton icon="close" label="Hide details" onClick={() => configure({ inspector: false })} />
         </div>
         <h2>{node.title || "Untitled"}</h2>

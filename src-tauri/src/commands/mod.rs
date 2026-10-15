@@ -1,5 +1,6 @@
 //! Commands: IPC entry points that mutate state. Thin wrappers over services.
 
+pub mod agents;
 pub mod calendar;
 pub mod content;
 pub mod image;
@@ -155,11 +156,18 @@ pub async fn workspace_delete(
     app: tauri::AppHandle,
     id: String,
     confirmation_name: String,
-) -> AppResult<String> {
+    save_backup: Option<bool>,
+) -> AppResult<Option<String>> {
     blocking("workspace_delete", move || {
         let db = app.state::<Db>();
         let paths = app.state::<crate::backup::Paths>();
-        services::workspace::delete_safely(&db.0, &paths, &id, &confirmation_name)
+        services::workspace::delete_confirmed(
+            &db.0,
+            &paths,
+            &id,
+            &confirmation_name,
+            save_backup.unwrap_or(true),
+        )
     })
     .await
 }
@@ -759,7 +767,7 @@ pub fn notifier(
 
 /// Runs the automations a committed change triggers. A failing automation is logged and never
 /// fails the change that triggered it.
-fn react(
+pub(crate) fn react(
     app: &tauri::AppHandle,
     conn: &mut Connection,
     events: Vec<crate::automation::engine::Event>,
@@ -982,7 +990,7 @@ pub struct ImportSessions(pub std::sync::Mutex<Vec<crate::transfer::import::Stag
 
 const MAX_SESSIONS: usize = 3;
 
-fn path_of(p: tauri_plugin_dialog::FilePath) -> AppResult<std::path::PathBuf> {
+pub(crate) fn path_of(p: tauri_plugin_dialog::FilePath) -> AppResult<std::path::PathBuf> {
     p.into_path().map_err(|e| AppError::Internal(e.to_string()))
 }
 

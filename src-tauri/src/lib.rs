@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod automation;
 pub mod backup;
 pub mod calendar;
@@ -325,6 +326,7 @@ pub fn run() {
                             spawn_automation(app.clone());
                         }
                         app.manage(SafeMode(safe_mode.clone()));
+                        agents::server::spawn_background(app.clone());
                         Ok(safe_mode)
                     },
                 ))
@@ -388,6 +390,34 @@ pub fn run() {
             commands::content::markdown_to_blocks,
             commands::page_touch,
             commands::search_rebuild,
+            commands::agents::agents_overview,
+            commands::agents::agents_save_settings,
+            commands::agents::agent_create,
+            commands::agents::agent_update,
+            commands::agents::agent_delete,
+            commands::agents::agent_token_rotate,
+            commands::agents::agent_token_revoke,
+            commands::agents::agent_audit,
+            commands::agents::proposal_list,
+            commands::agents::proposal_detail,
+            commands::agents::proposal_approve,
+            commands::agents::proposal_reject,
+            commands::agents::changeset_list,
+            commands::agents::changeset_revert,
+            commands::agents::janitor_report,
+            commands::agents::janitor_fix,
+            commands::agents::todo_promote,
+            commands::agents::mirror_get,
+            commands::agents::mirror_choose,
+            commands::agents::mirror_set_enabled,
+            commands::agents::agent_export_subagent,
+            commands::agents::agents_export_agents_md,
+            commands::agents::clients_scan,
+            commands::agents::client_connect,
+            commands::agents::client_repair,
+            commands::agents::client_disconnect,
+            commands::agents::subagents_scan,
+            commands::agents::subagents_import,
             commands::maintenance::maintenance_health,
             commands::maintenance::maintenance_sweep,
             commands::maintenance::maintenance_compact,

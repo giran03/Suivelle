@@ -1,11 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { loadSafeMode } from "./lib/safeMode";
+import { loadIconFont } from "./lib/iconFont";
 import "./motion.css";
 import "./styles.css";
 import "./features/tooltip/tooltip.css";
 import "./forced-colors.css";
 import "./page-focus.css";
+
+loadIconFont();
 
 function StartupReady({ children }: { children: React.ReactNode }) {
   React.useLayoutEffect(() => { window.dispatchEvent(new Event("suivelle-startup-ready")); }, []);

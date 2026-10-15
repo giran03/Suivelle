@@ -113,7 +113,7 @@ it("does not switch or clear data when deletion or its safety copy fails", async
 });
 it("moves to a survivor after deleting the active workspace", async () => {
   await useWorkspace.getState().init(); vi.spyOn(ipc, "workspaceDelete").mockResolvedValue("safety.suibk"); vi.mocked(ipc.workspaceList).mockResolvedValue([b]);
-  await useWorkspace.getState().deleteWorkspace("a", "Personal"); expect(useWorkspace.getState().workspace?.id).toBe("b"); expect(useWorkspace.getState().selectedPageId).toBe("pb"); expect(useWorkspace.getState().workspaces).toEqual([b]);
+  await useWorkspace.getState().deleteWorkspace("a", "Personal"); expect(ipc.workspaceDelete).toHaveBeenCalledWith("a", "Personal", true); expect(useWorkspace.getState().workspace?.id).toBe("b"); expect(useWorkspace.getState().selectedPageId).toBe("pb"); expect(useWorkspace.getState().workspaces).toEqual([b]);
 });
 it("strict flush propagates failures while existing best-effort callers stay compatible", async () => {
   unregister = registerFlusher(async () => { throw new Error("pending"); });
@@ -149,4 +149,15 @@ it("creates an initial image through the atomic command and preserves the draft 
   await useWorkspace.getState().createWorkspace("Studio", null, { accent: "blue" }, image);
   expect(create).toHaveBeenLastCalledWith("Studio", '{"accent":"blue"}', "icon.gif", bytes);
   expect(plainCreate).not.toHaveBeenCalled();
+});
+
+it("passes the explicit permanent deletion choice after saving pending edits", async () => {
+  await useWorkspace.getState().init();
+  const save = vi.fn(async () => {});
+  unregister = registerFlusher(save);
+  const remove = vi.spyOn(ipc, "workspaceDelete").mockImplementation(async () => { expect(save).toHaveBeenCalled(); return null; });
+  vi.mocked(ipc.workspaceList).mockResolvedValue([b]);
+  await useWorkspace.getState().deleteWorkspace("a", "Personal", false);
+  expect(remove).toHaveBeenCalledWith("a", "Personal", false);
+  expect(useWorkspace.getState().workspace?.id).toBe("b");
 });

@@ -1,6 +1,7 @@
 import { BackupMirror, HealthSection } from "./HealthSection";
 import { DiagnosticsButton } from "../../components/DiagnosticsButton";
 import { ShortcutSettings } from "../shortcuts/ShortcutSettings";
+import { AgentsSettings } from "../agents/AgentsSettings";
 import { useEffect, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { BrandMark } from "../../components/BrandMark";
@@ -27,6 +28,7 @@ const PAGES: { id: string; title: string; icon: IconName }[] = [
   { id: "window", title: "Window and startup", icon: "monitor" },
   { id: "keyboard", title: "Shortcuts and input", icon: "keyboard" },
   { id: "data", title: "Data and backups", icon: "layers" },
+  { id: "agents", title: "Agents", icon: "agent" },
   { id: "updates", title: "Updates", icon: "download" },
   { id: "about", title: "About", icon: "note" },
 ];
@@ -363,6 +365,11 @@ function SettingsBody() {
           <h3>Storage health</h3>
           <p className="set-hint">Everything stored on this computer, across all workspaces.</p>
           <HealthSection active={page === "data" && !query.trim()} />
+        </SettingsPage>
+
+        <SettingsPage id="agents" active={query.trim() ? "search" : page}>
+          <h3>Agents</h3>
+          <AgentsSettings active={page === "agents" && !query.trim()} />
         </SettingsPage>
 
         <SettingsPage id="keyboard" active={query.trim() ? "search" : page}>

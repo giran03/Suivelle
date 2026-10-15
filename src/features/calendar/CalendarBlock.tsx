@@ -42,7 +42,6 @@ import {
   type CalendarSource,
   type CalendarView,
 } from "./model";
-import { exportCalendar, importCalendar } from "./transfer";
 import { currentCalendarDay, useCalendarDay } from "./useCalendarDay";
 import { unwatchLabel, watchLabel } from "./fitLabel";
 import { readCalendarTask, useCalendarTaskDrag } from "./taskDrag";
@@ -985,7 +984,14 @@ export function CalendarBlock({
           initialDate={initialDate}
           height={timedView ? (expanded ? 720 : config.height) : expanded || narrow ? "auto" : config.height}
           headerToolbar={{ start: "prev,next jumpToday", center: "title", end: "" }}
-          buttons={{ jumpToday: { text: "Today", click: goToToday } }}
+          buttons={{
+            prev: { iconContent: () => <Icon name="chevronLeft" size={20} /> },
+            next: { iconContent: () => <Icon name="chevron" size={20} /> },
+            prevYear: { iconContent: () => <Icon name="chevronDoubleLeft" size={20} /> },
+            nextYear: { iconContent: () => <Icon name="chevronDoubleRight" size={20} /> },
+            jumpToday: { text: "Today", click: goToToday },
+          }}
+          popoverCloseContent={() => <Icon name="close" size={20} />}
           now={calendarNow}
           timeZone={config.timezone}
           firstDay={config.weekStart}
@@ -1143,8 +1149,10 @@ export function CalendarBlock({
             className="icon-btn"
             aria-label="Export calendar"
             title="Export calendar (.ics)"
-            onClick={() => {
+            onClick={async () => {
               try {
+                // ical.js loads only when a calendar is exported or imported.
+                const { exportCalendar } = await import("./transfer");
                 const content = exportCalendar(
                   snapshot?.events.filter((e) =>
                     config.sources.some(
@@ -1197,6 +1205,7 @@ export function CalendarBlock({
                 return;
               }
               try {
+                const { importCalendar } = await import("./transfer");
                 const imported = importCalendar(await f.text(), calendarId);
                 setTransferMessage(imported.warnings.join(" "));
                 if (

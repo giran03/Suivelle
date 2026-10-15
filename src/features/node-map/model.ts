@@ -6,6 +6,8 @@ export interface MapNode {
   id: string; workspaceId: string; parentId: string | null; title: string; kind: NodeKind;
   icon: string | null; favorite: boolean; archived: boolean; createdAt: string; updatedAt: string;
   count: number; recordId: string | null; databaseId: string | null; tags: string[]; values: Record<string, unknown>;
+  /** The agent that created the page, when an agent did. */
+  createdBy?: string | null;
 }
 export interface MapEdge { id: string; source: string; target: string; kind: EdgeKind; label: string; propertyId: string | null; count: number }
 export interface MapProperty { id: string; databaseId: string; name: string; kind: string; config: Record<string, unknown> }

@@ -3,9 +3,9 @@
 .date-range-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: var(--ctl-h-lg); padding: 8px 10px; text-align: start; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); }
 .date-range-trigger:hover { border-color: var(--border-strong); }
 .date-range-trigger[aria-expanded="true"] { border-color: var(--accent-ui); }
-.date-range-trigger > svg { color: var(--text-secondary); }
+.date-range-trigger > .app-icon { color: var(--text-secondary); }
 .date-range-value { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-variant-numeric: tabular-nums; font-size: .875rem; }
-.date-range-value > svg { color: var(--text-muted); }
+.date-range-value > .app-icon { color: var(--text-muted); }
 .popover.date-range-picker { width: min(344px, calc(100vw - 16px)); overflow-y: auto; padding: 16px; }
 .popover.date-range-picker, .popover.date-range-picker :where(*) { user-select: none; }
 .popover.date-range-picker :is(textarea, [contenteditable="true"]) { user-select: text; }

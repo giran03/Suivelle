@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ShortcutKeys } from "./ShortcutKeys";
+import { Icon } from "./Icon";
 import { effective, format, matches, resolvedModifiers, type Binding } from "../features/shortcuts/bindings";
 import { useShortcuts } from "../features/shortcuts/store";
 import { readProfile } from "../lib/motion";
@@ -14,6 +15,8 @@ export interface MenuItem {
   danger?: boolean;
   /** Draws a divider above this item. */
   separated?: boolean;
+  /** Optional selection state for a checkable menu action. */
+  checked?: boolean;
 }
 
 /** A top-layer menu: above dialogs, sticky headers and transformed scroll containers. */
@@ -122,7 +125,8 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
           key={item.label}
           type="button"
           tabIndex={-1}
-          role="menuitem"
+          role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+          aria-checked={item.checked}
           className={`menu-item${item.danger ? " danger" : ""}${item.separated ? " separated" : ""}`}
           disabled={item.disabled}
           aria-label={item.label}
@@ -130,6 +134,7 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
           onClick={() => activate(item)}
         >
           <span className="menu-item-label">{item.label}</span>
+          {item.checked && <Icon name="check" size={14} />}
           {hint(item) && <span className="menu-item-shortcuts" title={bindings(item).map(format).join(" / ")}><ShortcutKeys binding={hint(item)!} /></span>}
         </button>
       ))}

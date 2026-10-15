@@ -1,5 +1,6 @@
 import { CanvasesSection } from "../canvas/CanvasesSection";
 import { useNodeMap } from "../node-map/store";
+import { useAgents } from "../agents/store";
 import { dropPagesOnBoard } from "../canvas/store";
 import { key } from "../shortcuts/bindings";
 import { usePeek } from "../peek/store";
@@ -220,6 +221,8 @@ export function Sidebar() {
   const roots = useWorkspace((s) => s.children.root);
   const favorites = useWorkspace((s) => s.favorites);
   const view = useWorkspace((s) => s.view);
+  const agentsPending = useAgents((s) => s.pending);
+  const hasActiveAgents = useAgents((s) => s.hasActiveAgents);
   const selectedPageId = useWorkspace((s) => s.selectedPageId);
   const pickedIds = usePageSelection((s) => s.ids);
   const { createPage, showTrash, toggleFavorite } = useWorkspace.getState();
@@ -369,7 +372,8 @@ export function Sidebar() {
         {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
 
-      <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="layers" /><span>Node Map</span></button>
+      <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="nodeMap" /><span>Node Map</span></button>
+      {(hasActiveAgents || agentsPending > 0) && <button type="button" className="foot-btn map-launch agents-launch" title="Agents: review inbox" aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"} onClick={() => useAgents.getState().show("review")}><Icon name="inbox" /><span>Inbox</span>{agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}</button>}
 
       {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
         {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (

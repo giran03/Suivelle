@@ -109,7 +109,7 @@ function EventNode({ node, editor }: NodeViewProps) {
         {DateTime.fromISO(data.start).toLocaleString(
           data.allDay ? DateTime.DATE_MED : DateTime.DATETIME_MED,
         )}{" "}
-        →{" "}
+        <Icon name="arrowRight" />{" "}
         {DateTime.fromISO(data.end)
           .minus(data.allDay ? { days: 1 } : {})
           .toLocaleString(

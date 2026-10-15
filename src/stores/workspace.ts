@@ -47,7 +47,7 @@ interface State {
   createWorkspace: (name: string, icon: string | null, settings: Record<string, unknown>, image?: File) => Promise<void>;
   reorderWorkspace: (id: string, targetId: string) => void;
   updateWorkspaceProfile: (id: string, name: string, icon: string | null, settings: Record<string, unknown>) => Promise<void>;
-  deleteWorkspace: (id: string, confirmation: string) => Promise<void>;
+  deleteWorkspace: (id: string, confirmation: string, saveBackup?: boolean) => Promise<void>;
   settings: Settings;
   /** Bumped to remount the open editor after its content changed underneath it (a restored version). */
   editorEpoch: number;
@@ -230,14 +230,14 @@ export const useWorkspace = create<State>((set, get) => {
       applyProfile(updated);
       pushToast("Workspace settings saved.");
     },
-    deleteWorkspace: (id, confirmation) => transition(async () => {
+    deleteWorkspace: (id, confirmation, saveBackup = true) => transition(async () => {
       await leave();
-      await ipc.workspaceDelete(id, confirmation);
+      await ipc.workspaceDelete(id, confirmation, saveBackup);
       const remaining = get().workspaces.filter((w) => w.id !== id);
       set({ workspaces: remaining });
       if (get().workspace?.id === id && remaining[0]) { applyWorkspace(remaining[0]); await activate(remaining[0].id); }
       try { set({ workspaces: orderedWorkspaces(await ipc.workspaceList()) }); } catch { /* Local survivors remain usable. */ }
-      pushToast("Workspace deleted. A safety backup is available in Backups.");
+      pushToast(saveBackup ? "Workspace deleted. A safety backup is available in Backups." : "Workspace permanently deleted without a new safety backup.");
     }),
     settings: { theme: "system", autoBackup: true, backupKeep: 3 },
     editorEpoch: 0,

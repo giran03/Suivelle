@@ -1,4 +1,5 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "bundle": { "targets": ["nsis"], "createUpdaterArtifacts": true }
+  "build": { "beforeBuildCommand": "node scripts/check-release.mjs && node scripts/build-mcp-bridge.mjs && npm run build" },
+  "bundle": { "targets": ["nsis"], "createUpdaterArtifacts": true, "externalBin": ["binaries/suivelle-mcp"] }
 }
