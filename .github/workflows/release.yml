@@ -116,7 +116,7 @@ jobs:
           gh release upload $env:RELEASE_TAG release-check/latest.json --repo $env:GITHUB_REPOSITORY --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload canonical updater metadata.' }
           if (-not $env:RELEASE_ID) {
-            $env:RELEASE_ID = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" --jq '.id'
+            $env:RELEASE_ID = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json databaseId --jq '.databaseId'
             if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the existing draft.' }
           }
           $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID/assets" | ConvertFrom-Json
