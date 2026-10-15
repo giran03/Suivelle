@@ -5,7 +5,10 @@ use crate::domain::WorkspaceCreate;
 use crate::services;
 
 fn scratch(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("suivelle-clients-{label}-{}", crate::domain::new_id()));
+    let dir = std::env::temp_dir().join(format!(
+        "suivelle-clients-{label}-{}",
+        crate::domain::new_id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -35,7 +38,15 @@ fn fake_env(label: &str) -> Env {
 
 fn db() -> (Connection, String) {
     let mut conn = open_in_memory().unwrap();
-    let ws = services::workspace::create(&mut conn, WorkspaceCreate { name: "Lab".into(), ..Default::default() }).unwrap().id;
+    let ws = services::workspace::create(
+        &mut conn,
+        WorkspaceCreate {
+            name: "Lab".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .id;
     (conn, ws)
 }
 
@@ -63,7 +74,10 @@ fn entry() -> Entry {
 }
 
 fn standard_shape() -> Shape {
-    serde_json::from_value(serde_json::json!({ "command": "command", "args": "args", "env": "env" })).unwrap()
+    serde_json::from_value(
+        serde_json::json!({ "command": "command", "args": "args", "env": "env" }),
+    )
+    .unwrap()
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -74,13 +88,33 @@ fn standard_shape() -> Shape {
 fn catalogue_is_valid_and_complete() {
     let c = catalogue();
     assert!(c.version >= 1);
-    for id in ["claude-code", "claude-desktop", "codex", "antigravity", "gemini-cli", "cursor", "vscode", "windsurf", "opencode", "zed"] {
+    for id in [
+        "claude-code",
+        "claude-desktop",
+        "codex",
+        "antigravity",
+        "gemini-cli",
+        "cursor",
+        "vscode",
+        "windsurf",
+        "opencode",
+        "zed",
+    ] {
         let client = client(id).unwrap();
-        assert!(matches!(client.config.format.as_str(), "json" | "toml"), "{id}");
+        assert!(
+            matches!(client.config.format.as_str(), "json" | "toml"),
+            "{id}"
+        );
         assert!(!client.config.container.is_empty(), "{id}");
         for os in ["windows", "macos", "linux"] {
-            let env = Env { os, ..fake_env("cat") };
-            assert!(!env.paths(&client.config.paths).is_empty(), "{id} has a config path on {os}");
+            let env = Env {
+                os,
+                ..fake_env("cat")
+            };
+            assert!(
+                !env.paths(&client.config.paths).is_empty(),
+                "{id} has a config path on {os}"
+            );
         }
     }
 }
@@ -101,7 +135,9 @@ fn json_edits_touch_only_the_suivelle_entry() {
     ];
     for original in cases {
         let (added, created) = jsonc::set(original, &container, SERVER, &fields).unwrap();
-        let got = jsonc::get(&added, &container, SERVER).unwrap().expect("entry present");
+        let got = jsonc::get(&added, &container, SERVER)
+            .unwrap()
+            .expect("entry present");
         assert_eq!(standard_shape().read(&got), entry(), "{original}");
         // Everything that was there is still there.
         let before = jsonc::to_value(&jsonc::parse(original).unwrap().unwrap());
@@ -118,12 +154,16 @@ fn json_edits_touch_only_the_suivelle_entry() {
         // Updating in place keeps a single entry.
         let mut e2 = entry();
         e2.command = "D:/other/suivelle-mcp.exe".into();
-        let (updated, _) = jsonc::set(&added, &container, SERVER, &standard_shape().fields(&e2)).unwrap();
+        let (updated, _) =
+            jsonc::set(&added, &container, SERVER, &standard_shape().fields(&e2)).unwrap();
         assert_eq!(updated.matches("\"suivelle\"").count(), 1);
         // Removing restores the original byte for byte (apart from `{}` spacing).
         let removed = jsonc::unset(&added, &container, SERVER, created).unwrap();
         if original.contains("{}") {
-            assert_eq!(jsonc::to_value(&jsonc::parse(&removed).unwrap().unwrap()), before);
+            assert_eq!(
+                jsonc::to_value(&jsonc::parse(&removed).unwrap().unwrap()),
+                before
+            );
         } else {
             assert_eq!(removed, original);
         }
@@ -142,25 +182,43 @@ fn json_edge_cases() {
     assert!(created && fresh.starts_with("{\n  \"mcpServers\": {\n    \"suivelle\": {"));
     // Nested containers (none here, but the walk creates every level).
     let (deep, _) = jsonc::set("{}", &strs(&["a", "b"]), SERVER, &fields).unwrap();
-    assert!(jsonc::get(&deep, &strs(&["a", "b"]), SERVER).unwrap().is_some());
+    assert!(jsonc::get(&deep, &strs(&["a", "b"]), SERVER)
+        .unwrap()
+        .is_some());
     // Broken files and non-objects are refused, not rewritten.
     assert!(jsonc::set("{ \"a\": ", &container, SERVER, &fields).is_err());
     assert!(jsonc::set("[1, 2]", &container, SERVER, &fields).is_err());
     assert!(jsonc::set("{ \"mcpServers\": [] }", &container, SERVER, &fields).is_err());
     // Escapes and unicode keys parse.
-    let v = jsonc::get("{\"mcpServers\":{\"suivelle\":{\"command\":\"C:\\\\x\\u00e9\"}}}", &container, SERVER).unwrap().unwrap();
+    let v = jsonc::get(
+        "{\"mcpServers\":{\"suivelle\":{\"command\":\"C:\\\\x\\u00e9\"}}}",
+        &container,
+        SERVER,
+    )
+    .unwrap()
+    .unwrap();
     assert_eq!(v["command"], "C:\\xé");
     // Single-line objects.
     let (one, _) = jsonc::set("{\"mcpServers\":{\"a\":1}}", &container, SERVER, &fields).unwrap();
-    assert_eq!(jsonc::unset(&one, &container, SERVER, false).unwrap(), "{\"mcpServers\":{\"a\":1}}");
+    assert_eq!(
+        jsonc::unset(&one, &container, SERVER, false).unwrap(),
+        "{\"mcpServers\":{\"a\":1}}"
+    );
 }
 
 #[test]
 fn entry_shapes_follow_each_app() {
-    let e = Entry { command: "/bin/suivelle-mcp".into(), args: strs(&["--credential", "abc"]), env: BTreeMap::new() };
+    let e = Entry {
+        command: "/bin/suivelle-mcp".into(),
+        args: strs(&["--credential", "abc"]),
+        env: BTreeMap::new(),
+    };
     let vscode = &client("vscode").unwrap().config.entry;
     let v: Map<String, Value> = vscode.fields(&e).into_iter().collect();
-    assert_eq!(Value::Object(v.clone()), serde_json::json!({ "type": "stdio", "command": "/bin/suivelle-mcp", "args": ["--credential", "abc"] }));
+    assert_eq!(
+        Value::Object(v.clone()),
+        serde_json::json!({ "type": "stdio", "command": "/bin/suivelle-mcp", "args": ["--credential", "abc"] })
+    );
     assert_eq!(vscode.read(&Value::Object(v)), e);
     let open = &client("opencode").unwrap().config.entry;
     let fields = open.fields(&entry());
@@ -184,7 +242,8 @@ fn toml_edits_touch_only_the_suivelle_tables() {
     let added = toml::set(original, &container, &entry()).unwrap();
     assert!(added.starts_with(original));
     assert_eq!(toml::get(&added, &container).unwrap(), Some(entry()));
-    assert!(added.contains("command = 'C:\\Users\\me\\AppData\\Local\\Suivelle\\bin\\suivelle-mcp.exe'"));
+    assert!(added
+        .contains("command = 'C:\\Users\\me\\AppData\\Local\\Suivelle\\bin\\suivelle-mcp.exe'"));
     // Writing again replaces rather than duplicates.
     let again = toml::set(&added, &container, &entry()).unwrap();
     assert_eq!(again, added);
@@ -201,8 +260,18 @@ fn toml_edits_touch_only_the_suivelle_tables() {
     assert!(!added.replace("\r\n", "").contains('\n'));
     assert_eq!(toml::unset(&added, &container).unwrap(), crlf);
     // Layouts Suivelle does not edit are refused.
-    assert!(toml::set("mcp_servers.suivelle.command = \"x\"\n", &container, &entry()).is_err());
-    assert!(toml::set("[mcp_servers]\nsuivelle = { command = \"x\" }\n", &container, &entry()).is_err());
+    assert!(toml::set(
+        "mcp_servers.suivelle.command = \"x\"\n",
+        &container,
+        &entry()
+    )
+    .is_err());
+    assert!(toml::set(
+        "[mcp_servers]\nsuivelle = { command = \"x\" }\n",
+        &container,
+        &entry()
+    )
+    .is_err());
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -216,7 +285,15 @@ fn finds_installed_apps_by_their_folders_and_path() {
     std::fs::create_dir_all(env.home.join(".cursor")).unwrap();
     std::fs::create_dir_all(env.home.join(".codex")).unwrap();
     std::fs::create_dir_all(&env.path[0]).unwrap();
-    std::fs::write(env.path[0].join(if cfg!(windows) { "claude.exe" } else { "claude" }), b"").unwrap();
+    std::fs::write(
+        env.path[0].join(if cfg!(windows) {
+            "claude.exe"
+        } else {
+            "claude"
+        }),
+        b"",
+    )
+    .unwrap();
     let scan = scan(&conn, &env).unwrap();
     let ids: Vec<&str> = scan.clients.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids, ["claude-code", "codex", "cursor"]);
@@ -231,7 +308,8 @@ fn connect_status_and_disconnect_round_trip() {
     let env = fake_env("connect");
     let cursor = env.home.join(".cursor").join("mcp.json");
     std::fs::create_dir_all(cursor.parent().unwrap()).unwrap();
-    let original = "{\n  // keep me\n  \"mcpServers\": {\n    \"rea\": { \"command\": \"rea\" }\n  }\n}\n";
+    let original =
+        "{\n  // keep me\n  \"mcpServers\": {\n    \"rea\": { \"command\": \"rea\" }\n  }\n}\n";
     std::fs::write(&cursor, original).unwrap();
 
     let r = connect(&mut conn, &env, "cursor", input(&ws)).unwrap();
@@ -247,32 +325,59 @@ fn connect_status_and_disconnect_round_trip() {
     assert!(written.contains(&serde_json::to_string(&installed.display().to_string()).unwrap()));
     assert!(env.bin_dir.join("app-path").is_file());
     // The token works.
-    let token = jsonc::get(&written, &strs(&["mcpServers"]), SERVER).unwrap().unwrap()["env"]["SUIVELLE_AGENT_TOKEN"].as_str().unwrap().to_string();
-    let agent = crate::agents::authenticate(&conn, &token).unwrap().expect("token signs in");
+    let token = jsonc::get(&written, &strs(&["mcpServers"]), SERVER)
+        .unwrap()
+        .unwrap()["env"]["SUIVELLE_AGENT_TOKEN"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let agent = crate::agents::authenticate(&conn, &token)
+        .unwrap()
+        .expect("token signs in");
     assert_eq!(agent.workspace_ids, vec![ws.clone()]);
     // Once the agent has connected, the app reads as connected.
-    let status = scan(&conn, &env).unwrap().clients.into_iter().find(|c| c.id == "cursor").unwrap();
+    let status = scan(&conn, &env)
+        .unwrap()
+        .clients
+        .into_iter()
+        .find(|c| c.id == "cursor")
+        .unwrap();
     assert_eq!(status.status, "connected");
 
     // A new token from the agent card leaves the config behind.
     crate::agents::rotate_token(&conn, &agent.id).unwrap();
-    assert_eq!(status_of(&conn, &env, client("cursor").unwrap()).unwrap().status, "out_of_date");
+    assert_eq!(
+        status_of(&conn, &env, client("cursor").unwrap())
+            .unwrap()
+            .status,
+        "out_of_date"
+    );
     // Repair rewrites it with a working token and keeps the same agent.
     let repaired = repair(&mut conn, &env, "cursor").unwrap();
     assert_eq!(repaired.client.agent_id.as_deref(), Some(agent.id.as_str()));
     assert_eq!(repaired.client.status, "waiting");
 
     // Hand edits are noticed.
-    let edited = std::fs::read_to_string(&cursor).unwrap().replace("\"args\": []", "\"args\": [\"--verbose\"]");
+    let edited = std::fs::read_to_string(&cursor)
+        .unwrap()
+        .replace("\"args\": []", "\"args\": [\"--verbose\"]");
     std::fs::write(&cursor, &edited).unwrap();
-    assert_eq!(status_of(&conn, &env, client("cursor").unwrap()).unwrap().status, "edited");
+    assert_eq!(
+        status_of(&conn, &env, client("cursor").unwrap())
+            .unwrap()
+            .status,
+        "edited"
+    );
 
     // Disconnect removes only the entry and revokes the token; the agent stays.
     let d = disconnect(&mut conn, &env, "cursor").unwrap();
     assert!(d.notes.is_empty());
     assert_eq!(d.client.status, "not_connected");
     assert_eq!(std::fs::read_to_string(&cursor).unwrap(), original);
-    assert!(crate::agents::get(&conn, &agent.id).unwrap().token_hint.is_none());
+    assert!(crate::agents::get(&conn, &agent.id)
+        .unwrap()
+        .token_hint
+        .is_none());
 }
 
 #[test]
@@ -282,23 +387,63 @@ fn connect_creates_missing_files_and_respects_foreign_entries() {
     // Windsurf installed, but no config yet.
     std::fs::create_dir_all(env.home.join(".codeium").join("windsurf")).unwrap();
     let r = connect(&mut conn, &env, "windsurf", input(&ws)).unwrap();
-    let path = env.home.join(".codeium").join("windsurf").join("mcp_config.json");
+    let path = env
+        .home
+        .join(".codeium")
+        .join("windsurf")
+        .join("mcp_config.json");
     assert!(r.backups.is_empty());
-    assert!(jsonc::get(&std::fs::read_to_string(&path).unwrap(), &strs(&["mcpServers"]), SERVER).unwrap().is_some());
+    assert!(jsonc::get(
+        &std::fs::read_to_string(&path).unwrap(),
+        &strs(&["mcpServers"]),
+        SERVER
+    )
+    .unwrap()
+    .is_some());
     disconnect(&mut conn, &env, "windsurf").unwrap();
     // The section Suivelle created goes again.
-    assert_eq!(jsonc::to_value(&jsonc::parse(&std::fs::read_to_string(&path).unwrap()).unwrap().unwrap()), serde_json::json!({}));
+    assert_eq!(
+        jsonc::to_value(
+            &jsonc::parse(&std::fs::read_to_string(&path).unwrap())
+                .unwrap()
+                .unwrap()
+        ),
+        serde_json::json!({})
+    );
 
     // A suivelle server someone else set up is not replaced without asking.
     let gemini = env.home.join(".gemini").join("settings.json");
     std::fs::create_dir_all(gemini.parent().unwrap()).unwrap();
-    std::fs::write(&gemini, "{ \"mcpServers\": { \"suivelle\": { \"command\": \"old\" } } }").unwrap();
-    assert_eq!(status_of(&conn, &env, client("gemini-cli").unwrap()).unwrap().status, "foreign");
-    let refused = connect(&mut conn, &env, "gemini-cli", input(&ws)).unwrap_err().to_string();
+    std::fs::write(
+        &gemini,
+        "{ \"mcpServers\": { \"suivelle\": { \"command\": \"old\" } } }",
+    )
+    .unwrap();
+    assert_eq!(
+        status_of(&conn, &env, client("gemini-cli").unwrap())
+            .unwrap()
+            .status,
+        "foreign"
+    );
+    let refused = connect(&mut conn, &env, "gemini-cli", input(&ws))
+        .unwrap_err()
+        .to_string();
     assert!(refused.contains("already has a server"), "{refused}");
     // Refusing created no agent.
-    assert!(crate::agents::list(&conn).unwrap().iter().all(|a| a.name != "Gemini CLI"));
-    let replaced = connect(&mut conn, &env, "gemini-cli", ConnectInput { replace: true, ..input(&ws) }).unwrap();
+    assert!(crate::agents::list(&conn)
+        .unwrap()
+        .iter()
+        .all(|a| a.name != "Gemini CLI"));
+    let replaced = connect(
+        &mut conn,
+        &env,
+        "gemini-cli",
+        ConnectInput {
+            replace: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
     assert_eq!(replaced.client.status, "waiting");
     // Names stay unique: a second agent for the same name gets a number.
     assert_eq!(unique_name(&conn, "Gemini CLI").unwrap(), "Gemini CLI 2");
@@ -308,8 +453,16 @@ fn connect_creates_missing_files_and_respects_foreign_entries() {
 fn antigravity_writes_every_config_it_reads() {
     let (mut conn, ws) = db();
     let env = fake_env("agy");
-    let a = env.home.join(".gemini").join("antigravity").join("mcp_config.json");
-    let b = env.home.join(".gemini").join("config").join("mcp_config.json");
+    let a = env
+        .home
+        .join(".gemini")
+        .join("antigravity")
+        .join("mcp_config.json");
+    let b = env
+        .home
+        .join(".gemini")
+        .join("config")
+        .join("mcp_config.json");
     for p in [&a, &b] {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(p, "{\r\n  \"mcpServers\": {}\r\n}").unwrap();
@@ -317,7 +470,13 @@ fn antigravity_writes_every_config_it_reads() {
     let r = connect(&mut conn, &env, "antigravity", input(&ws)).unwrap();
     assert_eq!(r.changed.len(), 2);
     for p in [&a, &b] {
-        assert!(jsonc::get(&std::fs::read_to_string(p).unwrap(), &strs(&["mcpServers"]), SERVER).unwrap().is_some());
+        assert!(jsonc::get(
+            &std::fs::read_to_string(p).unwrap(),
+            &strs(&["mcpServers"]),
+            SERVER
+        )
+        .unwrap()
+        .is_some());
     }
 }
 
@@ -331,12 +490,26 @@ fn codex_toml_and_manual_connections() {
     std::fs::write(&path, original).unwrap();
     let r = connect(&mut conn, &env, "codex", input(&ws)).unwrap();
     assert_eq!(r.method, "file");
-    assert!(toml::get(&std::fs::read_to_string(&path).unwrap(), &strs(&["mcp_servers"])).unwrap().is_some());
+    assert!(toml::get(
+        &std::fs::read_to_string(&path).unwrap(),
+        &strs(&["mcp_servers"])
+    )
+    .unwrap()
+    .is_some());
     disconnect(&mut conn, &env, "codex").unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
 
     // Manual: nothing is written; the snippet is returned once.
-    let m = connect(&mut conn, &env, "codex", ConnectInput { manual: true, ..input(&ws) }).unwrap();
+    let m = connect(
+        &mut conn,
+        &env,
+        "codex",
+        ConnectInput {
+            manual: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
     assert_eq!(m.method, "manual");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     let snippet = m.snippet.unwrap();
@@ -344,15 +517,25 @@ fn codex_toml_and_manual_connections() {
     assert_eq!(m.client.status, "removed");
     // Once pasted, it reads as connected-and-waiting.
     std::fs::write(&path, format!("{original}\n{snippet}")).unwrap();
-    assert_eq!(status_of(&conn, &env, client("codex").unwrap()).unwrap().status, "waiting");
+    assert_eq!(
+        status_of(&conn, &env, client("codex").unwrap())
+            .unwrap()
+            .status,
+        "waiting"
+    );
 }
 
 #[test]
 fn a_missing_connector_creates_nothing() {
     let (mut conn, ws) = db();
-    let env = Env { bundled: None, ..fake_env("nobridge") };
+    let env = Env {
+        bundled: None,
+        ..fake_env("nobridge")
+    };
     std::fs::create_dir_all(env.home.join(".cursor")).unwrap();
-    let err = connect(&mut conn, &env, "cursor", input(&ws)).unwrap_err().to_string();
+    let err = connect(&mut conn, &env, "cursor", input(&ws))
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("connector is missing"), "{err}");
     assert!(crate::agents::list(&conn).unwrap().is_empty());
 }
@@ -364,7 +547,10 @@ fn bridge_install_replaces_only_when_changed() {
     std::fs::write(&src, b"v1").unwrap();
     let dest = bridge::install(&src, &dir.join("bin"), Some(Path::new("C:/Suivelle.exe"))).unwrap();
     assert_eq!(std::fs::read(&dest).unwrap(), b"v1");
-    assert_eq!(std::fs::read_to_string(dir.join("bin").join("app-path")).unwrap(), "C:/Suivelle.exe");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("bin").join("app-path")).unwrap(),
+        "C:/Suivelle.exe"
+    );
     std::fs::write(&src, b"v2").unwrap();
     assert!(!bridge::current(&src, &dest));
     bridge::install(&src, &dir.join("bin"), None).unwrap();
@@ -382,15 +568,27 @@ fn uses_the_apps_command_line_and_falls_back_to_the_file() {
     std::fs::create_dir_all(&env.path[0]).unwrap();
     let log = env.path[0].join("calls.txt");
     // A stand-in `codex` that records its arguments and changes nothing.
-    std::fs::write(env.path[0].join("codex.cmd"), format!("@echo %*>>\"{}\"\r\n@exit /b 0\r\n", log.display())).unwrap();
+    std::fs::write(
+        env.path[0].join("codex.cmd"),
+        format!("@echo %*>>\"{}\"\r\n@exit /b 0\r\n", log.display()),
+    )
+    .unwrap();
     std::fs::create_dir_all(env.home.join(".codex")).unwrap();
     let r = connect(&mut conn, &env, "codex", input(&ws)).unwrap();
     let calls = std::fs::read_to_string(&log).unwrap();
     assert!(calls.contains("mcp remove suivelle"), "{calls}");
-    assert!(calls.contains("mcp add suivelle --env ") && calls.contains("SUIVELLE_AGENT_TOKEN=sva_"), "{calls}");
+    assert!(
+        calls.contains("mcp add suivelle --env ") && calls.contains("SUIVELLE_AGENT_TOKEN=sva_"),
+        "{calls}"
+    );
     assert_eq!(r.method, "file");
     assert_eq!(r.notes.len(), 1);
-    assert!(toml::get(&std::fs::read_to_string(env.home.join(".codex").join("config.toml")).unwrap(), &strs(&["mcp_servers"])).unwrap().is_some());
+    assert!(toml::get(
+        &std::fs::read_to_string(env.home.join(".codex").join("config.toml")).unwrap(),
+        &strs(&["mcp_servers"])
+    )
+    .unwrap()
+    .is_some());
 }
 
 #[cfg(windows)]
@@ -418,25 +616,61 @@ fn imports_claude_code_subagents() {
         "---\r\nname: code-reviewer\r\ndescription: \"Reviews diffs.\\nBe strict.\"\r\nmodel: sonnet\r\ntools: Read, Grep\r\n---\r\n\r\n# Role\r\n\r\nReview every change.\r\n",
     )
     .unwrap();
-    std::fs::write(dir.join("folded.md"), "---\nname: writer\ndescription: >\n  Writes docs\n  for people.\n---\nBody\n").unwrap();
+    std::fs::write(
+        dir.join("folded.md"),
+        "---\nname: writer\ndescription: >\n  Writes docs\n  for people.\n---\nBody\n",
+    )
+    .unwrap();
     std::fs::write(dir.join("notes.txt"), "ignored").unwrap();
     let found = subagents::scan(&conn, &project).unwrap();
-    assert_eq!(found.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["code-reviewer", "writer"]);
+    assert_eq!(
+        found.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+        ["code-reviewer", "writer"]
+    );
     assert_eq!(found[0].description, "Reviews diffs.\nBe strict.");
     assert_eq!(found[1].description, "Writes docs for people.");
 
     let paths: Vec<String> = found.iter().map(|s| s.path.clone()).collect();
-    let out = subagents::import(&mut conn, &paths, std::slice::from_ref(&ws), Some("propose".into())).unwrap();
+    let out = subagents::import(
+        &mut conn,
+        &paths,
+        std::slice::from_ref(&ws),
+        Some("propose".into()),
+    )
+    .unwrap();
     assert!(out.iter().all(|i| i.error.is_none()), "{out:?}");
     let agent = crate::agents::get(&conn, out[0].agent_id.as_deref().unwrap()).unwrap();
-    assert_eq!((agent.name.as_str(), agent.model.as_str(), agent.role.as_str()), ("code-reviewer", "sonnet", "Reviews diffs. Be strict."));
-    let body = crate::agents::content::body_markdown(&conn, agent.instructions_page_id.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        (
+            agent.name.as_str(),
+            agent.model.as_str(),
+            agent.role.as_str()
+        ),
+        ("code-reviewer", "sonnet", "Reviews diffs. Be strict.")
+    );
+    let body = crate::agents::content::body_markdown(
+        &conn,
+        agent.instructions_page_id.as_deref().unwrap(),
+    )
+    .unwrap();
     assert!(body.contains("Review every change."), "{body}");
     // Importing again reports the clash instead of duplicating.
     let again = subagents::import(&mut conn, &paths[..1], &[ws], None).unwrap();
-    assert!(again[0].error.as_deref().unwrap().contains("already exists"));
+    assert!(again[0]
+        .error
+        .as_deref()
+        .unwrap()
+        .contains("already exists"));
     // Files outside a .claude/agents folder are refused.
-    assert!(subagents::import(&mut conn, &[project.join("x.md").display().to_string()], &[crate::domain::new_id()], None).unwrap()[0].error.is_some());
+    assert!(subagents::import(
+        &mut conn,
+        &[project.join("x.md").display().to_string()],
+        &[crate::domain::new_id()],
+        None
+    )
+    .unwrap()[0]
+        .error
+        .is_some());
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -448,18 +682,33 @@ fn start_block_is_added_once_and_removed_cleanly() {
     let cases = ["", "# Rules\n- Be kind.\n", "# Rules\r\n- Be kind.\r\n"];
     for original in cases {
         let added = extras::add_block(original);
-        assert_eq!(extras::block_state(&added), extras::BlockState::Current, "{original:?}");
-        assert_eq!(extras::add_block(&added), added, "adding again changes nothing");
+        assert_eq!(
+            extras::block_state(&added),
+            extras::BlockState::Current,
+            "{original:?}"
+        );
+        assert_eq!(
+            extras::add_block(&added),
+            added,
+            "adding again changes nothing"
+        );
         assert_eq!(added.contains("\r\n"), original.contains("\r\n"));
         assert_eq!(extras::remove_block(&added), original, "{original:?}");
     }
     // Lines added by hand are wrapped, not doubled.
-    let by_hand = format!("# graphify\nUse it.\n\n{}\n\n# Other\nx\n", crate::agents::commands::START_LINES);
+    let by_hand = format!(
+        "# graphify\nUse it.\n\n{}\n\n# Other\nx\n",
+        crate::agents::commands::START_LINES
+    );
     assert_eq!(extras::block_state(&by_hand), extras::BlockState::Unmarked);
     let wrapped = extras::add_block(&by_hand);
     assert_eq!(wrapped.matches("call suivelle whoami").count(), 1);
     assert_eq!(wrapped.matches("# Suivelle context management").count(), 1);
-    assert!(wrapped.starts_with("# graphify\nUse it.\n\n<!-- suivelle:start -->") && wrapped.ends_with("<!-- suivelle:end -->\n\n# Other\nx\n"), "{wrapped}");
+    assert!(
+        wrapped.starts_with("# graphify\nUse it.\n\n<!-- suivelle:start -->")
+            && wrapped.ends_with("<!-- suivelle:end -->\n\n# Other\nx\n"),
+        "{wrapped}"
+    );
     // A block edited by hand is reported and rewritten.
     let edited = wrapped.replace("say so once", "shout");
     assert_eq!(extras::block_state(&edited), extras::BlockState::Edited);
@@ -470,21 +719,47 @@ fn start_block_is_added_once_and_removed_cleanly() {
 fn command_files_follow_each_app() {
     let spec = |id: &str| client(id).unwrap().commands.clone().unwrap();
     let wrap = crate::agents::commands::find("wrap-up").unwrap();
-    assert_eq!(extras::typed(&spec("claude-code"), "init"), "/suivelle_init");
-    assert_eq!(extras::typed(&spec("codex"), "init"), "/prompts:suivelle_init");
-    assert_eq!(extras::file_name(&spec("gemini-cli"), "sync"), "suivelle_sync.toml");
-    assert_eq!(extras::file_name(&spec("vscode"), "sync"), "suivelle_sync.prompt.md");
+    assert_eq!(
+        extras::typed(&spec("claude-code"), "init"),
+        "/suivelle_init"
+    );
+    assert_eq!(
+        extras::typed(&spec("codex"), "init"),
+        "/prompts:suivelle_init"
+    );
+    assert_eq!(
+        extras::file_name(&spec("gemini-cli"), "sync"),
+        "suivelle_sync.toml"
+    );
+    assert_eq!(
+        extras::file_name(&spec("vscode"), "sync"),
+        "suivelle_sync.prompt.md"
+    );
     let md = extras::stub(&spec("claude-code"), wrap);
-    assert!(md.starts_with("---\ndescription: \"Suivelle: ") && md.contains("name \"wrap-up\" and arguments \"$ARGUMENTS\""), "{md}");
+    assert!(
+        md.starts_with("---\ndescription: \"Suivelle: ")
+            && md.contains("name \"wrap-up\" and arguments \"$ARGUMENTS\""),
+        "{md}"
+    );
     assert!(extras::stub(&spec("gemini-cli"), wrap).contains("\"{{args}}\""));
     assert!(!extras::stub(&spec("cursor"), wrap).starts_with("---"));
     assert!(extras::stub(&spec("vscode"), wrap).contains("mode: agent"));
-    for id in ["claude-code", "codex", "gemini-cli", "cursor", "vscode", "opencode"] {
+    for id in [
+        "claude-code",
+        "codex",
+        "gemini-cli",
+        "cursor",
+        "vscode",
+        "opencode",
+    ] {
         assert!(extras::is_ours(&extras::stub(&spec(id), wrap)), "{id}");
     }
     // Apps without command files still say where the session-start lines go.
     for id in ["claude-desktop", "antigravity", "windsurf", "zed"] {
-        assert!(client(id).unwrap().commands.is_none() && client(id).unwrap().instructions.is_some(), "{id}");
+        assert!(
+            client(id).unwrap().commands.is_none() && client(id).unwrap().instructions.is_some(),
+            "{id}"
+        );
     }
 }
 
@@ -501,29 +776,77 @@ fn connect_adds_start_lines_and_commands_and_disconnect_takes_them_out() {
     std::fs::create_dir_all(&commands).unwrap();
     std::fs::write(commands.join("suivelle_sync.md"), "my own sync").unwrap();
 
-    let out = connect(&mut conn, &env, "claude-code", ConnectInput { instructions: true, commands: true, ..input(&ws) }).unwrap();
+    let out = connect(
+        &mut conn,
+        &env,
+        "claude-code",
+        ConnectInput {
+            instructions: true,
+            commands: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
     let text = std::fs::read_to_string(&claude_md).unwrap();
-    assert!(text.starts_with(original) && text.contains("<!-- suivelle:start -->"), "{text}");
-    assert!(out.backups.iter().any(|b| b.ends_with("CLAUDE.md.suivelle-backup")));
+    assert!(
+        text.starts_with(original) && text.contains("<!-- suivelle:start -->"),
+        "{text}"
+    );
+    assert!(out
+        .backups
+        .iter()
+        .any(|b| b.ends_with("CLAUDE.md.suivelle-backup")));
     for name in ["init", "setup", "wrap-up"] {
-        assert!(extras::is_ours(&std::fs::read_to_string(commands.join(format!("suivelle_{name}.md"))).unwrap()), "{name}");
+        assert!(
+            extras::is_ours(
+                &std::fs::read_to_string(commands.join(format!("suivelle_{name}.md"))).unwrap()
+            ),
+            "{name}"
+        );
     }
-    assert_eq!(std::fs::read_to_string(commands.join("suivelle_sync.md")).unwrap(), "my own sync");
-    assert!(out.notes.iter().any(|n| n.contains("Left") && n.contains("suivelle_sync.md")), "{:?}", out.notes);
+    assert_eq!(
+        std::fs::read_to_string(commands.join("suivelle_sync.md")).unwrap(),
+        "my own sync"
+    );
+    assert!(
+        out.notes
+            .iter()
+            .any(|n| n.contains("Left") && n.contains("suivelle_sync.md")),
+        "{:?}",
+        out.notes
+    );
     let s = &out.client;
-    assert!(s.instructions_added && s.commands_added && !s.extras_pending, "{s:?}");
+    assert!(
+        s.instructions_added && s.commands_added && !s.extras_pending,
+        "{s:?}"
+    );
     assert_eq!(s.commands[0], "/suivelle_init");
     assert_eq!(s.status, "waiting");
 
     // Apps connected before these existed offer them, and Repair adds both.
     conn.execute("UPDATE agent_client SET want_instructions = NULL, want_commands = NULL, instructions_path = NULL, commands_json = '[]'", []).unwrap();
-    let old = scan(&conn, &env).unwrap().clients.into_iter().find(|c| c.id == "claude-code").unwrap();
+    let old = scan(&conn, &env)
+        .unwrap()
+        .clients
+        .into_iter()
+        .find(|c| c.id == "claude-code")
+        .unwrap();
     assert!(old.extras_pending && old.status == "waiting", "{old:?}");
-    assert!(!repair(&mut conn, &env, "claude-code").unwrap().client.extras_pending);
+    assert!(
+        !repair(&mut conn, &env, "claude-code")
+            .unwrap()
+            .client
+            .extras_pending
+    );
 
     // A removed command file shows up, and Repair writes it again.
     std::fs::remove_file(commands.join("suivelle_init.md")).unwrap();
-    let status = scan(&conn, &env).unwrap().clients.into_iter().find(|c| c.id == "claude-code").unwrap();
+    let status = scan(&conn, &env)
+        .unwrap()
+        .clients
+        .into_iter()
+        .find(|c| c.id == "claude-code")
+        .unwrap();
     assert_eq!(status.status, "edited", "{:?}", status.detail);
     repair(&mut conn, &env, "claude-code").unwrap();
     assert!(commands.join("suivelle_init.md").is_file());
@@ -531,7 +854,10 @@ fn connect_adds_start_lines_and_commands_and_disconnect_takes_them_out() {
     disconnect(&mut conn, &env, "claude-code").unwrap();
     assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), original);
     assert!(!commands.join("suivelle_init.md").exists());
-    assert_eq!(std::fs::read_to_string(commands.join("suivelle_sync.md")).unwrap(), "my own sync");
+    assert_eq!(
+        std::fs::read_to_string(commands.join("suivelle_sync.md")).unwrap(),
+        "my own sync"
+    );
 }
 
 #[test]
@@ -539,27 +865,88 @@ fn shared_instructions_and_opting_out() {
     let env = fake_env("shared");
     let (mut conn, ws) = db();
     let gemini_md = env.home.join(".gemini").join("GEMINI.md");
-    connect(&mut conn, &env, "gemini-cli", ConnectInput { instructions: true, commands: true, ..input(&ws) }).unwrap();
-    connect(&mut conn, &env, "antigravity", ConnectInput { instructions: true, commands: true, ..input(&ws) }).unwrap();
+    connect(
+        &mut conn,
+        &env,
+        "gemini-cli",
+        ConnectInput {
+            instructions: true,
+            commands: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    connect(
+        &mut conn,
+        &env,
+        "antigravity",
+        ConnectInput {
+            instructions: true,
+            commands: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
     let text = std::fs::read_to_string(&gemini_md).unwrap();
     assert_eq!(text.matches("<!-- suivelle:start -->").count(), 1);
-    assert!(env.home.join(".gemini/commands/suivelle_wrap-up.toml").is_file());
+    assert!(env
+        .home
+        .join(".gemini/commands/suivelle_wrap-up.toml")
+        .is_file());
     // Antigravity still reads the lines after Gemini CLI disconnects.
     disconnect(&mut conn, &env, "gemini-cli").unwrap();
     assert_eq!(std::fs::read_to_string(&gemini_md).unwrap(), text);
-    assert!(!env.home.join(".gemini/commands/suivelle_wrap-up.toml").exists());
+    assert!(!env
+        .home
+        .join(".gemini/commands/suivelle_wrap-up.toml")
+        .exists());
     disconnect(&mut conn, &env, "antigravity").unwrap();
-    assert!(!std::fs::read_to_string(&gemini_md).unwrap().contains("suivelle"));
+    assert!(!std::fs::read_to_string(&gemini_md)
+        .unwrap()
+        .contains("suivelle"));
 
     // Unticked: only the MCP entry.
-    let out = connect(&mut conn, &env, "codex", ConnectInput { instructions: false, commands: false, ..input(&ws) }).unwrap();
-    assert!(!env.home.join(".codex/AGENTS.md").exists() && !env.home.join(".codex/prompts").exists());
+    let out = connect(
+        &mut conn,
+        &env,
+        "codex",
+        ConnectInput {
+            instructions: false,
+            commands: false,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    assert!(
+        !env.home.join(".codex/AGENTS.md").exists() && !env.home.join(".codex/prompts").exists()
+    );
     assert!(!out.client.instructions_added && !out.client.commands_added);
-    assert_eq!(out.client.commands[0], "/prompts:suivelle_init", "still says what it would add");
+    assert_eq!(
+        out.client.commands[0], "/prompts:suivelle_init",
+        "still says what it would add"
+    );
     // Apps without a file say where to paste the lines.
-    let cursor = connect(&mut conn, &env, "cursor", ConnectInput { instructions: true, commands: true, ..input(&ws) }).unwrap();
-    assert!(cursor.client.instructions_place.as_deref().unwrap().contains("User Rules"));
-    assert!(cursor.notes.iter().any(|n| n.contains("paste the session-start lines")));
+    let cursor = connect(
+        &mut conn,
+        &env,
+        "cursor",
+        ConnectInput {
+            instructions: true,
+            commands: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    assert!(cursor
+        .client
+        .instructions_place
+        .as_deref()
+        .unwrap()
+        .contains("User Rules"));
+    assert!(cursor
+        .notes
+        .iter()
+        .any(|n| n.contains("paste the session-start lines")));
 }
 
 /// Reads (never writes) this computer's real agent app configs:
@@ -570,7 +957,14 @@ fn scans_this_computer() {
     let (conn, _) = db();
     let env = Env::system().unwrap();
     for c in scan(&conn, &env).unwrap().clients {
-        println!("{:<15} {:<14} {:<5} {:?} {}", c.name, c.status, c.method, c.config_paths, c.detail.as_deref().unwrap_or(""));
+        println!(
+            "{:<15} {:<14} {:<5} {:?} {}",
+            c.name,
+            c.status,
+            c.method,
+            c.config_paths,
+            c.detail.as_deref().unwrap_or("")
+        );
         // Dry run in memory: add the entry, read it back, take it out again.
         let spec = client(&c.id).unwrap();
         for path in targets(&env, spec).into_iter().filter(|p| p.is_file()) {
@@ -580,17 +974,40 @@ fn scans_this_computer() {
                 continue;
             }
             let (added, created) = write_entry(spec, &text, &entry()).unwrap();
-            assert_eq!(read_entry(spec, &added).unwrap(), Some(entry()), "{}", path.display());
-            assert_eq!(remove_entry(spec, &added, created).unwrap(), text, "{}", path.display());
+            assert_eq!(
+                read_entry(spec, &added).unwrap(),
+                Some(entry()),
+                "{}",
+                path.display()
+            );
+            assert_eq!(
+                remove_entry(spec, &added, created).unwrap(),
+                text,
+                "{}",
+                path.display()
+            );
             println!("    dry run ok: {}", path.display());
         }
-        if let Some(Instructions::File(path)) = extras::instructions_of(&env, spec).filter(|i| matches!(i, Instructions::File(p) if p.is_file())) {
+        if let Some(Instructions::File(path)) = extras::instructions_of(&env, spec)
+            .filter(|i| matches!(i, Instructions::File(p) if p.is_file()))
+        {
             let text = read_file(&path).unwrap().text;
             let added = extras::add_block(&text);
-            println!("    instructions {:?}: {}", extras::block_state(&text), path.display());
+            println!(
+                "    instructions {:?}: {}",
+                extras::block_state(&text),
+                path.display()
+            );
             match extras::block_state(&text) {
-                extras::BlockState::Missing => assert_eq!(extras::remove_block(&added), text, "{}", path.display()),
-                _ => assert_eq!(added.matches("call suivelle whoami").count(), 1, "{}", path.display()),
+                extras::BlockState::Missing => {
+                    assert_eq!(extras::remove_block(&added), text, "{}", path.display())
+                }
+                _ => assert_eq!(
+                    added.matches("call suivelle whoami").count(),
+                    1,
+                    "{}",
+                    path.display()
+                ),
             }
         }
     }

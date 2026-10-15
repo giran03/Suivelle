@@ -35,9 +35,13 @@ pub fn port() -> Option<u16> {
 
 /// What the server needs from the app; tests supply their own.
 pub trait Host: Clone + Send + 'static {
-    fn with_db<T>(&self, f: impl FnOnce(&mut rusqlite::Connection) -> Result<T, AppError>) -> Result<T, AppError>;
+    fn with_db<T>(
+        &self,
+        f: impl FnOnce(&mut rusqlite::Connection) -> Result<T, AppError>,
+    ) -> Result<T, AppError>;
     fn enabled(&self) -> bool {
-        self.with_db(|c| Ok(super::settings(c)?.api_enabled)).unwrap_or(false)
+        self.with_db(|c| Ok(super::settings(c)?.api_enabled))
+            .unwrap_or(false)
     }
     fn read_only(&self) -> bool;
     /// Runs the database automations a call's changes trigger.
@@ -47,15 +51,25 @@ pub trait Host: Clone + Send + 'static {
 }
 
 impl Host for tauri::AppHandle {
-    fn with_db<T>(&self, f: impl FnOnce(&mut rusqlite::Connection) -> Result<T, AppError>) -> Result<T, AppError> {
-        let db = self.try_state::<Db>().ok_or_else(|| AppError::Validation("Suivelle is still opening.".into()))?;
+    fn with_db<T>(
+        &self,
+        f: impl FnOnce(&mut rusqlite::Connection) -> Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        let db = self
+            .try_state::<Db>()
+            .ok_or_else(|| AppError::Validation("Suivelle is still opening.".into()))?;
         let mut conn = crate::commands::lock(&db)?;
         f(&mut conn)
     }
     fn read_only(&self) -> bool {
-        self.try_state::<crate::SafeMode>().is_none_or(|s| s.0.is_some())
+        self.try_state::<crate::SafeMode>()
+            .is_none_or(|s| s.0.is_some())
     }
-    fn react(&self, conn: &mut rusqlite::Connection, events: Vec<crate::automation::engine::Event>) {
+    fn react(
+        &self,
+        conn: &mut rusqlite::Connection,
+        events: Vec<crate::automation::engine::Event>,
+    ) {
         crate::commands::react(self, conn, events);
     }
     fn notify(&self, payload: Value) {
@@ -128,7 +142,10 @@ fn read_line(reader: &mut BufReader<TcpStream>, max: u64) -> std::io::Result<Opt
         return Ok(None);
     }
     if buf.last() != Some(&b'\n') && n as u64 >= max {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "message too large"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "message too large",
+        ));
     }
     Ok(Some(String::from_utf8_lossy(&buf).trim().to_string()))
 }
@@ -146,14 +163,20 @@ fn serve<H: Host>(host: &H, stream: TcpStream) -> std::io::Result<()> {
         .and_then(|v| v["auth"].as_str().map(String::from))
         .unwrap_or_default();
     if !host.enabled() {
-        send(&mut out, &json!({ "ok": false, "error": "The agent API is turned off. Turn it on in Suivelle under Settings > Agents." }))?;
+        send(
+            &mut out,
+            &json!({ "ok": false, "error": "The agent API is turned off. Turn it on in Suivelle under Settings > Agents." }),
+        )?;
         return Ok(());
     }
     let agent = match host.with_db(|c| super::authenticate(c, &token)) {
         Ok(Some(a)) => a,
         _ => {
             std::thread::sleep(Duration::from_millis(400));
-            send(&mut out, &json!({ "ok": false, "error": "Unknown or revoked agent token. Create one in Suivelle under Settings > Agents." }))?;
+            send(
+                &mut out,
+                &json!({ "ok": false, "error": "Unknown or revoked agent token. Create one in Suivelle under Settings > Agents." }),
+            )?;
             return Ok(());
         }
     };
@@ -175,7 +198,10 @@ fn serve<H: Host>(host: &H, stream: TcpStream) -> std::io::Result<()> {
         let msg: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => {
-                send(&mut out, &json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": "Parse error" } }))?;
+                send(
+                    &mut out,
+                    &json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": "Parse error" } }),
+                )?;
                 continue;
             }
         };
@@ -203,7 +229,11 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
     Some(match method {
         "initialize" => {
             let asked = params["protocolVersion"].as_str().unwrap_or_default();
-            let version = if PROTOCOL_VERSIONS.contains(&asked) { asked } else { PROTOCOL_VERSIONS[0] };
+            let version = if PROTOCOL_VERSIONS.contains(&asked) {
+                asked
+            } else {
+                PROTOCOL_VERSIONS[0]
+            };
             json!({ "jsonrpc": "2.0", "id": id, "result": {
                 "protocolVersion": version,
                 "capabilities": { "tools": { "listChanged": false }, "prompts": { "listChanged": false } },
@@ -212,18 +242,30 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
             }})
         }
         "ping" => json!({ "jsonrpc": "2.0", "id": id, "result": {} }),
-        "tools/list" => json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": tools::definitions(agent) } }),
+        "tools/list" => {
+            json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": tools::definitions(agent) } })
+        }
         "tools/call" if params["name"] == "proposal_wait" => {
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
             let started = Instant::now();
             let result = wait(host, agent, &args);
             let _ = host.with_db(|conn| {
-                super::audit(conn, &agent.id, "proposal_wait", result.is_ok(), started.elapsed().as_millis() as u64);
+                super::audit(
+                    conn,
+                    &agent.id,
+                    "proposal_wait",
+                    result.is_ok(),
+                    started.elapsed().as_millis() as u64,
+                );
                 Ok(())
             });
             match result {
-                Ok(text) => json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": text }], "isError": false } }),
-                Err(e) => json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": e.to_string() }], "isError": true } }),
+                Ok(text) => {
+                    json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": text }], "isError": false } })
+                }
+                Err(e) => {
+                    json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": e.to_string() }], "isError": true } })
+                }
             }
         }
         "tools/call" => {
@@ -233,7 +275,13 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
             let ro = host.read_only();
             let result = host.with_db(|conn| {
                 let out = tools::call(conn, agent, &name, &args, ro);
-                super::audit(conn, &agent.id, &name, out.is_ok(), started.elapsed().as_millis() as u64);
+                super::audit(
+                    conn,
+                    &agent.id,
+                    &name,
+                    out.is_ok(),
+                    started.elapsed().as_millis() as u64,
+                );
                 if let Ok(o) = &out {
                     if !o.events.is_empty() {
                         host.react(conn, o.events.clone());
@@ -255,7 +303,9 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
                     }
                     json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": o.text }], "isError": false } })
                 }
-                Err(e) => json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": e.to_string() }], "isError": true } }),
+                Err(e) => {
+                    json!({ "jsonrpc": "2.0", "id": id, "result": { "content": [{ "type": "text", "text": e.to_string() }], "isError": true } })
+                }
             }
         }
         "resources/list" => json!({ "jsonrpc": "2.0", "id": id, "result": { "resources": [] } }),
@@ -278,13 +328,15 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
             let focus = params["arguments"]["focus"].as_str();
             match super::commands::find(name) {
                 None => error(&id, -32602, "Unknown prompt"),
-                Some(c) => match host.with_db(|conn| super::commands::text(conn, agent, name, focus)) {
-                    Ok(text) => json!({ "jsonrpc": "2.0", "id": id, "result": {
-                        "description": c.description,
-                        "messages": [{ "role": "user", "content": { "type": "text", "text": text } }]
-                    }}),
-                    Err(e) => error(&id, -32603, &e.to_string()),
-                },
+                Some(c) => {
+                    match host.with_db(|conn| super::commands::text(conn, agent, name, focus)) {
+                        Ok(text) => json!({ "jsonrpc": "2.0", "id": id, "result": {
+                            "description": c.description,
+                            "messages": [{ "role": "user", "content": { "type": "text", "text": text } }]
+                        }}),
+                        Err(e) => error(&id, -32603, &e.to_string()),
+                    }
+                }
             }
         }
         _ => error(&id, -32601, "Method not found"),
@@ -299,14 +351,21 @@ const WAIT_POLL: Duration = Duration::from_millis(500);
 /// holds the database.
 fn wait<H: Host>(host: &H, agent: &Agent, args: &Value) -> Result<String, AppError> {
     let x = tools::wait_args(args)?;
-    let secs = x.timeout_seconds.unwrap_or(super::resume::DEFAULT_WAIT_SECS).min(super::resume::MAX_WAIT_SECS);
-    if let Some(decided) = host.with_db(|c| super::resume::begin(c, agent, &x.proposal_id, secs > 0))? {
+    let secs = x
+        .timeout_seconds
+        .unwrap_or(super::resume::DEFAULT_WAIT_SECS)
+        .min(super::resume::MAX_WAIT_SECS);
+    if let Some(decided) =
+        host.with_db(|c| super::resume::begin(c, agent, &x.proposal_id, secs > 0))?
+    {
         return Ok(decided);
     }
     let until = Instant::now() + Duration::from_secs(secs);
     while Instant::now() < until {
         std::thread::sleep(WAIT_POLL.min(until.saturating_duration_since(Instant::now())));
-        let active = host.with_db(|c| super::get(c, &agent.id)).is_ok_and(|a| a.status == "active");
+        let active = host
+            .with_db(|c| super::get(c, &agent.id))
+            .is_ok_and(|a| a.status == "active");
         if !host.enabled() || !active {
             break;
         }
@@ -338,12 +397,15 @@ pub fn spawn_background(app: tauri::AppHandle) {
                     Ok(_) => {}
                     Err(e) => tracing::warn!(error = %e, "restoring agent instructions failed"),
                 }
-                let workspaces: Vec<String> = upkeep_app.with_db(|c| {
-                    let mut s = c.prepare("SELECT workspace_id FROM agent_hub")?;
-                    let v = s.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
-                    Ok(v)
-                })
-                .unwrap_or_default();
+                let workspaces: Vec<String> = upkeep_app
+                    .with_db(|c| {
+                        let mut s = c.prepare("SELECT workspace_id FROM agent_hub")?;
+                        let v = s
+                            .query_map([], |r| r.get(0))?
+                            .collect::<Result<Vec<String>, _>>()?;
+                        Ok(v)
+                    })
+                    .unwrap_or_default();
                 for ws in workspaces {
                     match upkeep_app.with_db(|c| super::janitor::upkeep(c, &ws)) {
                         Ok(n) if n > 0 => {

@@ -32,13 +32,20 @@ pub struct Task {
 
 impl Task {
     fn get(&self, k: &str) -> String {
-        self.values.get(k).and_then(Value::as_str).unwrap_or_default().to_string()
+        self.values
+            .get(k)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
     }
     pub fn status(&self) -> String {
         self.get("Status")
     }
     fn attempts(&self) -> f64 {
-        self.values.get("Attempts").and_then(Value::as_f64).unwrap_or(0.0)
+        self.values
+            .get("Attempts")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
     }
     fn lease_expired(&self, at: DateTime<Utc>) -> bool {
         DateTime::parse_from_rfc3339(&self.get("Lease until"))
@@ -110,10 +117,17 @@ pub fn list(conn: &Connection, agent: &Agent, input: &ListInput) -> AppResult<Ve
     let mut out = Vec::new();
     for ws in &agent.workspace_ids {
         for t in all(conn, ws, false)? {
-            if input.status.as_ref().is_some_and(|s| !t.status().eq_ignore_ascii_case(s)) {
+            if input
+                .status
+                .as_ref()
+                .is_some_and(|s| !t.status().eq_ignore_ascii_case(s))
+            {
                 continue;
             }
-            if input.mine && !(t.get("Agent").eq_ignore_ascii_case(&agent.name) || t.get("Claimed by").eq_ignore_ascii_case(&agent.name)) {
+            if input.mine
+                && !(t.get("Agent").eq_ignore_ascii_case(&agent.name)
+                    || t.get("Claimed by").eq_ignore_ascii_case(&agent.name))
+            {
                 continue;
             }
             out.push(t);
@@ -153,9 +167,20 @@ pub fn next(conn: &mut Connection, agent: &Agent) -> AppResult<Option<(Task, Vec
     let mut v = Map::new();
     v.insert("Status".into(), json!("In progress"));
     v.insert("Claimed by".into(), json!(agent.name));
-    v.insert("Lease until".into(), json!((at + Duration::minutes(LEASE_MINUTES)).to_rfc3339()));
+    v.insert(
+        "Lease until".into(),
+        json!((at + Duration::minutes(LEASE_MINUTES)).to_rfc3339()),
+    );
     v.insert("Attempts".into(), json!(task.attempts() + 1.0));
-    let fx = apply_direct(conn, agent, &format!("Claim task: {}", task.title), &[Op::SetValues { page_id: task.page_id.clone(), values: v }])?;
+    let fx = apply_direct(
+        conn,
+        agent,
+        &format!("Claim task: {}", task.title),
+        &[Op::SetValues {
+            page_id: task.page_id.clone(),
+            values: v,
+        }],
+    )?;
     let fresh = all(conn, &task.workspace_id, true)?
         .into_iter()
         .find(|t| t.page_id == task.page_id)
@@ -171,7 +196,9 @@ fn owned_task(conn: &Connection, agent: &Agent, page_id: &str) -> AppResult<Task
         .ok_or_else(|| AppError::Validation("That page is not an agent task.".into()))?;
     let claimed = task.get("Claimed by");
     if !claimed.is_empty() && !claimed.eq_ignore_ascii_case(&agent.name) {
-        return Err(AppError::Validation(format!("{claimed} is working on this task.")));
+        return Err(AppError::Validation(format!(
+            "{claimed} is working on this task."
+        )));
     }
     Ok(task)
 }
@@ -179,13 +206,23 @@ fn owned_task(conn: &Connection, agent: &Agent, page_id: &str) -> AppResult<Task
 pub fn heartbeat(conn: &mut Connection, agent: &Agent, page_id: &str) -> AppResult<String> {
     let task = owned_task(conn, agent, page_id)?;
     if task.status() != "In progress" {
-        return Err(AppError::Validation("Only a task in progress has a lease.".into()));
+        return Err(AppError::Validation(
+            "Only a task in progress has a lease.".into(),
+        ));
     }
     let until = (Utc::now() + Duration::minutes(LEASE_MINUTES)).to_rfc3339();
     let mut v = Map::new();
     v.insert("Lease until".into(), json!(until));
     v.insert("Claimed by".into(), json!(agent.name));
-    apply_direct(conn, agent, "Extend task lease", &[Op::SetValues { page_id: page_id.into(), values: v }])?;
+    apply_direct(
+        conn,
+        agent,
+        "Extend task lease",
+        &[Op::SetValues {
+            page_id: page_id.into(),
+            values: v,
+        }],
+    )?;
     Ok(until)
 }
 
@@ -203,18 +240,30 @@ pub struct Complete {
 pub fn complete(conn: &mut Connection, agent: &Agent, input: Complete) -> AppResult<Vec<String>> {
     let task = owned_task(conn, agent, &input.task_id)?;
     let mut v = Map::new();
-    v.insert("Status".into(), json!(if input.needs_review { "Review" } else { "Done" }));
+    v.insert(
+        "Status".into(),
+        json!(if input.needs_review { "Review" } else { "Done" }),
+    );
     v.insert("Lease until".into(), Value::Null);
-    let mut ops = vec![Op::SetValues { page_id: task.page_id.clone(), values: v }];
+    let mut ops = vec![Op::SetValues {
+        page_id: task.page_id.clone(),
+        values: v,
+    }];
     if !input.result.trim().is_empty() {
         ops.push(Op::UpdateContent {
             page_id: task.page_id.clone(),
-            markdown: format!("## Result ({}, {})\n\n{}", agent.name, &now()[..10], input.result.trim()),
+            markdown: format!(
+                "## Result ({}, {})\n\n{}",
+                agent.name,
+                &now()[..10],
+                input.result.trim()
+            ),
             append: true,
             base_hash: None,
         });
     }
-    let mut pages = apply_direct(conn, agent, &format!("Finish task: {}", task.title), &ops)?.page_ids;
+    let mut pages =
+        apply_direct(conn, agent, &format!("Finish task: {}", task.title), &ops)?.page_ids;
     if !input.needs_review {
         if let Some(block) = task.get("Origin").strip_prefix("block:") {
             if let Some(p) = check_todo(conn, &Actor::agent(agent), block)? {
@@ -225,18 +274,35 @@ pub fn complete(conn: &mut Connection, agent: &Agent, input: Complete) -> AppRes
     Ok(pages)
 }
 
-pub fn fail(conn: &mut Connection, agent: &Agent, page_id: &str, reason: &str) -> AppResult<(String, Vec<String>)> {
+pub fn fail(
+    conn: &mut Connection,
+    agent: &Agent,
+    page_id: &str,
+    reason: &str,
+) -> AppResult<(String, Vec<String>)> {
     let task = owned_task(conn, agent, page_id)?;
-    let status = if task.attempts() >= MAX_ATTEMPTS { "Failed" } else { "Queued" };
+    let status = if task.attempts() >= MAX_ATTEMPTS {
+        "Failed"
+    } else {
+        "Queued"
+    };
     let mut v = Map::new();
     v.insert("Status".into(), json!(status));
     v.insert("Claimed by".into(), Value::Null);
     v.insert("Lease until".into(), Value::Null);
     let ops = vec![
-        Op::SetValues { page_id: page_id.into(), values: v },
+        Op::SetValues {
+            page_id: page_id.into(),
+            values: v,
+        },
         Op::UpdateContent {
             page_id: page_id.into(),
-            markdown: format!("> Attempt {} by {} did not finish: {}", task.attempts() as i64, agent.name, reason.trim()),
+            markdown: format!(
+                "> Attempt {} by {} did not finish: {}",
+                task.attempts() as i64,
+                agent.name,
+                reason.trim()
+            ),
             append: true,
             base_hash: None,
         },
@@ -260,7 +326,11 @@ pub struct Create {
     pub workspace_id: Option<String>,
 }
 
-pub fn create(conn: &mut Connection, agent: &Agent, input: Create) -> AppResult<(String, Vec<String>)> {
+pub fn create(
+    conn: &mut Connection,
+    agent: &Agent,
+    input: Create,
+) -> AppResult<(String, Vec<String>)> {
     let ws = agent.workspace(input.workspace_id.as_deref())?;
     let hub = ensure_hub(conn, &ws)?;
     let mut v = Map::new();
@@ -285,13 +355,24 @@ pub fn create(conn: &mut Connection, agent: &Agent, input: Create) -> AppResult<
             markdown: input.description,
         }],
     )?;
-    let id = fx.created.iter().find(|(k, _)| k == "task").map(|(_, id)| id.clone()).unwrap_or_default();
+    let id = fx
+        .created
+        .iter()
+        .find(|(k, _)| k == "task")
+        .map(|(_, id)| id.clone())
+        .unwrap_or_default();
     Ok((id, fx.page_ids))
 }
 
 /// Queues a task for a named agent on the user's behalf (follow-ups after a review), in the
 /// workspace's hub. Returns the task's page id.
-pub fn queue_for(conn: &mut Connection, ws: &str, agent_name: &str, title: &str, body: &str) -> AppResult<String> {
+pub fn queue_for(
+    conn: &mut Connection,
+    ws: &str,
+    agent_name: &str,
+    title: &str,
+    body: &str,
+) -> AppResult<String> {
     let hub = ensure_hub(conn, ws)?;
     let mut v = Map::new();
     v.insert("Status".into(), json!("Queued"));
@@ -303,9 +384,20 @@ pub fn queue_for(conn: &mut Connection, ws: &str, agent_name: &str, title: &str,
         &Actor::user(vec![ws.to_string()]),
         &format!("New task: {title}"),
         None,
-        &[Op::CreateRecord { key: Some("task".into()), database: hub.tasks_database_id, title: title.into(), values: v, markdown: body.into() }],
+        &[Op::CreateRecord {
+            key: Some("task".into()),
+            database: hub.tasks_database_id,
+            title: title.into(),
+            values: v,
+            markdown: body.into(),
+        }],
     )?;
-    Ok(fx.created.iter().find(|(k, _)| k == "task").map(|(_, id)| id.clone()).unwrap_or_default())
+    Ok(fx
+        .created
+        .iter()
+        .find(|(k, _)| k == "task")
+        .map(|(_, id)| id.clone())
+        .unwrap_or_default())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -341,13 +433,23 @@ pub fn todos(conn: &Connection, workspace_id: &str, limit: i64) -> AppResult<Vec
             text: plain_of(&Blk::from_row(&kind, &data, version).inline),
         })
     })?;
-    Ok(rows.collect::<Result<Vec<_>, _>>()?.into_iter().filter(|t| !t.text.trim().is_empty()).collect())
+    Ok(rows
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter(|t| !t.text.trim().is_empty())
+        .collect())
 }
 
 /// Turns a to-do into an agent task linked back to it; finishing the task checks the to-do.
-pub fn promote(conn: &mut Connection, actor: &Actor, block_id: &str, assign_to: Option<&str>) -> AppResult<(String, Vec<String>)> {
+pub fn promote(
+    conn: &mut Connection,
+    actor: &Actor,
+    block_id: &str,
+    assign_to: Option<&str>,
+) -> AppResult<(String, Vec<String>)> {
     validate_id(block_id, "block")?;
-    let row = repo::block::get(conn, block_id)?.ok_or_else(|| AppError::NotFound("to-do".into()))?;
+    let row =
+        repo::block::get(conn, block_id)?.ok_or_else(|| AppError::NotFound("to-do".into()))?;
     if row.block_type != "todo" {
         return Err(AppError::Validation("Only to-dos can become tasks.".into()));
     }
@@ -355,7 +457,11 @@ pub fn promote(conn: &mut Connection, actor: &Actor, block_id: &str, assign_to: 
         .filter(|p| p.deleted_at.is_none() && actor.workspace_ids.contains(&p.workspace_id))
         .ok_or_else(|| AppError::NotFound("page".into()))?;
     let text = plain_of(&Blk::from_row(&row.block_type, &row.data_json, row.schema_version).inline);
-    let title: String = if text.trim().is_empty() { "Untitled to-do".into() } else { text.trim().chars().take(200).collect() };
+    let title: String = if text.trim().is_empty() {
+        "Untitled to-do".into()
+    } else {
+        text.trim().chars().take(200).collect()
+    };
     let hub = ensure_hub(conn, &page.workspace_id)?;
     let mut v = Map::new();
     v.insert("Status".into(), json!("Queued"));
@@ -377,7 +483,12 @@ pub fn promote(conn: &mut Connection, actor: &Actor, block_id: &str, assign_to: 
         ),
     }];
     let (_, fx) = apply_as(conn, actor, "Promote a to-do to a task", None, &ops)?;
-    let id = fx.created.iter().find(|(k, _)| k == "task").map(|(_, id)| id.clone()).unwrap_or_default();
+    let id = fx
+        .created
+        .iter()
+        .find(|(k, _)| k == "task")
+        .map(|(_, id)| id.clone())
+        .unwrap_or_default();
     Ok((id, fx.page_ids))
 }
 
@@ -390,7 +501,11 @@ fn check_todo(conn: &mut Connection, actor: &Actor, block_id: &str) -> AppResult
         return Ok(None);
     };
     let page = repo::page::get(conn, &row.page_id)?;
-    if row.block_type != "todo" || !page.is_some_and(|p| p.deleted_at.is_none() && actor.workspace_ids.contains(&p.workspace_id)) {
+    if row.block_type != "todo"
+        || !page.is_some_and(|p| {
+            p.deleted_at.is_none() && actor.workspace_ids.contains(&p.workspace_id)
+        })
+    {
         return Ok(None);
     }
     let mut data: Value = serde_json::from_str(&row.data_json).unwrap_or_default();
@@ -399,7 +514,13 @@ fn check_todo(conn: &mut Connection, actor: &Actor, block_id: &str) -> AppResult
     }
     data["checked"] = json!(true);
     let tx = conn.transaction()?;
-    let mut rec = super::changeset::Recorder::begin(&tx, actor.kind, actor.agent_id.as_deref(), None, "Check the to-do a task came from")?;
+    let mut rec = super::changeset::Recorder::begin(
+        &tx,
+        actor.kind,
+        actor.agent_id.as_deref(),
+        None,
+        "Check the to-do a task came from",
+    )?;
     rec.touch(&tx, &row.page_id, "updated")?;
     crate::services::block::apply_batch_in(
         &tx,
@@ -434,13 +555,29 @@ pub fn requeue_expired(conn: &mut Connection, workspace_id: &str) -> AppResult<u
         .iter()
         .map(|t| {
             let mut v = Map::new();
-            v.insert("Status".into(), json!(if t.attempts() >= MAX_ATTEMPTS { "Failed" } else { "Queued" }));
+            v.insert(
+                "Status".into(),
+                json!(if t.attempts() >= MAX_ATTEMPTS {
+                    "Failed"
+                } else {
+                    "Queued"
+                }),
+            );
             v.insert("Claimed by".into(), Value::Null);
             v.insert("Lease until".into(), Value::Null);
-            Op::SetValues { page_id: t.page_id.clone(), values: v }
+            Op::SetValues {
+                page_id: t.page_id.clone(),
+                values: v,
+            }
         })
         .collect();
-    apply_as(conn, &Actor::janitor(workspace_id), "Requeue tasks whose lease ran out", None, &ops)?;
+    apply_as(
+        conn,
+        &Actor::janitor(workspace_id),
+        "Requeue tasks whose lease ran out",
+        None,
+        &ops,
+    )?;
     Ok(expired.len())
 }
 
@@ -453,9 +590,23 @@ pub fn render(list: &[Task]) -> String {
     for t in list {
         let meta: Vec<String> = ["Status", "Agent", "Claimed by", "Due", "Attempts"]
             .iter()
-            .filter_map(|k| t.values.get(*k).map(|v| format!("{k}: {}", v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))))
+            .filter_map(|k| {
+                t.values.get(*k).map(|v| {
+                    format!(
+                        "{k}: {}",
+                        v.as_str()
+                            .map(String::from)
+                            .unwrap_or_else(|| v.to_string())
+                    )
+                })
+            })
             .collect();
-        out.push_str(&format!("- **{}** (id {}; {})\n", t.title, t.page_id, meta.join(", ")));
+        out.push_str(&format!(
+            "- **{}** (id {}; {})\n",
+            t.title,
+            t.page_id,
+            meta.join(", ")
+        ));
     }
     out
 }

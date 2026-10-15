@@ -180,15 +180,17 @@ pub fn find_database(conn: &Connection, workspaces: &[String], s: &str) -> AppRe
             |r| r.get(0),
         )
         .optional()?;
-    load_database(conn, &id.ok_or_else(|| AppError::NotFound(format!("database '{s}'")))?)
+    load_database(
+        conn,
+        &id.ok_or_else(|| AppError::NotFound(format!("database '{s}'")))?,
+    )
 }
 
 fn resolve(keys: &HashMap<String, String>, s: &str) -> AppResult<String> {
     match s.strip_prefix("key:") {
-        Some(k) => keys
-            .get(k)
-            .cloned()
-            .ok_or_else(|| AppError::Validation(format!("No page created earlier with key '{k}'."))),
+        Some(k) => keys.get(k).cloned().ok_or_else(|| {
+            AppError::Validation(format!("No page created earlier with key '{k}'."))
+        }),
         None => Ok(s.to_string()),
     }
 }
@@ -205,13 +207,21 @@ fn record_of(conn: &Connection, page_id: &str) -> AppResult<String> {
 
 fn mark_created(tx: &Connection, actor: &Actor, page_id: &str) -> AppResult<()> {
     if let Some(a) = &actor.agent_id {
-        tx.execute("UPDATE page SET created_by = ?2 WHERE id = ?1", params![page_id, a])?;
+        tx.execute(
+            "UPDATE page SET created_by = ?2 WHERE id = ?1",
+            params![page_id, a],
+        )?;
     }
     Ok(())
 }
 
 /// Applies `ops` inside the caller's transaction, recording each touched page.
-pub fn apply_ops(tx: &Connection, actor: &Actor, ops: &[Op], rec: &mut Recorder) -> AppResult<Effects> {
+pub fn apply_ops(
+    tx: &Connection,
+    actor: &Actor,
+    ops: &[Op],
+    rec: &mut Recorder,
+) -> AppResult<Effects> {
     let mut fx = Effects::default();
     let mut keys: HashMap<String, String> = HashMap::new();
     for (i, op) in ops.iter().enumerate() {
@@ -253,7 +263,14 @@ fn apply_one(
     fx: &mut Effects,
 ) -> AppResult<()> {
     match op {
-        Op::CreatePage { key, workspace_id, parent, title, markdown, aliases } => {
+        Op::CreatePage {
+            key,
+            workspace_id,
+            parent,
+            title,
+            markdown,
+            aliases,
+        } => {
             validate_title(title)?;
             let parent = match parent {
                 Some(p) => Some(actor.page(tx, &resolve(keys, p)?)?),
@@ -265,7 +282,9 @@ fn apply_one(
             };
             if let Some(p) = &parent {
                 if p.kind != "page" {
-                    return Err(AppError::Validation("Pages can only be created inside pages.".into()));
+                    return Err(AppError::Validation(
+                        "Pages can only be created inside pages.".into(),
+                    ));
                 }
             }
             let parent_id = match (&parent, actor.kind) {
@@ -273,7 +292,16 @@ fn apply_one(
                 (None, "agent") => Some(hub::ensure(tx, &ws)?.page_id),
                 (None, _) => None,
             };
-            let page = crate::transfer::insert_page(tx, None, &ws, parent_id.as_deref(), title.trim(), None, "page", false)?;
+            let page = crate::transfer::insert_page(
+                tx,
+                None,
+                &ws,
+                parent_id.as_deref(),
+                title.trim(),
+                None,
+                "page",
+                false,
+            )?;
             mark_created(tx, actor, &page.id)?;
             rec.touch(tx, &page.id, "created")?;
             if !markdown.trim().is_empty() {
@@ -286,20 +314,32 @@ fn apply_one(
                 keys.insert(k.clone(), page.id.clone());
             }
         }
-        Op::UpdateContent { page_id, markdown, append, base_hash } => {
+        Op::UpdateContent {
+            page_id,
+            markdown,
+            append,
+            base_hash,
+        } => {
             let page = actor.page(tx, &resolve(keys, page_id)?)?;
             if page.kind == "database" {
-                return Err(AppError::Validation("A database's page holds its table; change its records instead.".into()));
+                return Err(AppError::Validation(
+                    "A database's page holds its table; change its records instead.".into(),
+                ));
             }
             if let Some(h) = base_hash {
                 if *h != content::content_hash(tx, &page.id)? {
                     return Err(AppError::Validation(
-                        "The page changed since it was read. Read it again and redo the change.".into(),
+                        "The page changed since it was read. Read it again and redo the change."
+                            .into(),
                     ));
                 }
             }
             rec.touch(tx, &page.id, "updated")?;
-            let mode = if *append { WriteMode::Append } else { WriteMode::Replace };
+            let mode = if *append {
+                WriteMode::Append
+            } else {
+                WriteMode::Replace
+            };
             content::write_markdown(tx, &page, markdown, mode)?;
         }
         Op::RenamePage { page_id, title } => {
@@ -316,19 +356,27 @@ fn apply_one(
         Op::MovePage { page_id, parent } => {
             let page = actor.page(tx, &resolve(keys, page_id)?)?;
             if page.kind == "record" {
-                return Err(AppError::Validation("Records stay inside their database.".into()));
+                return Err(AppError::Validation(
+                    "Records stay inside their database.".into(),
+                ));
             }
             let parent = match parent {
                 Some(p) => {
                     let p = actor.page(tx, &resolve(keys, p)?)?;
                     if p.workspace_id != page.workspace_id {
-                        return Err(AppError::Validation("Pages move only within their workspace.".into()));
+                        return Err(AppError::Validation(
+                            "Pages move only within their workspace.".into(),
+                        ));
                     }
                     if p.kind != "page" {
-                        return Err(AppError::Validation("Pages can only be moved into pages.".into()));
+                        return Err(AppError::Validation(
+                            "Pages can only be moved into pages.".into(),
+                        ));
                     }
                     if repo::page::in_subtree(tx, &page.id, &p.id)? {
-                        return Err(AppError::Validation("A page cannot move into itself.".into()));
+                        return Err(AppError::Validation(
+                            "A page cannot move into itself.".into(),
+                        ));
                     }
                     Some(p.id)
                 }
@@ -336,7 +384,8 @@ fn apply_one(
             };
             if page.parent_page_id != parent {
                 rec.touch(tx, &page.id, "moved")?;
-                let position = repo::page::next_position(tx, &page.workspace_id, parent.as_deref())?;
+                let position =
+                    repo::page::next_position(tx, &page.workspace_id, parent.as_deref())?;
                 repo::page::set_parent_position(tx, &page.id, parent.as_deref(), position, &now())?;
             }
         }
@@ -345,7 +394,13 @@ fn apply_one(
             rec.touch(tx, &page.id, "trashed")?;
             repo::page::soft_delete_tree(tx, &page.id, &now())?;
         }
-        Op::CreateRecord { key, database, title, values, markdown } => {
+        Op::CreateRecord {
+            key,
+            database,
+            title,
+            values,
+            markdown,
+        } => {
             validate_title(title)?;
             let db = find_database(tx, &actor.workspace_ids, database)?;
             let mut stored = hub::stored_map(tx, &db.id, values)?;
@@ -366,15 +421,25 @@ fn apply_one(
                 },
             )?;
             for (property_id, value) in relations {
-                set_value_in(tx, SetValue { record_id: row.id.clone(), property_id, value })?;
+                set_value_in(
+                    tx,
+                    SetValue {
+                        record_id: row.id.clone(),
+                        property_id,
+                        value,
+                    },
+                )?;
             }
             mark_created(tx, actor, &row.page_id)?;
             rec.touch(tx, &row.page_id, "created")?;
             if !markdown.trim().is_empty() {
-                let page = repo::page::get(tx, &row.page_id)?.ok_or_else(|| AppError::NotFound("record page".into()))?;
+                let page = repo::page::get(tx, &row.page_id)?
+                    .ok_or_else(|| AppError::NotFound("record page".into()))?;
                 content::write_markdown(tx, &page, markdown, WriteMode::Replace)?;
             }
-            fx.events.push(Event::RecordCreated { record_id: row.id.clone() });
+            fx.events.push(Event::RecordCreated {
+                record_id: row.id.clone(),
+            });
             if let Some(k) = key {
                 keys.insert(k.clone(), row.page_id.clone());
             }
@@ -390,9 +455,19 @@ fn apply_one(
             let stored = hub::stored_map(tx, &db_id, values)?;
             let previous: Map<String, Value> = stored
                 .keys()
-                .map(|k| (k.clone(), before.values.get(k).cloned().unwrap_or(Value::Null)))
+                .map(|k| {
+                    (
+                        k.clone(),
+                        before.values.get(k).cloned().unwrap_or(Value::Null),
+                    )
+                })
                 .collect();
-            rec.touch_with(tx, &page.id, "values", Some(Value::Object(previous).to_string()))?;
+            rec.touch_with(
+                tx,
+                &page.id,
+                "values",
+                Some(Value::Object(previous).to_string()),
+            )?;
             for (property_id, value) in stored {
                 let old = before.values.get(&property_id).cloned();
                 let row = set_value_in(
@@ -403,7 +478,8 @@ fn apply_one(
                         value,
                     },
                 )?;
-                fx.events.extend(change_events(old.as_ref(), &row, &property_id));
+                fx.events
+                    .extend(change_events(old.as_ref(), &row, &property_id));
             }
         }
         Op::SetAliases { page_id, aliases } => {
@@ -421,7 +497,11 @@ pub fn additive(conn: &Connection, agent_id: &str, ops: &[Op]) -> bool {
     let own = |page_id: &str| {
         page_id.starts_with("key:")
             || conn
-                .query_row("SELECT created_by FROM page WHERE id = ?1", [page_id], |r| r.get::<_, Option<String>>(0))
+                .query_row(
+                    "SELECT created_by FROM page WHERE id = ?1",
+                    [page_id],
+                    |r| r.get::<_, Option<String>>(0),
+                )
                 .ok()
                 .flatten()
                 .as_deref()
@@ -430,7 +510,9 @@ pub fn additive(conn: &Connection, agent_id: &str, ops: &[Op]) -> bool {
     ops.iter().all(|op| match op {
         Op::CreatePage { .. } | Op::CreateRecord { .. } | Op::SetAliases { .. } => true,
         Op::UpdateContent { append: true, .. } => true,
-        Op::UpdateContent { page_id, .. } | Op::RenamePage { page_id, .. } | Op::SetValues { page_id, .. } => own(page_id),
+        Op::UpdateContent { page_id, .. }
+        | Op::RenamePage { page_id, .. }
+        | Op::SetValues { page_id, .. } => own(page_id),
         Op::MovePage { .. } | Op::TrashPage { .. } => false,
     })
 }
@@ -442,7 +524,9 @@ pub const PROTOCOL_TITLE: &str = "Agent protocol";
 fn is_protocol_title(title: &str) -> bool {
     let t = title.trim();
     let prefix = super::commands::OVERRIDE_PREFIX;
-    t.eq_ignore_ascii_case(PROTOCOL_TITLE) || t.get(..prefix.len()).is_some_and(|p| p.eq_ignore_ascii_case(prefix))
+    t.eq_ignore_ascii_case(PROTOCOL_TITLE)
+        || t.get(..prefix.len())
+            .is_some_and(|p| p.eq_ignore_ascii_case(prefix))
 }
 
 /// Changes that always wait for review, whatever the agent's mode: anything touching an agent's
@@ -452,10 +536,16 @@ pub fn guarded(conn: &Connection, ops: &[Op]) -> bool {
     let steering = |page_id: &str| {
         !page_id.starts_with("key:")
             && (conn
-                .query_row("SELECT 1 FROM agent WHERE instructions_page_id = ?1 LIMIT 1", [page_id], |_| Ok(()))
+                .query_row(
+                    "SELECT 1 FROM agent WHERE instructions_page_id = ?1 LIMIT 1",
+                    [page_id],
+                    |_| Ok(()),
+                )
                 .is_ok()
                 || conn
-                    .query_row("SELECT title FROM page WHERE id = ?1", [page_id], |r| r.get::<_, String>(0))
+                    .query_row("SELECT title FROM page WHERE id = ?1", [page_id], |r| {
+                        r.get::<_, String>(0)
+                    })
                     .is_ok_and(|t| is_protocol_title(&t)))
     };
     ops.iter().any(|op| match op {
@@ -490,13 +580,19 @@ pub struct Outcome {
 
 fn check_ops(title: &str, ops: &[Op]) -> AppResult<()> {
     if ops.is_empty() {
-        return Err(AppError::Validation("A proposal needs at least one change.".into()));
+        return Err(AppError::Validation(
+            "A proposal needs at least one change.".into(),
+        ));
     }
     if ops.len() > MAX_OPS {
-        return Err(AppError::Validation(format!("A proposal can hold up to {MAX_OPS} changes.")));
+        return Err(AppError::Validation(format!(
+            "A proposal can hold up to {MAX_OPS} changes."
+        )));
     }
     if title.trim().is_empty() || title.chars().count() > 200 {
-        return Err(AppError::Validation("Give the proposal a title of up to 200 characters.".into()));
+        return Err(AppError::Validation(
+            "Give the proposal a title of up to 200 characters.".into(),
+        ));
     }
     Ok(())
 }
@@ -519,8 +615,13 @@ fn workspace_of(conn: &Connection, actor: &Actor, ops: &[Op]) -> String {
             | Op::TrashPage { page_id }
             | Op::SetValues { page_id, .. }
             | Op::SetAliases { page_id, .. } => Some(page_id),
-            Op::CreatePage { workspace_id: Some(w), .. } => return w.clone(),
-            Op::CreatePage { parent: Some(p), .. } => Some(p),
+            Op::CreatePage {
+                workspace_id: Some(w),
+                ..
+            } => return w.clone(),
+            Op::CreatePage {
+                parent: Some(p), ..
+            } => Some(p),
             _ => None,
         };
         if let Some(Ok(Some(p))) = page.map(|id| repo::page::get(conn, id)) {
@@ -532,7 +633,13 @@ fn workspace_of(conn: &Connection, actor: &Actor, ops: &[Op]) -> String {
 
 /// Submits a proposal from an agent. It is applied now when the agent's mode allows it, and
 /// otherwise waits for review.
-pub fn submit(conn: &mut Connection, agent: &Agent, title: &str, rationale: &str, ops: Vec<Op>) -> AppResult<Outcome> {
+pub fn submit(
+    conn: &mut Connection,
+    agent: &Agent,
+    title: &str,
+    rationale: &str,
+    ops: Vec<Op>,
+) -> AppResult<Outcome> {
     check_ops(title, &ops)?;
     let actor = Actor::agent(agent);
     dry_run(conn, &actor, &ops)?;
@@ -581,7 +688,12 @@ pub fn submit(conn: &mut Connection, agent: &Agent, title: &str, rationale: &str
 
 /// Applies changes the agent keeps for its own bookkeeping (memories, task state) without
 /// review. They are still recorded and revertable.
-pub fn apply_direct(conn: &mut Connection, agent: &Agent, summary: &str, ops: &[Op]) -> AppResult<Effects> {
+pub fn apply_direct(
+    conn: &mut Connection,
+    agent: &Agent,
+    summary: &str,
+    ops: &[Op],
+) -> AppResult<Effects> {
     let actor = Actor::agent(agent);
     let tx = conn.transaction()?;
     let mut rec = Recorder::begin(&tx, "agent", Some(&agent.id), None, summary)?;
@@ -591,16 +703,34 @@ pub fn apply_direct(conn: &mut Connection, agent: &Agent, summary: &str, ops: &[
 }
 
 /// Applies changes on behalf of `actor` (the mirror), recorded as one changeset.
-pub fn apply_as(conn: &mut Connection, actor: &Actor, summary: &str, proposal_id: Option<&str>, ops: &[Op]) -> AppResult<(String, Effects)> {
+pub fn apply_as(
+    conn: &mut Connection,
+    actor: &Actor,
+    summary: &str,
+    proposal_id: Option<&str>,
+    ops: &[Op],
+) -> AppResult<(String, Effects)> {
     let tx = conn.transaction()?;
-    let mut rec = Recorder::begin(&tx, actor.kind, actor.agent_id.as_deref(), proposal_id, summary)?;
+    let mut rec = Recorder::begin(
+        &tx,
+        actor.kind,
+        actor.agent_id.as_deref(),
+        proposal_id,
+        summary,
+    )?;
     let fx = apply_ops(&tx, actor, ops, &mut rec)?;
     tx.commit()?;
     Ok((rec.id, fx))
 }
 
 /// A proposal the mirror makes when an edit to a file needs review.
-pub fn submit_from_mirror(conn: &Connection, workspace_id: &str, title: &str, rationale: &str, ops: &[Op]) -> AppResult<String> {
+pub fn submit_from_mirror(
+    conn: &Connection,
+    workspace_id: &str,
+    title: &str,
+    rationale: &str,
+    ops: &[Op],
+) -> AppResult<String> {
     let id = new_id();
     conn.execute(
         "INSERT INTO proposal (id, actor_kind, agent_id, workspace_id, title, rationale, ops_json, status, created_at)
@@ -690,26 +820,46 @@ fn load(conn: &Connection, where_sql: &str, args: &[&dyn rusqlite::ToSql]) -> Ap
 fn preview(conn: &Connection, op: &Op, detail: bool) -> OpPreview {
     let title = |id: &str| repo::page::get(conn, id).ok().flatten().map(|p| p.title);
     let (summary, page_id, before, after) = match op {
-        Op::CreatePage { title: t, markdown, .. } => (
+        Op::CreatePage {
+            title: t, markdown, ..
+        } => (
             format!("Create page “{t}”"),
             None,
             None,
             detail.then(|| markdown.clone()),
         ),
-        Op::UpdateContent { page_id, markdown, append, .. } => {
-            let now_md = if detail { content::body_markdown(conn, page_id).ok() } else { None };
+        Op::UpdateContent {
+            page_id,
+            markdown,
+            append,
+            ..
+        } => {
+            let now_md = if detail {
+                content::body_markdown(conn, page_id).ok()
+            } else {
+                None
+            };
             let after = detail.then(|| match (&now_md, append) {
                 (Some(b), true) if !b.trim().is_empty() => format!("{b}\n\n{markdown}"),
                 _ => markdown.clone(),
             });
             (
-                if *append { "Add to the page".into() } else { "Rewrite the page".into() },
+                if *append {
+                    "Add to the page".into()
+                } else {
+                    "Rewrite the page".into()
+                },
                 Some(page_id.clone()),
                 now_md,
                 after,
             )
         }
-        Op::RenamePage { page_id, title: t } => (format!("Rename to “{t}”"), Some(page_id.clone()), None, None),
+        Op::RenamePage { page_id, title: t } => (
+            format!("Rename to “{t}”"),
+            Some(page_id.clone()),
+            None,
+            None,
+        ),
         Op::MovePage { page_id, parent } => (
             match parent.as_deref().and_then(title) {
                 Some(p) => format!("Move into “{p}”"),
@@ -720,10 +870,23 @@ fn preview(conn: &Connection, op: &Op, detail: bool) -> OpPreview {
             None,
         ),
         Op::TrashPage { page_id } => ("Move to trash".into(), Some(page_id.clone()), None, None),
-        Op::CreateRecord { title: t, database, values, markdown, .. } => (
+        Op::CreateRecord {
+            title: t,
+            database,
+            values,
+            markdown,
+            ..
+        } => (
             format!(
                 "Add “{t}” to {database}{}",
-                if values.is_empty() { String::new() } else { format!(" ({})", values.keys().cloned().collect::<Vec<_>>().join(", ")) }
+                if values.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " ({})",
+                        values.keys().cloned().collect::<Vec<_>>().join(", ")
+                    )
+                }
             ),
             None,
             None,
@@ -734,7 +897,12 @@ fn preview(conn: &Connection, op: &Op, detail: bool) -> OpPreview {
                 "Set {}",
                 values
                     .iter()
-                    .map(|(k, v)| format!("{k} = {}", v.as_str().map(String::from).unwrap_or_else(|| v.to_string())))
+                    .map(|(k, v)| format!(
+                        "{k} = {}",
+                        v.as_str()
+                            .map(String::from)
+                            .unwrap_or_else(|| v.to_string())
+                    ))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -742,7 +910,12 @@ fn preview(conn: &Connection, op: &Op, detail: bool) -> OpPreview {
             None,
             None,
         ),
-        Op::SetAliases { page_id, aliases } => (format!("Aliases: {}", aliases.join(", ")), Some(page_id.clone()), None, None),
+        Op::SetAliases { page_id, aliases } => (
+            format!("Aliases: {}", aliases.join(", ")),
+            Some(page_id.clone()),
+            None,
+            None,
+        ),
     };
     OpPreview {
         op: op_name(op).into(),
@@ -755,7 +928,12 @@ fn preview(conn: &Connection, op: &Op, detail: bool) -> OpPreview {
 }
 
 /// Proposals by status ("pending", "applied", "rejected", "failed" or "all"), newest first.
-pub fn list(conn: &Connection, status: &str, agent_id: Option<&str>, limit: i64) -> AppResult<Vec<ProposalInfo>> {
+pub fn list(
+    conn: &Connection,
+    status: &str,
+    agent_id: Option<&str>,
+    limit: i64,
+) -> AppResult<Vec<ProposalInfo>> {
     let rows = load(
         conn,
         "(?1 = 'all' OR p.status = ?1) AND (?2 IS NULL OR p.agent_id = ?2) ORDER BY p.created_at DESC LIMIT ?3",
@@ -784,34 +962,59 @@ pub fn detail(conn: &Connection, id: &str) -> AppResult<ProposalInfo> {
 }
 
 pub fn pending_count(conn: &Connection) -> AppResult<i64> {
-    Ok(conn.query_row("SELECT COUNT(*) FROM proposal WHERE status = 'pending'", [], |r| r.get(0))?)
+    Ok(conn.query_row(
+        "SELECT COUNT(*) FROM proposal WHERE status = 'pending'",
+        [],
+        |r| r.get(0),
+    )?)
 }
 
 /// Applies a pending proposal on the user's say-so. `only` picks which of its changes to apply
 /// (by position); all of them when absent. A proposal that no longer applies (the page changed,
 /// or the agent lost access) is marked failed with the reason.
-pub fn approve(conn: &mut Connection, id: &str, only: Option<Vec<usize>>, note: Option<String>) -> AppResult<Outcome> {
+pub fn approve(
+    conn: &mut Connection,
+    id: &str,
+    only: Option<Vec<usize>>,
+    note: Option<String>,
+) -> AppResult<Outcome> {
     validate_id(id, "proposal")?;
     let row = load(conn, "p.id = ?1", &[&id])?
         .into_iter()
         .next()
         .ok_or_else(|| AppError::NotFound("proposal".into()))?;
     if row.info.status != "pending" {
-        return Err(AppError::Validation("This proposal was already decided.".into()));
+        return Err(AppError::Validation(
+            "This proposal was already decided.".into(),
+        ));
     }
     let ops: Vec<Op> = match &only {
-        Some(pick) => row.ops.iter().enumerate().filter(|(i, _)| pick.contains(i)).map(|(_, o)| o.clone()).collect(),
+        Some(pick) => row
+            .ops
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| pick.contains(i))
+            .map(|(_, o)| o.clone())
+            .collect(),
         None => row.ops.clone(),
     };
     if ops.is_empty() {
-        return Err(AppError::Validation("Choose at least one change to apply.".into()));
+        return Err(AppError::Validation(
+            "Choose at least one change to apply.".into(),
+        ));
     }
     let actor = match (row.info.actor_kind.as_str(), &row.info.agent_id) {
         ("agent", Some(agent_id)) => Actor::agent(&super::get(conn, agent_id)?),
         _ => Actor::mirror(&row.info.workspace_id),
     };
     let tx = conn.transaction()?;
-    let mut rec = Recorder::begin(&tx, actor.kind, actor.agent_id.as_deref(), Some(id), &row.info.title)?;
+    let mut rec = Recorder::begin(
+        &tx,
+        actor.kind,
+        actor.agent_id.as_deref(),
+        Some(id),
+        &row.info.title,
+    )?;
     match apply_ops(&tx, &actor, &ops, &mut rec) {
         Ok(fx) => {
             let note = note.unwrap_or_else(|| match &only {
@@ -850,13 +1053,21 @@ pub fn reject(conn: &Connection, id: &str, note: Option<String>) -> AppResult<()
         params![id, note.unwrap_or_default().chars().take(2000).collect::<String>(), now()],
     )?;
     if n == 0 {
-        return Err(AppError::Validation("This proposal was already decided.".into()));
+        return Err(AppError::Validation(
+            "This proposal was already decided.".into(),
+        ));
     }
     // A rejected edit from the mirror folder: write the page's file again so the folder matches.
-    if let Some(row) = load(conn, "p.id = ?1 AND p.actor_kind = 'mirror'", &[&id])?.into_iter().next() {
+    if let Some(row) = load(conn, "p.id = ?1 AND p.actor_kind = 'mirror'", &[&id])?
+        .into_iter()
+        .next()
+    {
         for op in &row.ops {
             if let Some(page_id) = page_of(op) {
-                conn.execute("UPDATE mirror_file SET page_updated = '' WHERE page_id = ?1", [page_id])?;
+                conn.execute(
+                    "UPDATE mirror_file SET page_updated = '' WHERE page_id = ?1",
+                    [page_id],
+                )?;
             }
         }
     }

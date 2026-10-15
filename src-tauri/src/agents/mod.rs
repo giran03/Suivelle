@@ -130,7 +130,9 @@ fn check(conn: &Connection, input: &AgentInput, id: Option<&str>) -> AppResult<(
     if name.is_empty() || name.chars().count() > 80 {
         return bad("Give the agent a name of up to 80 characters.");
     }
-    if name.chars().any(|c| c.is_control() || matches!(c, '/' | '\\' | ':' | '"' | '<' | '>' | '|' | '?' | '*')) {
+    if name.chars().any(|c| {
+        c.is_control() || matches!(c, '/' | '\\' | ':' | '"' | '<' | '>' | '|' | '?' | '*')
+    }) {
         return bad("Agent names cannot contain / \\ : \" < > | ? or *.");
     }
     if input.role.chars().count() > 300 || input.model.chars().count() > 120 {
@@ -191,7 +193,16 @@ fn default_instructions(role: &str) -> String {
 
 fn instructions_page(tx: &Connection, ws: &str, name: &str, body: &str) -> AppResult<String> {
     let hub = hub::ensure(tx, ws)?;
-    let page = crate::transfer::insert_page(tx, None, ws, Some(&hub.page_id), &format!("{name} instructions"), None, "page", false)?;
+    let page = crate::transfer::insert_page(
+        tx,
+        None,
+        ws,
+        Some(&hub.page_id),
+        &format!("{name} instructions"),
+        None,
+        "page",
+        false,
+    )?;
     content::write_markdown(tx, &page, body, content::WriteMode::Replace)?;
     Ok(page.id)
 }
@@ -200,12 +211,17 @@ fn instructions_page(tx: &Connection, ws: &str, name: &str, body: &str) -> AppRe
 /// trashed, or in a workspace it no longer sees. The old page's text carries over; the old page
 /// itself is left alone. Returns whether a page was made.
 pub fn ensure_instructions(conn: &mut Connection, agent: &Agent) -> AppResult<bool> {
-    let Some(ws) = agent.workspace_ids.first() else { return Ok(false) };
+    let Some(ws) = agent.workspace_ids.first() else {
+        return Ok(false);
+    };
     let current = match agent.instructions_page_id.as_deref() {
         Some(id) => repo::page::get(conn, id)?,
         None => None,
     };
-    if current.as_ref().is_some_and(|p| p.deleted_at.is_none() && agent.in_workspace(&p.workspace_id)) {
+    if current
+        .as_ref()
+        .is_some_and(|p| p.deleted_at.is_none() && agent.in_workspace(&p.workspace_id))
+    {
         return Ok(false);
     }
     let body = current
@@ -214,7 +230,10 @@ pub fn ensure_instructions(conn: &mut Connection, agent: &Agent) -> AppResult<bo
         .unwrap_or_else(|| default_instructions(&agent.role));
     let tx = conn.transaction()?;
     let page_id = instructions_page(&tx, ws, &agent.name, &body)?;
-    tx.execute("UPDATE agent SET instructions_page_id = ?2 WHERE id = ?1", params![agent.id, page_id])?;
+    tx.execute(
+        "UPDATE agent SET instructions_page_id = ?2 WHERE id = ?1",
+        params![agent.id, page_id],
+    )?;
     tx.commit()?;
     Ok(true)
 }
@@ -239,13 +258,23 @@ pub fn create(conn: &mut Connection, input: AgentInput) -> AppResult<Agent> {
     let stamp = now();
     let mode = input.mode.clone().unwrap_or_else(|| default_mode(&tx));
     let tools = if input.tools.is_empty() {
-        vec!["pages".to_string(), "graph".into(), "memory".into(), "tasks".into()]
+        vec![
+            "pages".to_string(),
+            "graph".into(),
+            "memory".into(),
+            "tasks".into(),
+        ]
     } else {
         input.tools.clone()
     };
     // The agent's instructions live in an ordinary page in its first workspace's Agent Hub.
     let instructions = match input.workspace_ids.first() {
-        Some(ws) => Some(instructions_page(&tx, ws, input.name.trim(), &default_instructions(&input.role))?),
+        Some(ws) => Some(instructions_page(
+            &tx,
+            ws,
+            input.name.trim(),
+            &default_instructions(&input.role),
+        )?),
         None => None,
     };
     tx.execute(
@@ -316,7 +345,14 @@ pub fn rotate_token(conn: &Connection, id: &str) -> AppResult<String> {
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     );
-    let hint: String = token.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+    let hint: String = token
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     conn.execute(
         "UPDATE agent SET token_hash = ?2, token_hint = ?3, updated_at = ?4 WHERE id = ?1",
         params![id, hash_token(&token), hint, now()],
@@ -335,10 +371,12 @@ pub fn revoke_token(conn: &Connection, id: &str) -> AppResult<()> {
 
 /// Whether `token` is the agent's current token.
 pub fn token_matches(conn: &Connection, id: &str, token: &str) -> bool {
-    conn.query_row("SELECT token_hash FROM agent WHERE id = ?1", [id], |r| r.get::<_, Option<String>>(0))
-        .ok()
-        .flatten()
-        .is_some_and(|h| h == hash_token(token.trim()))
+    conn.query_row("SELECT token_hash FROM agent WHERE id = ?1", [id], |r| {
+        r.get::<_, Option<String>>(0)
+    })
+    .ok()
+    .flatten()
+    .is_some_and(|h| h == hash_token(token.trim()))
 }
 
 /// The active agent a token belongs to.
@@ -392,11 +430,11 @@ impl Agent {
         match asked {
             Some(w) if self.in_workspace(w) => Ok(w.to_string()),
             Some(_) => Err(AppError::NotFound("workspace".into())),
-            None => self
-                .workspace_ids
-                .first()
-                .cloned()
-                .ok_or_else(|| AppError::Validation("This agent has no workspaces. Add one in Settings > Agents.".into())),
+            None => self.workspace_ids.first().cloned().ok_or_else(|| {
+                AppError::Validation(
+                    "This agent has no workspaces. Add one in Settings > Agents.".into(),
+                )
+            }),
         }
     }
 
@@ -415,7 +453,9 @@ impl Agent {
 
 pub fn setting(conn: &Connection, key: &str) -> AppResult<Option<String>> {
     Ok(conn
-        .query_row("SELECT value FROM app_setting WHERE key = ?1", [key], |r| r.get(0))
+        .query_row("SELECT value FROM app_setting WHERE key = ?1", [key], |r| {
+            r.get(0)
+        })
         .optional()?)
 }
 
@@ -455,7 +495,11 @@ pub fn save_settings(conn: &Connection, s: &AgentSettings) -> AppResult<AgentSet
     if !matches!(s.mirror_edits.as_str(), "propose" | "apply") {
         return bad("Mirror edits must be propose or apply.");
     }
-    set_setting(conn, "agents.apiEnabled", if s.api_enabled { "true" } else { "false" })?;
+    set_setting(
+        conn,
+        "agents.apiEnabled",
+        if s.api_enabled { "true" } else { "false" },
+    )?;
     set_setting(conn, "agents.defaultMode", &s.default_mode)?;
     set_setting(conn, "agents.mirrorEdits", &s.mirror_edits)?;
     settings(conn)
@@ -484,7 +528,11 @@ pub struct AuditEntry {
     pub created_at: String,
 }
 
-pub fn audit_list(conn: &Connection, agent_id: Option<&str>, limit: i64) -> AppResult<Vec<AuditEntry>> {
+pub fn audit_list(
+    conn: &Connection,
+    agent_id: Option<&str>,
+    limit: i64,
+) -> AppResult<Vec<AuditEntry>> {
     let mut stmt = conn.prepare(
         "SELECT agent_id, tool, ok, duration_ms, created_at FROM agent_audit
          WHERE ?1 IS NULL OR agent_id = ?1 ORDER BY id DESC LIMIT ?2",

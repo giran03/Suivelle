@@ -38,7 +38,10 @@ struct Parser<'a> {
 
 impl Parser<'_> {
     fn err<T>(&self, what: &str) -> Result<T, String> {
-        let line = self.text[..self.i.min(self.text.len())].matches('\n').count() + 1;
+        let line = self.text[..self.i.min(self.text.len())]
+            .matches('\n')
+            .count()
+            + 1;
         Err(format!("{what} on line {line}"))
     }
 
@@ -92,10 +95,16 @@ impl Parser<'_> {
                         b't' => out.push('\t'),
                         b'u' => {
                             let hi = self.hex4()?;
-                            let ch = if (0xD800..0xDC00).contains(&hi) && self.s[self.i..].starts_with(b"\\u") {
+                            let ch = if (0xD800..0xDC00).contains(&hi)
+                                && self.s[self.i..].starts_with(b"\\u")
+                            {
                                 self.i += 2;
                                 let lo = self.hex4()?;
-                                char::from_u32(0x10000 + ((hi - 0xD800) << 10) + (lo.wrapping_sub(0xDC00) & 0x3FF))
+                                char::from_u32(
+                                    0x10000
+                                        + ((hi - 0xD800) << 10)
+                                        + (lo.wrapping_sub(0xDC00) & 0x3FF),
+                                )
                             } else {
                                 char::from_u32(hi)
                             };
@@ -165,7 +174,12 @@ impl Parser<'_> {
                     } else {
                         None
                     };
-                    members.push(Member { key, key_start, value, comma });
+                    members.push(Member {
+                        key,
+                        key_start,
+                        value,
+                        comma,
+                    });
                 }
                 self.depth -= 1;
                 Kind::Object(members)
@@ -214,20 +228,34 @@ impl Parser<'_> {
                 Kind::Null
             }
             b'-' | b'0'..=b'9' => {
-                while self.i < self.s.len() && matches!(self.s[self.i], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9') {
+                while self.i < self.s.len()
+                    && matches!(
+                        self.s[self.i],
+                        b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9'
+                    )
+                {
                     self.i += 1;
                 }
                 Kind::Num(self.text[start..self.i].to_string())
             }
             _ => return self.err("Unexpected character"),
         };
-        Ok(Node { start, end: self.i, kind })
+        Ok(Node {
+            start,
+            end: self.i,
+            kind,
+        })
     }
 }
 
 /// Parses a JSON/JSONC document. `Ok(None)` when it holds nothing but whitespace and comments.
 pub fn parse(text: &str) -> Result<Option<Node>, String> {
-    let mut p = Parser { s: text.as_bytes(), text, i: 0, depth: 0 };
+    let mut p = Parser {
+        s: text.as_bytes(),
+        text,
+        i: 0,
+        depth: 0,
+    };
     p.ws()?;
     if p.i >= text.len() {
         return Ok(None);
@@ -245,7 +273,11 @@ pub fn parse(text: &str) -> Result<Option<Node>, String> {
 
 pub fn to_value(n: &Node) -> Value {
     match &n.kind {
-        Kind::Object(m) => Value::Object(m.iter().map(|m| (m.key.clone(), to_value(&m.value))).collect()),
+        Kind::Object(m) => Value::Object(
+            m.iter()
+                .map(|m| (m.key.clone(), to_value(&m.value)))
+                .collect(),
+        ),
         Kind::Array(items) => Value::Array(items.iter().map(to_value).collect()),
         Kind::Str(s) => Value::String(s.clone()),
         Kind::Num(n) => serde_json::from_str(n).unwrap_or(Value::Null),
@@ -300,11 +332,15 @@ impl Style {
 /// The whitespace a position's line starts with.
 fn line_indent(text: &str, at: usize) -> String {
     let line_start = text[..at].rfind('\n').map_or(0, |i| i + 1);
-    text[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect()
+    text[line_start..]
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .collect()
 }
 
 fn starts_line(text: &str, at: usize) -> bool {
-    text[..at].trim_end_matches([' ', '\t']).ends_with('\n') || text[..at].trim_end_matches([' ', '\t']).is_empty()
+    text[..at].trim_end_matches([' ', '\t']).ends_with('\n')
+        || text[..at].trim_end_matches([' ', '\t']).is_empty()
 }
 
 /// Ordered fields so written entries read naturally (`type`, `command`, `args`, `env`).
@@ -349,7 +385,13 @@ fn splice(text: &str, start: usize, end: usize, with: &str) -> String {
 
 /// Inserts `"name": <value>` as the last member of `obj`, where `value(base)` renders the value
 /// for a member whose line starts at indentation `base`.
-fn insert(text: &str, obj: &Node, name: &str, style: &Style, value: &dyn Fn(&str) -> String) -> String {
+fn insert(
+    text: &str,
+    obj: &Node,
+    name: &str,
+    style: &Style,
+    value: &dyn Fn(&str) -> String,
+) -> String {
     let list = members(obj).unwrap_or(&[]);
     let key = Value::String(name.to_string());
     match list.last() {
@@ -372,7 +414,12 @@ fn insert(text: &str, obj: &Node, name: &str, style: &Style, value: &dyn Fn(&str
             let interior = &text[obj.start + 1..obj.end - 1];
             let member = format!("{}{ind}{key}: {}", style.nl, value(&ind));
             if interior.trim().is_empty() {
-                splice(text, obj.start + 1, obj.end - 1, &format!("{member}{}{close}", style.nl))
+                splice(
+                    text,
+                    obj.start + 1,
+                    obj.end - 1,
+                    &format!("{member}{}{close}", style.nl),
+                )
             } else {
                 // Only comments inside: put the member first and keep them.
                 splice(text, obj.start + 1, obj.start + 1, &member)
@@ -383,8 +430,12 @@ fn insert(text: &str, obj: &Node, name: &str, style: &Style, value: &dyn Fn(&str
 
 /// Removes member `name` from `obj` together with its line and the comma that went with it.
 fn remove(text: &str, obj: &Node, name: &str) -> String {
-    let Some(list) = members(obj) else { return text.to_string() };
-    let Some(idx) = list.iter().position(|m| m.key == name) else { return text.to_string() };
+    let Some(list) = members(obj) else {
+        return text.to_string();
+    };
+    let Some(idx) = list.iter().position(|m| m.key == name) else {
+        return text.to_string();
+    };
     let m = &list[idx];
     let mut a = m.key_start;
     while a > 0 && matches!(text.as_bytes()[a - 1], b' ' | b'\t') {
@@ -441,7 +492,12 @@ fn locate_same_object(n: &Node, start: usize) -> Option<(usize, usize)> {
 }
 
 /// The text with `container.../name` set to `fields`. Returns whether the container had to be created.
-pub fn set(text: &str, container: &[String], name: &str, fields: &Fields) -> Result<(String, bool), String> {
+pub fn set(
+    text: &str,
+    container: &[String],
+    name: &str,
+    fields: &Fields,
+) -> Result<(String, bool), String> {
     let root = parse(text)?;
     let style = Style::of(text, root.as_ref());
     let Some(root) = root else {
@@ -467,9 +523,18 @@ pub fn set(text: &str, container: &[String], name: &str, fields: &Fields) -> Res
                     for (i, k) in levels.iter().enumerate() {
                         let inner = format!("{ind}{}", style.unit);
                         if i + 1 == levels.len() {
-                            open.push_str(&format!("{{{}{inner}{}: {}", style.nl, Value::String(k.clone()), render(fields, &style, &inner)));
+                            open.push_str(&format!(
+                                "{{{}{inner}{}: {}",
+                                style.nl,
+                                Value::String(k.clone()),
+                                render(fields, &style, &inner)
+                            ));
                         } else {
-                            open.push_str(&format!("{{{}{inner}{}: ", style.nl, Value::String(k.clone())));
+                            open.push_str(&format!(
+                                "{{{}{inner}{}: ",
+                                style.nl,
+                                Value::String(k.clone())
+                            ));
                         }
                         close = format!("{}{ind}}}{close}", style.nl);
                         ind = inner;
@@ -483,17 +548,33 @@ pub fn set(text: &str, container: &[String], name: &str, fields: &Fields) -> Res
     let out = match member(obj, name) {
         Some(m) => {
             let base = line_indent(text, m.key_start);
-            splice(text, m.value.start, m.value.end, &render(fields, &style, &base))
+            splice(
+                text,
+                m.value.start,
+                m.value.end,
+                &render(fields, &style, &base),
+            )
         }
-        None => insert(text, obj, name, &style, &|base| render(fields, &style, base)),
+        None => insert(text, obj, name, &style, &|base| {
+            render(fields, &style, base)
+        }),
     };
     Ok((out, false))
 }
 
 /// The text without `container.../name`. With `drop_empty_container`, an emptied container goes too.
-pub fn unset(text: &str, container: &[String], name: &str, drop_empty_container: bool) -> Result<String, String> {
-    let Some(root) = parse(text)? else { return Ok(text.to_string()) };
-    let Some(obj) = find(&root, container) else { return Ok(text.to_string()) };
+pub fn unset(
+    text: &str,
+    container: &[String],
+    name: &str,
+    drop_empty_container: bool,
+) -> Result<String, String> {
+    let Some(root) = parse(text)? else {
+        return Ok(text.to_string());
+    };
+    let Some(obj) = find(&root, container) else {
+        return Ok(text.to_string());
+    };
     let out = remove(text, obj, name);
     if drop_empty_container && !container.is_empty() {
         if let Some(root) = parse(&out)? {
@@ -510,6 +591,10 @@ pub fn unset(text: &str, container: &[String], name: &str, drop_empty_container:
 
 /// The value at `container.../name`, if present.
 pub fn get(text: &str, container: &[String], name: &str) -> Result<Option<Value>, String> {
-    let Some(root) = parse(text)? else { return Ok(None) };
-    Ok(find(&root, container).and_then(|o| member(o, name)).map(|m| to_value(&m.value)))
+    let Some(root) = parse(text)? else {
+        return Ok(None);
+    };
+    Ok(find(&root, container)
+        .and_then(|o| member(o, name))
+        .map(|m| to_value(&m.value)))
 }

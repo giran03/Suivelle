@@ -40,7 +40,12 @@ mod sys {
     #[link(name = "advapi32")]
     extern "system" {
         pub fn CredWriteW(credential: *const Credential, flags: u32) -> i32;
-        pub fn CredReadW(target: *const u16, kind: u32, flags: u32, credential: *mut *mut Credential) -> i32;
+        pub fn CredReadW(
+            target: *const u16,
+            kind: u32,
+            flags: u32,
+            credential: *mut *mut Credential,
+        ) -> i32;
         pub fn CredDeleteW(target: *const u16, kind: u32, flags: u32) -> i32;
         pub fn CredFree(buffer: *mut c_void);
     }
@@ -86,7 +91,8 @@ pub fn read(agent_id: &str) -> Option<String> {
     let mut out: *mut sys::Credential = std::ptr::null_mut();
     // SAFETY: `name` is NUL-terminated; on success `out` is freed with CredFree below.
     unsafe {
-        if sys::CredReadW(name.as_ptr(), sys::CRED_TYPE_GENERIC, 0, &mut out) == 0 || out.is_null() {
+        if sys::CredReadW(name.as_ptr(), sys::CRED_TYPE_GENERIC, 0, &mut out) == 0 || out.is_null()
+        {
             return None;
         }
         let c = &*out;
@@ -107,7 +113,9 @@ pub fn delete(agent_id: &str) {
 
 #[cfg(not(windows))]
 pub fn store(_agent_id: &str, _token: &str) -> AppResult<()> {
-    Err(AppError::Validation("The system credential store is not supported here.".into()))
+    Err(AppError::Validation(
+        "The system credential store is not supported here.".into(),
+    ))
 }
 
 #[cfg(not(windows))]

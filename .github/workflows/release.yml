@@ -104,7 +104,19 @@ jobs:
           if ($signature.Trim() -ne $manifest.platforms.'windows-x86_64'.signature.Trim()) { throw 'Manifest signature differs from the installer signature file.' }
           node scripts/verify-update-artifact.mjs (Join-Path release-check $assetName) (Join-Path release-check "$assetName.sig")
           if ($LASTEXITCODE -ne 0) { throw 'Installer signature does not verify against the public key embedded in the app.' }
+      - name: Smoke-test installation and baseline data preservation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          gh release download v0.1.4 --repo $env:GITHUB_REPOSITORY --pattern '*_x64-setup.exe' --dir baseline-check
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the baseline installer.' }
+          $baseline = (Get-ChildItem baseline-check/*_x64-setup.exe).FullName
+          $candidate = (Get-ChildItem release-check/*_x64-setup.exe).FullName
+          node scripts/smoke-installer.mjs $baseline $candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Installer smoke test failed; do not publish this draft.' }
       - name: Release handoff
         shell: pwsh
         run: |
-          'Draft release prepared. Verify it in a disposable Windows installation before publishing.' >> $env:GITHUB_STEP_SUMMARY
+          'Draft release prepared. Signature verification and installer/data-preservation smoke tests passed on this disposable Windows runner.' >> $env:GITHUB_STEP_SUMMARY

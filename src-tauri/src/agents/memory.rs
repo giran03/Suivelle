@@ -44,7 +44,11 @@ pub struct Recall {
     pub limit: Option<usize>,
 }
 
-fn hubs(conn: &Connection, agent: &Agent, workspace: Option<&str>) -> AppResult<Vec<(String, Hub)>> {
+fn hubs(
+    conn: &Connection,
+    agent: &Agent,
+    workspace: Option<&str>,
+) -> AppResult<Vec<(String, Hub)>> {
     let mut out = Vec::new();
     for ws in &agent.workspace_ids {
         if workspace.is_some_and(|w| w != ws) {
@@ -96,13 +100,17 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
         let rows: Vec<(String, String)> = stmt
             .query_map([&hub.memory_database_id], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<Result<_, _>>()?;
-        let record_of: std::collections::HashMap<&str, &str> = rows.iter().map(|(r, p)| (p.as_str(), r.as_str())).collect();
+        let record_of: std::collections::HashMap<&str, &str> =
+            rows.iter().map(|(r, p)| (p.as_str(), r.as_str())).collect();
         let ordered: Vec<String> = if q.query.trim().is_empty() {
             rows.iter().map(|(_, p)| p.clone()).collect()
         } else {
             // Search hits first (in rank order), then title matches the index missed.
             let needle = q.query.to_lowercase();
-            let mut v: Vec<String> = ids.into_iter().filter(|p| record_of.contains_key(p.as_str())).collect();
+            let mut v: Vec<String> = ids
+                .into_iter()
+                .filter(|p| record_of.contains_key(p.as_str()))
+                .collect();
             for (_, p) in &rows {
                 if !v.contains(p) {
                     let title: String = conn
@@ -115,10 +123,15 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
             }
             v
         };
-        let record_ids: Vec<String> = ordered.iter().filter_map(|p| record_of.get(p.as_str()).map(|r| r.to_string())).collect();
+        let record_ids: Vec<String> = ordered
+            .iter()
+            .filter_map(|p| record_of.get(p.as_str()).map(|r| r.to_string()))
+            .collect();
         let loaded = load_rows(conn, &record_ids)?;
         for page_id in &ordered {
-            let Some(row) = loaded.iter().find(|r| &r.page_id == page_id) else { continue };
+            let Some(row) = loaded.iter().find(|r| &r.page_id == page_id) else {
+                continue;
+            };
             let values = hub::readable(conn, &props, &row.values);
             let status = text_of(values.get("Status"));
             if !q.include_inactive && !status.is_empty() && status != "Active" {
@@ -184,15 +197,19 @@ fn ensure_hub(conn: &mut Connection, ws: &str) -> AppResult<Hub> {
     Ok(h)
 }
 
-fn memory_record(conn: &Connection, agent: &Agent, page_id: &str) -> AppResult<(Hub, Vec<Property>)> {
+fn memory_record(
+    conn: &Connection,
+    agent: &Agent,
+    page_id: &str,
+) -> AppResult<(Hub, Vec<Property>)> {
     let page = agent.page(conn, page_id)?;
-    let hub = hub::get(conn, &page.workspace_id)?.ok_or_else(|| AppError::NotFound("memory".into()))?;
-    let in_memory: bool = conn
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM db_record WHERE page_id = ?1 AND database_id = ?2)",
-            params![page_id, hub.memory_database_id],
-            |r| r.get(0),
-        )?;
+    let hub =
+        hub::get(conn, &page.workspace_id)?.ok_or_else(|| AppError::NotFound("memory".into()))?;
+    let in_memory: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM db_record WHERE page_id = ?1 AND database_id = ?2)",
+        params![page_id, hub.memory_database_id],
+        |r| r.get(0),
+    )?;
     if !in_memory {
         return Err(AppError::Validation("That page is not a memory.".into()));
     }
@@ -211,9 +228,15 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<(Strin
         memory_record(conn, agent, old)?;
     }
     let mut values = Map::new();
-    values.insert("Kind".into(), json!(w.kind.clone().unwrap_or_else(|| "Fact".into())));
+    values.insert(
+        "Kind".into(),
+        json!(w.kind.clone().unwrap_or_else(|| "Fact".into())),
+    );
     values.insert("Status".into(), json!("Active"));
-    values.insert("Confidence".into(), json!(w.confidence.clone().unwrap_or_else(|| "Stated".into())));
+    values.insert(
+        "Confidence".into(),
+        json!(w.confidence.clone().unwrap_or_else(|| "Stated".into())),
+    );
     values.insert("Source".into(), json!(agent.name));
     if let Some(s) = w.scope.as_ref().filter(|s| !s.trim().is_empty()) {
         values.insert("Scope".into(), json!(s.trim()));
@@ -234,7 +257,10 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<(Strin
     if let Some(old) = &w.supersedes {
         let mut v = Map::new();
         v.insert("Status".into(), json!("Superseded"));
-        ops.push(Op::SetValues { page_id: old.clone(), values: v });
+        ops.push(Op::SetValues {
+            page_id: old.clone(),
+            values: v,
+        });
     }
     let fx = apply_direct(conn, agent, &format!("Memory: {}", w.title.trim()), &ops)?;
     let id = fx
@@ -247,11 +273,19 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<(Strin
 }
 
 /// Marks a memory expired, noting why.
-pub fn forget(conn: &mut Connection, agent: &Agent, page_id: &str, reason: &str) -> AppResult<Vec<String>> {
+pub fn forget(
+    conn: &mut Connection,
+    agent: &Agent,
+    page_id: &str,
+    reason: &str,
+) -> AppResult<Vec<String>> {
     memory_record(conn, agent, page_id)?;
     let mut v = Map::new();
     v.insert("Status".into(), json!("Expired"));
-    let mut ops = vec![Op::SetValues { page_id: page_id.into(), values: v }];
+    let mut ops = vec![Op::SetValues {
+        page_id: page_id.into(),
+        values: v,
+    }];
     if !reason.trim().is_empty() {
         ops.push(Op::UpdateContent {
             page_id: page_id.into(),
@@ -269,9 +303,24 @@ pub fn render(list: &[Memory], with_body: bool) -> String {
     for m in list {
         let meta: Vec<String> = ["Kind", "Status", "Confidence", "Scope", "Source", "Expires"]
             .iter()
-            .filter_map(|k| m.values.get(*k).map(|v| format!("{k}: {}", v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))))
+            .filter_map(|k| {
+                m.values.get(*k).map(|v| {
+                    format!(
+                        "{k}: {}",
+                        v.as_str()
+                            .map(String::from)
+                            .unwrap_or_else(|| v.to_string())
+                    )
+                })
+            })
             .collect();
-        out.push_str(&format!("- **{}** (id {}; {}; {})\n", m.title, m.page_id, meta.join(", "), &m.created_at[..m.created_at.len().min(10)]));
+        out.push_str(&format!(
+            "- **{}** (id {}; {}; {})\n",
+            m.title,
+            m.page_id,
+            meta.join(", "),
+            &m.created_at[..m.created_at.len().min(10)]
+        ));
         if with_body && !m.body.trim().is_empty() {
             for line in m.body.lines().take(12) {
                 out.push_str(&format!("  {line}\n"));

@@ -37,9 +37,16 @@ pub fn parse(text: &str) -> (BTreeMap<String, String>, String) {
     }
     let mut consumed = text.find('\n').map_or(text.len(), |i| i + 1);
     let mut pending: Option<(String, bool, Vec<String>)> = None;
-    let flush = |p: &mut Option<(String, bool, Vec<String>)>, fields: &mut BTreeMap<String, String>| {
+    let flush = |p: &mut Option<(String, bool, Vec<String>)>,
+                 fields: &mut BTreeMap<String, String>| {
         if let Some((k, literal, parts)) = p.take() {
-            fields.insert(k, parts.join(if literal { "\n" } else { " " }).trim().to_string());
+            fields.insert(
+                k,
+                parts
+                    .join(if literal { "\n" } else { " " })
+                    .trim()
+                    .to_string(),
+            );
         }
     };
     for raw in lines {
@@ -57,13 +64,19 @@ pub fn parse(text: &str) -> (BTreeMap<String, String>, String) {
             }
         }
         flush(&mut pending, &mut fields);
-        let Some((k, v)) = line.split_once(':') else { continue };
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
         let (k, v) = (k.trim().to_string(), v.trim());
         match v {
             "|" | "|-" | "|+" => pending = Some((k, true, Vec::new())),
             ">" | ">-" | ">+" => pending = Some((k, false, Vec::new())),
             _ if v.starts_with('"') => {
-                fields.insert(k, serde_json::from_str::<String>(v).unwrap_or_else(|_| v.trim_matches('"').to_string()));
+                fields.insert(
+                    k,
+                    serde_json::from_str::<String>(v)
+                        .unwrap_or_else(|_| v.trim_matches('"').to_string()),
+                );
             }
             _ if v.starts_with('\'') && v.ends_with('\'') && v.len() >= 2 => {
                 fields.insert(k, v[1..v.len() - 1].replace("''", "'"));
@@ -79,18 +92,35 @@ pub fn parse(text: &str) -> (BTreeMap<String, String>, String) {
 
 fn exists(conn: &Connection, name: &str) -> AppResult<bool> {
     Ok(conn
-        .query_row("SELECT 1 FROM agent WHERE name = ?1 COLLATE NOCASE", [name], |_| Ok(()))
+        .query_row(
+            "SELECT 1 FROM agent WHERE name = ?1 COLLATE NOCASE",
+            [name],
+            |_| Ok(()),
+        )
         .optional()?
         .is_some())
 }
 
 /// A subagent file Suivelle may read: a small `.md` directly inside a `.claude/agents` folder.
 fn checked(path: &Path) -> AppResult<PathBuf> {
-    let bad = || AppError::Validation(format!("{} is not a Claude Code subagent file.", path.display()));
+    let bad = || {
+        AppError::Validation(format!(
+            "{} is not a Claude Code subagent file.",
+            path.display()
+        ))
+    };
     let dir = path.parent().ok_or_else(bad)?;
-    let in_agents = dir.file_name().is_some_and(|n| n == "agents") && dir.parent().and_then(Path::file_name).is_some_and(|n| n == ".claude");
+    let in_agents = dir.file_name().is_some_and(|n| n == "agents")
+        && dir
+            .parent()
+            .and_then(Path::file_name)
+            .is_some_and(|n| n == ".claude");
     let meta = std::fs::metadata(path).map_err(|_| bad())?;
-    if !in_agents || !meta.is_file() || path.extension().is_none_or(|e| e != "md") || meta.len() > MAX_FILE {
+    if !in_agents
+        || !meta.is_file()
+        || path.extension().is_none_or(|e| e != "md")
+        || meta.len() > MAX_FILE
+    {
         return Err(bad());
     }
     Ok(path.to_path_buf())
@@ -99,8 +129,15 @@ fn checked(path: &Path) -> AppResult<PathBuf> {
 fn describe(conn: &Connection, path: &Path) -> AppResult<Subagent> {
     let text = std::fs::read_to_string(path)?;
     let (fm, _) = parse(&text);
-    let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let name = fm.get("name").filter(|n| !n.trim().is_empty()).cloned().unwrap_or(stem);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let name = fm
+        .get("name")
+        .filter(|n| !n.trim().is_empty())
+        .cloned()
+        .unwrap_or(stem);
     Ok(Subagent {
         path: path.display().to_string(),
         exists: exists(conn, name.trim())?,
@@ -113,8 +150,14 @@ fn describe(conn: &Connection, path: &Path) -> AppResult<Subagent> {
 
 /// The subagents in `<dir>/.claude/agents` (or `dir` itself when it is that folder).
 pub fn scan(conn: &Connection, dir: &Path) -> AppResult<Vec<Subagent>> {
-    let folder = if dir.file_name().is_some_and(|n| n == "agents") { dir.to_path_buf() } else { dir.join(".claude").join("agents") };
-    let Ok(read) = std::fs::read_dir(&folder) else { return Ok(Vec::new()) };
+    let folder = if dir.file_name().is_some_and(|n| n == "agents") {
+        dir.to_path_buf()
+    } else {
+        dir.join(".claude").join("agents")
+    };
+    let Ok(read) = std::fs::read_dir(&folder) else {
+        return Ok(Vec::new());
+    };
     let mut out = Vec::new();
     for e in read.flatten().take(MAX_FILES) {
         if let Ok(p) = checked(&e.path()) {
@@ -137,18 +180,35 @@ pub struct Imported {
 }
 
 fn clip(s: &str, max: usize) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(max).collect()
+    s.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(max)
+        .collect()
 }
 
-fn import_one(conn: &mut Connection, path: &Path, workspace_ids: &[String], mode: Option<String>) -> AppResult<(String, String)> {
+fn import_one(
+    conn: &mut Connection,
+    path: &Path,
+    workspace_ids: &[String],
+    mode: Option<String>,
+) -> AppResult<(String, String)> {
     let path = checked(path)?;
     let text = std::fs::read_to_string(&path)?;
     let info = describe(conn, &path)?;
     if info.exists {
-        return Err(AppError::Validation(format!("An agent named {} already exists.", info.name)));
+        return Err(AppError::Validation(format!(
+            "An agent named {} already exists.",
+            info.name
+        )));
     }
     let (_, body) = parse(&text);
-    let mut body: String = body.lines().filter(|l| !l.starts_with("<!-- suivelle:fingerprint ")).collect::<Vec<_>>().join("\n");
+    let mut body: String = body
+        .lines()
+        .filter(|l| !l.starts_with("<!-- suivelle:fingerprint "))
+        .collect::<Vec<_>>()
+        .join("\n");
     if info.from_suivelle {
         if let Some(at) = body.find("## Working in Suivelle") {
             body.truncate(at);
@@ -165,7 +225,10 @@ fn import_one(conn: &mut Connection, path: &Path, workspace_ids: &[String], mode
             ..Default::default()
         },
     )?;
-    if let (Some(page_id), false) = (agent.instructions_page_id.as_deref(), body.trim().is_empty()) {
+    if let (Some(page_id), false) = (
+        agent.instructions_page_id.as_deref(),
+        body.trim().is_empty(),
+    ) {
         let tx = conn.transaction()?;
         if let Some(page) = repo::page::get(&tx, page_id)? {
             content::write_markdown(&tx, &page, body.trim(), WriteMode::Replace)?;
@@ -176,20 +239,42 @@ fn import_one(conn: &mut Connection, path: &Path, workspace_ids: &[String], mode
 }
 
 /// Creates one agent per file. Files that fail are reported, not fatal.
-pub fn import(conn: &mut Connection, paths: &[String], workspace_ids: &[String], mode: Option<String>) -> AppResult<Vec<Imported>> {
+pub fn import(
+    conn: &mut Connection,
+    paths: &[String],
+    workspace_ids: &[String],
+    mode: Option<String>,
+) -> AppResult<Vec<Imported>> {
     if workspace_ids.is_empty() {
-        return Err(AppError::Validation("Choose a workspace for their instructions.".into()));
+        return Err(AppError::Validation(
+            "Choose a workspace for their instructions.".into(),
+        ));
     }
     if paths.is_empty() || paths.len() > MAX_FILES {
-        return Err(AppError::Validation("Choose between 1 and 200 subagents.".into()));
+        return Err(AppError::Validation(
+            "Choose between 1 and 200 subagents.".into(),
+        ));
     }
     let mut out = Vec::new();
     for p in paths {
         let path = PathBuf::from(p);
-        let fallback = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        let fallback = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
         match import_one(conn, &path, workspace_ids, mode.clone()) {
-            Ok((id, name)) => out.push(Imported { path: p.clone(), name, agent_id: Some(id), error: None }),
-            Err(e) => out.push(Imported { path: p.clone(), name: fallback, agent_id: None, error: Some(e.to_string()) }),
+            Ok((id, name)) => out.push(Imported {
+                path: p.clone(),
+                name,
+                agent_id: Some(id),
+                error: None,
+            }),
+            Err(e) => out.push(Imported {
+                path: p.clone(),
+                name: fallback,
+                agent_id: None,
+                error: Some(e.to_string()),
+            }),
         }
     }
     Ok(out)

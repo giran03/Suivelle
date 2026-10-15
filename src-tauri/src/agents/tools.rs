@@ -2,8 +2,8 @@
 //! model; page content inside them is data written by people and other agents, never
 //! instructions, and the descriptions say so.
 
-use super::context;
 use super::content;
+use super::context;
 use super::janitor;
 use super::memory;
 use super::ops::{self, Op};
@@ -404,7 +404,8 @@ pub fn definitions(agent: &Agent) -> Vec<Value> {
 }
 
 fn args<T: for<'de> Deserialize<'de>>(v: &Value) -> AppResult<T> {
-    serde_json::from_value(v.clone()).map_err(|e| AppError::Validation(format!("Invalid arguments: {e}")))
+    serde_json::from_value(v.clone())
+        .map_err(|e| AppError::Validation(format!("Invalid arguments: {e}")))
 }
 
 #[derive(Deserialize)]
@@ -612,7 +613,11 @@ fn snake_keys(v: &Value) -> Value {
                         }
                     }
                     // `values` keys are property names and stay as written.
-                    let inner = if k == "values" { v.clone() } else { snake_keys(v) };
+                    let inner = if k == "values" {
+                        v.clone()
+                    } else {
+                        snake_keys(v)
+                    };
                     (if k == "op" { k.clone() } else { out }, inner)
                 })
                 .collect(),
@@ -622,15 +627,33 @@ fn snake_keys(v: &Value) -> Value {
     }
 }
 
-fn propose(conn: &mut Connection, agent: &Agent, title: &str, rationale: &str, ops: Vec<Op>) -> AppResult<Output> {
+fn propose(
+    conn: &mut Connection,
+    agent: &Agent,
+    title: &str,
+    rationale: &str,
+    ops: Vec<Op>,
+) -> AppResult<Output> {
     let outcome = ops::submit(conn, agent, title, rationale, ops)?;
     let text = if outcome.status == "applied" {
-        let created: Vec<String> = outcome.created.iter().map(|(k, id)| format!("{k} → {id}")).collect();
+        let created: Vec<String> = outcome
+            .created
+            .iter()
+            .map(|(k, id)| format!("{k} → {id}"))
+            .collect();
         format!(
             "Applied (proposal {}). Changed pages: {}.{}",
             outcome.proposal_id,
-            if outcome.page_ids.is_empty() { "none".into() } else { outcome.page_ids.join(", ") },
-            if created.is_empty() { String::new() } else { format!(" Created: {}.", created.join(", ")) }
+            if outcome.page_ids.is_empty() {
+                "none".into()
+            } else {
+                outcome.page_ids.join(", ")
+            },
+            if created.is_empty() {
+                String::new()
+            } else {
+                format!(" Created: {}.", created.join(", "))
+            }
         )
     } else {
         format!(
@@ -655,7 +678,11 @@ fn page_header(conn: &Connection, page: &crate::domain::Page) -> AppResult<Strin
         .map(|p| format!("{} ({})", p.title, p.id));
     let aliases = content::aliases(conn, &page.id)?;
     let created_by: Option<String> = conn
-        .query_row("SELECT a.name FROM page p JOIN agent a ON a.id = p.created_by WHERE p.id = ?1", [&page.id], |r| r.get(0))
+        .query_row(
+            "SELECT a.name FROM page p JOIN agent a ON a.id = p.created_by WHERE p.id = ?1",
+            [&page.id],
+            |r| r.get(0),
+        )
         .ok();
     let mut s = format!(
         "---\nid: {}\ntitle: {}\nkind: {}\nworkspace_id: {}\nupdated: {}\nhash: {}\n",
@@ -667,23 +694,42 @@ fn page_header(conn: &Connection, page: &crate::domain::Page) -> AppResult<Strin
         content::content_hash(conn, &page.id)?
     );
     if let Some(p) = parent {
-        s.push_str(&format!("parent: {}\n", serde_json::to_string(&p).unwrap_or_default()));
+        s.push_str(&format!(
+            "parent: {}\n",
+            serde_json::to_string(&p).unwrap_or_default()
+        ));
     }
     if !aliases.is_empty() {
-        s.push_str(&format!("aliases: {}\n", serde_json::to_string(&aliases).unwrap_or_default()));
+        s.push_str(&format!(
+            "aliases: {}\n",
+            serde_json::to_string(&aliases).unwrap_or_default()
+        ));
     }
     if let Some(a) = created_by {
-        s.push_str(&format!("created_by_agent: {}\n", serde_json::to_string(&a).unwrap_or_default()));
+        s.push_str(&format!(
+            "created_by_agent: {}\n",
+            serde_json::to_string(&a).unwrap_or_default()
+        ));
     }
     if page.kind == "record" {
         let record: Option<(String, String)> = conn
-            .query_row("SELECT id, database_id FROM db_record WHERE page_id = ?1", [&page.id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row(
+                "SELECT id, database_id FROM db_record WHERE page_id = ?1",
+                [&page.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .ok();
         if let Some((rid, dbid)) = record {
             let props = load_properties(conn, &dbid)?;
-            if let Some(row) = crate::databases::service::load_rows(conn, &[rid])?.into_iter().next() {
+            if let Some(row) = crate::databases::service::load_rows(conn, &[rid])?
+                .into_iter()
+                .next()
+            {
                 let values = super::hub::readable(conn, &props, &row.values);
-                s.push_str(&format!("database_id: {dbid}\nproperties: {}\n", Value::Object(values)));
+                s.push_str(&format!(
+                    "database_id: {dbid}\nproperties: {}\n",
+                    Value::Object(values)
+                ));
             }
         }
     }
@@ -692,13 +738,21 @@ fn page_header(conn: &Connection, page: &crate::domain::Page) -> AppResult<Strin
 }
 
 /// Runs one tool for `agent`. Writes are refused in `read_only`.
-pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_only: bool) -> AppResult<Output> {
+pub fn call(
+    conn: &mut Connection,
+    agent: &Agent,
+    name: &str,
+    a: &Value,
+    read_only: bool,
+) -> AppResult<Output> {
     let tool = find(name).ok_or_else(|| AppError::Validation(format!("Unknown tool '{name}'.")))?;
     if let Some(g) = tool.group {
         agent.require(g)?;
     }
     if tool.writes && read_only {
-        return Err(AppError::Validation("Suivelle is open read-only right now, so nothing can be changed.".into()));
+        return Err(AppError::Validation(
+            "Suivelle is open read-only right now, so nothing can be changed.".into(),
+        ));
     }
     let a = if a.is_null() { &json!({}) } else { a };
     match name {
@@ -720,9 +774,16 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
             }
             // The agent's own instructions, even when its page sits in a workspace the agent no
             // longer sees (its workspaces were changed after it was created).
-            let instructions = agent.instructions_page_id.as_deref().and_then(|p| repo::page::get(conn, p).ok().flatten());
+            let instructions = agent
+                .instructions_page_id
+                .as_deref()
+                .and_then(|p| repo::page::get(conn, p).ok().flatten());
             if let Some(p) = instructions.filter(|p| p.deleted_at.is_none()) {
-                s.push_str(&format!("\n## Your instructions (page {})\n\n{}\n", p.id, content::body_markdown(conn, &p.id)?));
+                s.push_str(&format!(
+                    "\n## Your instructions (page {})\n\n{}\n",
+                    p.id,
+                    content::body_markdown(conn, &p.id)?
+                ));
             }
             // The shared protocol comes along, so agents don't spend a call reading it.
             if let Some(id) = super::commands::page_titled(conn, agent, ops::PROTOCOL_TITLE)? {
@@ -736,7 +797,12 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
         }
         "command" => {
             let x: CommandArgs = args(a)?;
-            Ok(Output::text(super::commands::text(conn, agent, &x.name, x.arguments.as_deref())?))
+            Ok(Output::text(super::commands::text(
+                conn,
+                agent,
+                &x.name,
+                x.arguments.as_deref(),
+            )?))
         }
         "search" => {
             let x: Search = args(a)?;
@@ -757,17 +823,36 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                     },
                 )?;
                 for h in hits {
-                    let snippet = h.snippet.replace([search::MARK_START, search::MARK_END], "**");
-                    lines.push(format!("- **{}** (id {}){}: {}", h.page_title, h.page_id, h.parent_title.map(|p| format!(" in {p}")).unwrap_or_default(), snippet));
+                    let snippet = h
+                        .snippet
+                        .replace([search::MARK_START, search::MARK_END], "**");
+                    lines.push(format!(
+                        "- **{}** (id {}){}: {}",
+                        h.page_title,
+                        h.page_id,
+                        h.parent_title
+                            .map(|p| format!(" in {p}"))
+                            .unwrap_or_default(),
+                        snippet
+                    ));
                 }
             }
-            Ok(Output::text(if lines.is_empty() { "No matches.".into() } else { lines.join("\n") }))
+            Ok(Output::text(if lines.is_empty() {
+                "No matches.".into()
+            } else {
+                lines.join("\n")
+            }))
         }
         "page_read" => {
             let x: PageId = args(a)?;
             let page = agent.page(conn, &x.page_id)?;
             let body = content::body_markdown(conn, &page.id)?;
-            Ok(Output::text(format!("{}# {}\n\n{}", page_header(conn, &page)?, page.title, body)))
+            Ok(Output::text(format!(
+                "{}# {}\n\n{}",
+                page_header(conn, &page)?,
+                page.title,
+                body
+            )))
         }
         "page_list" => {
             let x: PageList = args(a)?;
@@ -782,32 +867,68 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
             let lines: Vec<String> = pages
                 .iter()
                 .take(500)
-                .map(|p| format!("- **{}** (id {}, {}{})", if p.title.is_empty() { "Untitled" } else { &p.title }, p.id, p.kind, if p.child_count > 0 { format!(", {} subpages", p.child_count) } else { String::new() }))
+                .map(|p| {
+                    format!(
+                        "- **{}** (id {}, {}{})",
+                        if p.title.is_empty() {
+                            "Untitled"
+                        } else {
+                            &p.title
+                        },
+                        p.id,
+                        p.kind,
+                        if p.child_count > 0 {
+                            format!(", {} subpages", p.child_count)
+                        } else {
+                            String::new()
+                        }
+                    )
+                })
                 .collect();
-            Ok(Output::text(if lines.is_empty() { "No pages.".into() } else { lines.join("\n") }))
+            Ok(Output::text(if lines.is_empty() {
+                "No pages.".into()
+            } else {
+                lines.join("\n")
+            }))
         }
         "page_create" => {
             let x: PageCreate = args(a)?;
             let title = format!("Create “{}”", x.title.trim());
-            propose(conn, agent, &title, &x.rationale, vec![Op::CreatePage {
-                key: Some("page".into()),
-                workspace_id: x.workspace_id,
-                parent: x.parent_page_id,
-                title: x.title,
-                markdown: x.markdown,
-                aliases: x.aliases,
-            }])
+            propose(
+                conn,
+                agent,
+                &title,
+                &x.rationale,
+                vec![Op::CreatePage {
+                    key: Some("page".into()),
+                    workspace_id: x.workspace_id,
+                    parent: x.parent_page_id,
+                    title: x.title,
+                    markdown: x.markdown,
+                    aliases: x.aliases,
+                }],
+            )
         }
         "page_update" => {
             let x: PageUpdate = args(a)?;
             let page = agent.page(conn, &x.page_id)?;
-            let title = format!("{} “{}”", if x.append { "Add to" } else { "Rewrite" }, page.title);
-            propose(conn, agent, &title, &x.rationale, vec![Op::UpdateContent {
-                page_id: x.page_id,
-                markdown: x.markdown,
-                append: x.append,
-                base_hash: x.base_hash,
-            }])
+            let title = format!(
+                "{} “{}”",
+                if x.append { "Add to" } else { "Rewrite" },
+                page.title
+            );
+            propose(
+                conn,
+                agent,
+                &title,
+                &x.rationale,
+                vec![Op::UpdateContent {
+                    page_id: x.page_id,
+                    markdown: x.markdown,
+                    append: x.append,
+                    base_hash: x.base_hash,
+                }],
+            )
         }
         "changes_propose" => {
             let x: Propose = args(a)?;
@@ -825,10 +946,12 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
         // Answers at once here; the server's session loop does the actual waiting.
         "proposal_wait" => {
             let x: Wait = args(a)?;
-            Ok(Output::text(match super::resume::begin(conn, agent, &x.proposal_id, false)? {
-                Some(decided) => decided,
-                None => still_pending(&x.proposal_id),
-            }))
+            Ok(Output::text(
+                match super::resume::begin(conn, agent, &x.proposal_id, false)? {
+                    Some(decided) => decided,
+                    None => still_pending(&x.proposal_id),
+                },
+            ))
         }
         "proposal_status" => {
             let x: Status = args(a)?;
@@ -840,7 +963,12 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                     }
                     vec![p]
                 }
-                None => ops::list(conn, x.status.as_deref().unwrap_or("all"), Some(&agent.id), 20)?,
+                None => ops::list(
+                    conn,
+                    x.status.as_deref().unwrap_or("all"),
+                    Some(&agent.id),
+                    20,
+                )?,
             };
             let lines: Vec<String> = list
                 .iter()
@@ -850,20 +978,42 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                         p.id,
                         p.title,
                         p.status,
-                        p.decision_note.as_ref().filter(|n| !n.is_empty()).map(|n| format!(". Note: {n}")).unwrap_or_default(),
-                        p.error.as_ref().map(|e| format!(". Error: {e}")).unwrap_or_default()
+                        p.decision_note
+                            .as_ref()
+                            .filter(|n| !n.is_empty())
+                            .map(|n| format!(". Note: {n}"))
+                            .unwrap_or_default(),
+                        p.error
+                            .as_ref()
+                            .map(|e| format!(". Error: {e}"))
+                            .unwrap_or_default()
                     )
                 })
                 .collect();
-            Ok(Output::text(if lines.is_empty() { "No proposals.".into() } else { lines.join("\n") }))
+            Ok(Output::text(if lines.is_empty() {
+                "No proposals.".into()
+            } else {
+                lines.join("\n")
+            }))
         }
         "graph_neighbors" => {
             let x: Neighbors = args(a)?;
-            let n = context::neighbors(conn, agent, &x.page_id, x.hops.unwrap_or(1), x.limit.unwrap_or(100))?;
+            let n = context::neighbors(
+                conn,
+                agent,
+                &x.page_id,
+                x.hops.unwrap_or(1),
+                x.limit.unwrap_or(100),
+            )?;
             let mut s: String = n
                 .pages
                 .iter()
-                .map(|(id, title, d, via)| format!("- {d} hop{}: **{title}** (id {id}) — {via}\n", if *d == 1 { "" } else { "s" }))
+                .map(|(id, title, d, via)| {
+                    format!(
+                        "- {d} hop{}: **{title}** (id {id}) — {via}\n",
+                        if *d == 1 { "" } else { "s" }
+                    )
+                })
                 .collect();
             if s.is_empty() {
                 s = "No connected pages.\n".into();
@@ -881,32 +1031,61 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                 if agent.page(conn, &b.source_page_id).is_err() {
                     continue;
                 }
-                s.push_str(&format!("- **{}** (id {}): {}\n", b.source_page_title, b.source_page_id, b.snippet.replace([search::MARK_START, search::MARK_END], "")));
+                s.push_str(&format!(
+                    "- **{}** (id {}): {}\n",
+                    b.source_page_title,
+                    b.source_page_id,
+                    b.snippet
+                        .replace([search::MARK_START, search::MARK_END], "")
+                ));
             }
             if x.include_unlinked {
                 let unlinked = search::unlinked_mentions(conn, &page.id)?;
-                let unlinked: Vec<_> = unlinked.into_iter().filter(|b| agent.page(conn, &b.source_page_id).is_ok()).collect();
+                let unlinked: Vec<_> = unlinked
+                    .into_iter()
+                    .filter(|b| agent.page(conn, &b.source_page_id).is_ok())
+                    .collect();
                 if !unlinked.is_empty() {
                     s.push_str("\nMentions without a link:\n");
                     for b in unlinked {
-                        s.push_str(&format!("- **{}** (id {}): {}\n", b.source_page_title, b.source_page_id, b.snippet.replace([search::MARK_START, search::MARK_END], "**")));
+                        s.push_str(&format!(
+                            "- **{}** (id {}): {}\n",
+                            b.source_page_title,
+                            b.source_page_id,
+                            b.snippet
+                                .replace([search::MARK_START, search::MARK_END], "**")
+                        ));
                     }
                 }
             }
-            Ok(Output::text(if s.is_empty() { "Nothing links here.".into() } else { s }))
+            Ok(Output::text(if s.is_empty() {
+                "Nothing links here.".into()
+            } else {
+                s
+            }))
         }
         "graph_path" => {
             let x: PathArgs = args(a)?;
-            Ok(Output::text(match context::path(conn, agent, &x.from_page_id, &x.to_page_id, x.max_hops.unwrap_or(4))? {
-                None => "No connection within that many hops.".into(),
-                Some(chain) if chain.is_empty() => "Both ids are the same page.".into(),
-                Some(chain) => chain
-                    .iter()
-                    .enumerate()
-                    .map(|(i, l)| format!("{}. {} → **{}** (id {})", i + 1, l.via, l.title, l.page_id))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            }))
+            Ok(Output::text(
+                match context::path(
+                    conn,
+                    agent,
+                    &x.from_page_id,
+                    &x.to_page_id,
+                    x.max_hops.unwrap_or(4),
+                )? {
+                    None => "No connection within that many hops.".into(),
+                    Some(chain) if chain.is_empty() => "Both ids are the same page.".into(),
+                    Some(chain) => chain
+                        .iter()
+                        .enumerate()
+                        .map(|(i, l)| {
+                            format!("{}. {} → **{}** (id {})", i + 1, l.via, l.title, l.page_id)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                },
+            ))
         }
         "tags" => {
             let x: Tags = args(a)?;
@@ -935,17 +1114,41 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                     "SELECT d.id, p.id, p.title FROM db_database d JOIN page p ON p.id = d.page_id
                      WHERE p.workspace_id = ?1 AND p.deleted_at IS NULL ORDER BY p.title LIMIT 200",
                 )?;
-                let dbs: Vec<(String, String, String)> = stmt.query_map([ws], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<_, _>>()?;
+                let dbs: Vec<(String, String, String)> = stmt
+                    .query_map([ws], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                    .collect::<Result<_, _>>()?;
                 for (id, page, title) in dbs {
                     s.push_str(&format!("## {title}\nid {id} · page {page}\n"));
                     for p in load_properties(conn, &id)? {
-                        let opts: Vec<String> = p.config.get("options").and_then(Value::as_array).map(|o| o.iter().filter_map(|x| x["name"].as_str().map(String::from)).collect()).unwrap_or_default();
-                        s.push_str(&format!("- {} ({}){}\n", p.name, p.property_type, if opts.is_empty() { String::new() } else { format!(": {}", opts.join(", ")) }));
+                        let opts: Vec<String> = p
+                            .config
+                            .get("options")
+                            .and_then(Value::as_array)
+                            .map(|o| {
+                                o.iter()
+                                    .filter_map(|x| x["name"].as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        s.push_str(&format!(
+                            "- {} ({}){}\n",
+                            p.name,
+                            p.property_type,
+                            if opts.is_empty() {
+                                String::new()
+                            } else {
+                                format!(": {}", opts.join(", "))
+                            }
+                        ));
                     }
                     s.push('\n');
                 }
             }
-            Ok(Output::text(if s.is_empty() { "No databases.".into() } else { s }))
+            Ok(Output::text(if s.is_empty() {
+                "No databases.".into()
+            } else {
+                s
+            }))
         }
         "records_query" => {
             let x: Records = args(a)?;
@@ -958,7 +1161,9 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                 "SELECT r.id FROM db_record r JOIN page p ON p.id = r.page_id
                  WHERE r.database_id = ?1 AND p.deleted_at IS NULL ORDER BY r.unique_id LIMIT 5000",
             )?;
-            let ids: Vec<String> = stmt.query_map([&db.id], |r| r.get(0))?.collect::<Result<_, _>>()?;
+            let ids: Vec<String> = stmt
+                .query_map([&db.id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
             drop(stmt);
             let mut lines = Vec::new();
             'chunks: for chunk in ids.chunks(200) {
@@ -966,52 +1171,100 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                     let matches = wanted.iter().all(|(k, v)| {
                         let have = r.values.get(k).unwrap_or(&Value::Null);
                         have == v
-                            || (v.as_array().is_some_and(|want| have.as_array().is_some_and(|h| want.iter().all(|x| h.contains(x)))))
-                            || (v.is_string() && have.is_string() && v.as_str().unwrap().eq_ignore_ascii_case(have.as_str().unwrap()))
+                            || (v.as_array().is_some_and(|want| {
+                                have.as_array()
+                                    .is_some_and(|h| want.iter().all(|x| h.contains(x)))
+                            }))
+                            || (v.is_string()
+                                && have.is_string()
+                                && v.as_str()
+                                    .unwrap()
+                                    .eq_ignore_ascii_case(have.as_str().unwrap()))
                     });
                     if matches {
-                        lines.push(format!("- **{}** (page {}): {}", r.title, r.page_id, Value::Object(super::hub::readable(conn, &props, &r.values))));
+                        lines.push(format!(
+                            "- **{}** (page {}): {}",
+                            r.title,
+                            r.page_id,
+                            Value::Object(super::hub::readable(conn, &props, &r.values))
+                        ));
                         if lines.len() >= limit {
                             break 'chunks;
                         }
                     }
                 }
             }
-            Ok(Output::text(if lines.is_empty() { "No records match.".into() } else { lines.join("\n") }))
+            Ok(Output::text(if lines.is_empty() {
+                "No records match.".into()
+            } else {
+                lines.join("\n")
+            }))
         }
         "record_create" => {
             let x: RecordCreate = args(a)?;
             let title = format!("Add “{}” to {}", x.title.trim(), x.database);
-            propose(conn, agent, &title, &x.rationale, vec![Op::CreateRecord {
-                key: Some("record".into()),
-                database: x.database,
-                title: x.title,
-                values: x.values,
-                markdown: x.markdown,
-            }])
+            propose(
+                conn,
+                agent,
+                &title,
+                &x.rationale,
+                vec![Op::CreateRecord {
+                    key: Some("record".into()),
+                    database: x.database,
+                    title: x.title,
+                    values: x.values,
+                    markdown: x.markdown,
+                }],
+            )
         }
         "record_update" => {
             let x: RecordUpdate = args(a)?;
             let page = agent.page(conn, &x.page_id)?;
-            propose(conn, agent, &format!("Update “{}”", page.title), &x.rationale, vec![Op::SetValues { page_id: x.page_id, values: x.values }])
+            propose(
+                conn,
+                agent,
+                &format!("Update “{}”", page.title),
+                &x.rationale,
+                vec![Op::SetValues {
+                    page_id: x.page_id,
+                    values: x.values,
+                }],
+            )
         }
         "memory_recall" => {
             let x: memory::Recall = args(&snake_keys(a))?;
-            Ok(Output::text(memory::render(&memory::recall(conn, agent, &x)?, true)))
+            Ok(Output::text(memory::render(
+                &memory::recall(conn, agent, &x)?,
+                true,
+            )))
         }
         "memory_write" => {
             let x: memory::Write = args(&snake_keys(a))?;
             let (id, changed) = memory::write(conn, agent, x)?;
-            Ok(Output { text: format!("Saved memory {id}."), changed, ..Default::default() })
+            Ok(Output {
+                text: format!("Saved memory {id}."),
+                changed,
+                ..Default::default()
+            })
         }
         "memory_forget" => {
             let x: Forget = args(a)?;
             let changed = memory::forget(conn, agent, &x.memory_id, &x.reason)?;
-            Ok(Output { text: "Marked expired.".into(), changed, ..Default::default() })
+            Ok(Output {
+                text: "Marked expired.".into(),
+                changed,
+                ..Default::default()
+            })
         }
         "context_pack" => {
             let x: Pack = args(a)?;
-            Ok(Output::text(context::pack(conn, agent, x.page_id.as_deref(), x.query.as_deref(), x.budget_tokens.unwrap_or(6000))?))
+            Ok(Output::text(context::pack(
+                conn,
+                agent,
+                x.page_id.as_deref(),
+                x.query.as_deref(),
+                x.budget_tokens.unwrap_or(6000),
+            )?))
         }
         "task_next" => match tasks::next(conn, agent)? {
             None => Ok(Output::text("No tasks are waiting for you.")),
@@ -1020,7 +1273,10 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
                     "Claimed **{}** (task id {}) until {}.\n\n{}\n\n{}",
                     t.title,
                     t.page_id,
-                    t.values.get("Lease until").and_then(Value::as_str).unwrap_or(""),
+                    t.values
+                        .get("Lease until")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
                     Value::Object(t.values.clone()),
                     t.body
                 ),
@@ -1035,7 +1291,11 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
         "task_create" => {
             let x: tasks::Create = args(&snake_keys(a))?;
             let (id, changed) = tasks::create(conn, agent, x)?;
-            Ok(Output { text: format!("Queued task {id}."), changed, ..Default::default() })
+            Ok(Output {
+                text: format!("Queued task {id}."),
+                changed,
+                ..Default::default()
+            })
         }
         "task_heartbeat" => {
             let x: TaskId = args(a)?;
@@ -1045,12 +1305,20 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
         "task_complete" => {
             let x: tasks::Complete = args(&snake_keys(a))?;
             let changed = tasks::complete(conn, agent, x)?;
-            Ok(Output { text: "Task finished.".into(), changed, ..Default::default() })
+            Ok(Output {
+                text: "Task finished.".into(),
+                changed,
+                ..Default::default()
+            })
         }
         "task_fail" => {
             let x: Fail = args(a)?;
             let (status, changed) = tasks::fail(conn, agent, &x.task_id, &x.reason)?;
-            Ok(Output { text: format!("Task is now {status}."), changed, ..Default::default() })
+            Ok(Output {
+                text: format!("Task is now {status}."),
+                changed,
+                ..Default::default()
+            })
         }
         "todos" => {
             let x: Todos = args(a)?;
@@ -1059,19 +1327,43 @@ pub fn call(conn: &mut Connection, agent: &Agent, name: &str, a: &Value, read_on
             Ok(Output::text(if list.is_empty() {
                 "No open to-dos.".into()
             } else {
-                list.iter().map(|t| format!("- [ ] {} — in **{}** (block {}, page {})", t.text, t.page_title, t.block_id, t.page_id)).collect::<Vec<_>>().join("\n")
+                list.iter()
+                    .map(|t| {
+                        format!(
+                            "- [ ] {} — in **{}** (block {}, page {})",
+                            t.text, t.page_title, t.block_id, t.page_id
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
             }))
         }
         "todo_promote" => {
             let x: Promote = args(a)?;
-            let (id, changed) = tasks::promote(conn, &ops::Actor::agent(agent), &x.block_id, x.agent.as_deref())?;
-            Ok(Output { text: format!("Queued task {id}."), changed, ..Default::default() })
+            let (id, changed) = tasks::promote(
+                conn,
+                &ops::Actor::agent(agent),
+                &x.block_id,
+                x.agent.as_deref(),
+            )?;
+            Ok(Output {
+                text: format!("Queued task {id}."),
+                changed,
+                ..Default::default()
+            })
         }
         "janitor_report" => {
             let x: Janitor = args(a)?;
             let ws = agent.workspace(x.workspace_id.as_deref())?;
             let list = janitor::report(conn, &ws, &x.checks, 50)?;
-            let list: Vec<_> = list.into_iter().filter(|f| f.page_id.as_ref().is_none_or(|p| agent.page(conn, p).is_ok())).collect();
+            let list: Vec<_> = list
+                .into_iter()
+                .filter(|f| {
+                    f.page_id
+                        .as_ref()
+                        .is_none_or(|p| agent.page(conn, p).is_ok())
+                })
+                .collect();
             Ok(Output::text(janitor::render(&list)))
         }
         _ => Err(AppError::Validation(format!("Unknown tool '{name}'."))),

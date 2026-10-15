@@ -95,18 +95,28 @@ fn sections(text: &str) -> Vec<Section> {
             continue;
         }
         let inner = t.trim_start_matches('[');
-        let Some(close) = inner.find(']') else { continue };
-        let Some(path) = split_key(&inner[..close]) else { continue };
+        let Some(close) = inner.find(']') else {
+            continue;
+        };
+        let Some(path) = split_key(&inner[..close]) else {
+            continue;
+        };
         if let Some(prev) = out.last_mut() {
             prev.end = start;
         }
-        out.push(Section { start, end: text.len(), path });
+        out.push(Section {
+            start,
+            end: text.len(),
+            path,
+        });
     }
     out
 }
 
 fn is_ours(path: &[String], container: &[String]) -> bool {
-    path.len() > container.len() && path[..container.len()] == *container && path[container.len()] == "suivelle"
+    path.len() > container.len()
+        && path[..container.len()] == *container
+        && path[container.len()] == "suivelle"
 }
 
 /// Refuses layouts where `suivelle` is defined without its own table header.
@@ -114,18 +124,32 @@ fn check_layout(text: &str, container: &[String]) -> Result<(), String> {
     let secs = sections(text);
     let first = secs.first().map_or(text.len(), |s| s.start);
     let dotted = format!("{}.suivelle", container.join("."));
-    let unusual = || Err("Codex's config defines the suivelle server in a form Suivelle does not edit. Remove it there, or use Copy config.".to_string());
+    let unusual = || {
+        Err("Codex's config defines the suivelle server in a form Suivelle does not edit. Remove it there, or use Copy config.".to_string())
+    };
     for (_, line, in_string) in lines(&text[..first]) {
-        let compact: String = line.chars().filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'').collect();
-        if !in_string && (compact.starts_with(&format!("{dotted}.")) || compact.starts_with(&format!("{dotted}=")) || compact.starts_with(&format!("{}=", container.join(".")))) {
+        let compact: String = line
+            .chars()
+            .filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
+            .collect();
+        if !in_string
+            && (compact.starts_with(&format!("{dotted}."))
+                || compact.starts_with(&format!("{dotted}="))
+                || compact.starts_with(&format!("{}=", container.join("."))))
+        {
             return unusual();
         }
     }
     for s in &secs {
         if s.path == container {
             for (_, line, in_string) in lines(&text[s.start..s.end]).into_iter().skip(1) {
-                let compact: String = line.chars().filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'').collect();
-                if !in_string && (compact.starts_with("suivelle.") || compact.starts_with("suivelle=")) {
+                let compact: String = line
+                    .chars()
+                    .filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
+                    .collect();
+                if !in_string
+                    && (compact.starts_with("suivelle.") || compact.starts_with("suivelle="))
+                {
                     return unusual();
                 }
             }
@@ -238,8 +262,12 @@ fn pairs(body: &str) -> Vec<(String, String)> {
         if c.i >= body.len() {
             return out;
         }
-        let Some(eq) = body[c.i..].find('=').map(|e| e + c.i) else { return out };
-        let key = split_key(&body[c.i..eq]).map(|k| k.join(".")).unwrap_or_default();
+        let Some(eq) = body[c.i..].find('=').map(|e| e + c.i) else {
+            return out;
+        };
+        let key = split_key(&body[c.i..eq])
+            .map(|k| k.join("."))
+            .unwrap_or_default();
         c.i = eq + 1;
         c.ws();
         let start = c.i;
@@ -267,9 +295,14 @@ fn str_value(raw: &str) -> Option<String> {
 pub fn get(text: &str, container: &[String]) -> Result<Option<Entry>, String> {
     let mut found = false;
     let mut entry = Entry::default();
-    for s in sections(text).into_iter().filter(|s| is_ours(&s.path, container)) {
+    for s in sections(text)
+        .into_iter()
+        .filter(|s| is_ours(&s.path, container))
+    {
         found = true;
-        let header_end = text[s.start..s.end].find('\n').map_or(s.end, |i| s.start + i + 1);
+        let header_end = text[s.start..s.end]
+            .find('\n')
+            .map_or(s.end, |i| s.start + i + 1);
         let body = &text[header_end..s.end];
         let sub = &s.path[container.len() + 1..];
         for (k, raw) in pairs(body) {
@@ -298,7 +331,10 @@ fn quote(s: &str) -> String {
 }
 
 fn bare_key(k: &str) -> String {
-    if !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    if !k.is_empty()
+        && k.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         k.to_string()
     } else {
         serde_json::to_string(k).unwrap_or_default()
@@ -307,8 +343,15 @@ fn bare_key(k: &str) -> String {
 
 /// The table text Suivelle writes for an entry.
 pub fn render(entry: &Entry, container: &[String], nl: &str) -> String {
-    let head = container.iter().map(|k| bare_key(k)).collect::<Vec<_>>().join(".");
-    let mut out = format!("[{head}.suivelle]{nl}command = {}{nl}", quote(&entry.command));
+    let head = container
+        .iter()
+        .map(|k| bare_key(k))
+        .collect::<Vec<_>>()
+        .join(".");
+    let mut out = format!(
+        "[{head}.suivelle]{nl}command = {}{nl}",
+        quote(&entry.command)
+    );
     let args: Vec<String> = entry.args.iter().map(|a| quote(a)).collect();
     out.push_str(&format!("args = [{}]{nl}", args.join(", ")));
     if !entry.env.is_empty() {
@@ -324,7 +367,10 @@ pub fn render(entry: &Entry, container: &[String], nl: &str) -> String {
 pub fn unset(text: &str, container: &[String]) -> Result<String, String> {
     check_layout(text, container)?;
     let mut out = text.to_string();
-    let ours: Vec<Section> = sections(text).into_iter().filter(|s| is_ours(&s.path, container)).collect();
+    let ours: Vec<Section> = sections(text)
+        .into_iter()
+        .filter(|s| is_ours(&s.path, container))
+        .collect();
     let at_end = ours.last().is_some_and(|s| s.end == text.len());
     for s in ours.iter().rev() {
         out.replace_range(s.start..s.end, "");

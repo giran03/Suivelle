@@ -9,14 +9,20 @@ use crate::errors::{AppError, AppResult};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-pub const NAME: &str = if cfg!(windows) { "suivelle-mcp.exe" } else { "suivelle-mcp" };
+pub const NAME: &str = if cfg!(windows) {
+    "suivelle-mcp.exe"
+} else {
+    "suivelle-mcp"
+};
 
 /// The connector shipped with this build: next to the Suivelle program (installers, `cargo
 /// build -p suivelle-mcp`) or in a `bin` folder beside it.
 pub fn bundled() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    [dir.join(NAME), dir.join("bin").join(NAME)].into_iter().find(|p| p.is_file())
+    [dir.join(NAME), dir.join("bin").join(NAME)]
+        .into_iter()
+        .find(|p| p.is_file())
 }
 
 /// The folder connected apps point at.
@@ -25,7 +31,9 @@ pub fn stable_dir() -> Option<PathBuf> {
 }
 
 fn digest(path: &Path) -> Option<Vec<u8>> {
-    std::fs::read(path).ok().map(|b| Sha256::digest(&b).to_vec())
+    std::fs::read(path)
+        .ok()
+        .map(|b| Sha256::digest(&b).to_vec())
 }
 
 /// Whether `dest` holds the same program as `source`.
@@ -73,13 +81,17 @@ pub fn refresh_on_startup() {
     if cfg!(debug_assertions) {
         return;
     }
-    let (Some(source), Some(dir)) = (bundled(), stable_dir()) else { return };
+    let (Some(source), Some(dir)) = (bundled(), stable_dir()) else {
+        return;
+    };
     if !dir.join(NAME).exists() {
         return;
     }
     let app = std::env::current_exe().ok();
     let app_recorded = std::fs::read_to_string(dir.join("app-path")).ok();
-    let app_changed = app.as_ref().is_some_and(|a| app_recorded.as_deref() != Some(&*a.to_string_lossy()));
+    let app_changed = app
+        .as_ref()
+        .is_some_and(|a| app_recorded.as_deref() != Some(&*a.to_string_lossy()));
     if !current(&source, &dir.join(NAME)) || app_changed {
         if let Err(e) = install(&source, &dir, app.as_deref()) {
             tracing::warn!(error = %e, "could not refresh the suivelle-mcp connector");

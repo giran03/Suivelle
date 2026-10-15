@@ -295,7 +295,7 @@ fn bulk_cells_are_atomic_undo_is_guarded_and_dependencies_cannot_cycle() {
         }
     )
     .is_err());
-    assert!(dbs::load_rows(&c, &[a.id.clone()]).unwrap()[0]
+    assert!(dbs::load_rows(&c, std::slice::from_ref(&a.id)).unwrap()[0]
         .values
         .get(&p.id)
         .is_none());
@@ -319,7 +319,7 @@ fn bulk_cells_are_atomic_undo_is_guarded_and_dependencies_cannot_cycle() {
     .unwrap();
     assert!(apply(&mut c, undo).is_err());
     assert_eq!(
-        dbs::load_rows(&c, &[a.id.clone()]).unwrap()[0].values[&p.id],
+        dbs::load_rows(&c, std::slice::from_ref(&a.id)).unwrap()[0].values[&p.id],
         json!("changed")
     );
     let undo = apply(

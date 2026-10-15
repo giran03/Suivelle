@@ -3,7 +3,9 @@
 
 use super::{lock, logged, worker, worker::blocking};
 use crate::agents::clients::{self, subagents, ConnectInput, Env};
-use crate::agents::{self, changeset, janitor, mirror, ops, spec, tasks, Agent, AgentInput, AgentSettings};
+use crate::agents::{
+    self, changeset, janitor, mirror, ops, spec, tasks, Agent, AgentInput, AgentSettings,
+};
 use crate::database::Db;
 use crate::errors::{AppError, AppResult};
 use serde::Serialize;
@@ -20,15 +22,23 @@ where
 }
 
 fn writable(app: &tauri::AppHandle) -> AppResult<()> {
-    if app.try_state::<crate::SafeMode>().is_some_and(|s| s.0.is_some()) {
-        return Err(AppError::Validation("Suivelle is open read-only right now.".into()));
+    if app
+        .try_state::<crate::SafeMode>()
+        .is_some_and(|s| s.0.is_some())
+    {
+        return Err(AppError::Validation(
+            "Suivelle is open read-only right now.".into(),
+        ));
     }
     Ok(())
 }
 
 /// Tells the window pages changed outside the editor, so it can refresh.
 fn changed(app: &tauri::AppHandle, page_ids: &[String], source: &str) {
-    let _ = app.emit("agent-activity", serde_json::json!({ "agentName": source, "tool": "review", "pageIds": page_ids }));
+    let _ = app.emit(
+        "agent-activity",
+        serde_json::json!({ "agentName": source, "tool": "review", "pageIds": page_ids }),
+    );
 }
 
 #[derive(Serialize)]
@@ -62,10 +72,15 @@ pub async fn agents_overview(app: tauri::AppHandle) -> AppResult<Overview> {
 }
 
 #[tauri::command]
-pub async fn agents_save_settings(app: tauri::AppHandle, settings: AgentSettings) -> AppResult<AgentSettings> {
+pub async fn agents_save_settings(
+    app: tauri::AppHandle,
+    settings: AgentSettings,
+) -> AppResult<AgentSettings> {
     blocking("agents_save_settings", move || {
         writable(&app)?;
-        let saved = run(&app, "agents_save_settings", |c| agents::save_settings(c, &settings))?;
+        let saved = run(&app, "agents_save_settings", |c| {
+            agents::save_settings(c, &settings)
+        })?;
         if saved.api_enabled {
             agents::server::start(&app);
         }
@@ -84,7 +99,11 @@ pub async fn agent_create(app: tauri::AppHandle, input: AgentInput) -> AppResult
 }
 
 #[tauri::command]
-pub async fn agent_update(app: tauri::AppHandle, id: String, input: AgentInput) -> AppResult<Agent> {
+pub async fn agent_update(
+    app: tauri::AppHandle,
+    id: String,
+    input: AgentInput,
+) -> AppResult<Agent> {
     blocking("agent_update", move || {
         writable(&app)?;
         run(&app, "agent_update", |c| agents::update(c, &id, input))
@@ -99,7 +118,8 @@ pub async fn agent_delete(app: tauri::AppHandle, id: String) -> AppResult<()> {
         run(&app, "agent_delete", |c| {
             // An agent connected to an app leaves that app's config first.
             if let Some(client) = clients::client_of(c, &id)? {
-                if let Err(e) = Env::system().and_then(|env| clients::disconnect(c, &env, &client)) {
+                if let Err(e) = Env::system().and_then(|env| clients::disconnect(c, &env, &client))
+                {
                     tracing::warn!(error = %e, "could not disconnect the agent's app");
                 }
             }
@@ -129,8 +149,16 @@ pub async fn agent_token_revoke(app: tauri::AppHandle, id: String) -> AppResult<
 }
 
 #[tauri::command]
-pub async fn agent_audit(app: tauri::AppHandle, agent_id: Option<String>) -> AppResult<Vec<agents::AuditEntry>> {
-    blocking("agent_audit", move || run(&app, "agent_audit", |c| agents::audit_list(c, agent_id.as_deref(), 200))).await
+pub async fn agent_audit(
+    app: tauri::AppHandle,
+    agent_id: Option<String>,
+) -> AppResult<Vec<agents::AuditEntry>> {
+    blocking("agent_audit", move || {
+        run(&app, "agent_audit", |c| {
+            agents::audit_list(c, agent_id.as_deref(), 200)
+        })
+    })
+    .await
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -138,13 +166,22 @@ pub async fn agent_audit(app: tauri::AppHandle, agent_id: Option<String>) -> App
 // ---------------------------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn proposal_list(app: tauri::AppHandle, status: String) -> AppResult<Vec<ops::ProposalInfo>> {
-    blocking("proposal_list", move || run(&app, "proposal_list", |c| ops::list(c, &status, None, 200))).await
+pub async fn proposal_list(
+    app: tauri::AppHandle,
+    status: String,
+) -> AppResult<Vec<ops::ProposalInfo>> {
+    blocking("proposal_list", move || {
+        run(&app, "proposal_list", |c| ops::list(c, &status, None, 200))
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn proposal_detail(app: tauri::AppHandle, id: String) -> AppResult<ops::ProposalInfo> {
-    blocking("proposal_detail", move || run(&app, "proposal_detail", |c| ops::detail(c, &id))).await
+    blocking("proposal_detail", move || {
+        run(&app, "proposal_detail", |c| ops::detail(c, &id))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -172,7 +209,11 @@ pub async fn proposal_approve(
 }
 
 #[tauri::command]
-pub async fn proposal_reject(app: tauri::AppHandle, id: String, note: Option<String>) -> AppResult<()> {
+pub async fn proposal_reject(
+    app: tauri::AppHandle,
+    id: String,
+    note: Option<String>,
+) -> AppResult<()> {
     blocking("proposal_reject", move || {
         writable(&app)?;
         let task = run(&app, "proposal_reject", |c| {
@@ -194,7 +235,9 @@ pub async fn changeset_list(
     page_id: Option<String>,
 ) -> AppResult<Vec<changeset::ChangesetInfo>> {
     blocking("changeset_list", move || {
-        run(&app, "changeset_list", |c| changeset::list(c, agent_id.as_deref(), page_id.as_deref(), 100))
+        run(&app, "changeset_list", |c| {
+            changeset::list(c, agent_id.as_deref(), page_id.as_deref(), 100)
+        })
     })
     .await
 }
@@ -215,17 +258,31 @@ pub async fn changeset_revert(app: tauri::AppHandle, id: String) -> AppResult<Ve
 // ---------------------------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn janitor_report(app: tauri::AppHandle, workspace_id: String) -> AppResult<Vec<janitor::Finding>> {
-    blocking("janitor_report", move || run(&app, "janitor_report", |c| janitor::report(c, &workspace_id, &[], 100))).await
+pub async fn janitor_report(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<Vec<janitor::Finding>> {
+    blocking("janitor_report", move || {
+        run(&app, "janitor_report", |c| {
+            janitor::report(c, &workspace_id, &[], 100)
+        })
+    })
+    .await
 }
 
 /// Applies suggested fixes the user picked, as one revertable changeset.
 #[tauri::command]
-pub async fn janitor_fix(app: tauri::AppHandle, workspace_id: String, fixes: Vec<ops::Op>) -> AppResult<Vec<String>> {
+pub async fn janitor_fix(
+    app: tauri::AppHandle,
+    workspace_id: String,
+    fixes: Vec<ops::Op>,
+) -> AppResult<Vec<String>> {
     blocking("janitor_fix", move || {
         writable(&app)?;
         if fixes.is_empty() || fixes.len() > ops::MAX_OPS {
-            return Err(AppError::Validation("Choose between 1 and 200 fixes.".into()));
+            return Err(AppError::Validation(
+                "Choose between 1 and 200 fixes.".into(),
+            ));
         }
         let pages = run(&app, "janitor_fix", |c| {
             let actor = ops::Actor::user(vec![workspace_id.clone()]);
@@ -240,12 +297,24 @@ pub async fn janitor_fix(app: tauri::AppHandle, workspace_id: String, fixes: Vec
 }
 
 #[tauri::command]
-pub async fn todo_promote(app: tauri::AppHandle, block_id: String, agent: Option<String>) -> AppResult<String> {
+pub async fn todo_promote(
+    app: tauri::AppHandle,
+    block_id: String,
+    agent: Option<String>,
+) -> AppResult<String> {
     blocking("todo_promote", move || {
         writable(&app)?;
         let (id, pages) = run(&app, "todo_promote", |c| {
-            let workspaces: Vec<String> = crate::repositories::workspace::list(c)?.into_iter().map(|w| w.id).collect();
-            tasks::promote(c, &ops::Actor::user(workspaces), &block_id, agent.as_deref())
+            let workspaces: Vec<String> = crate::repositories::workspace::list(c)?
+                .into_iter()
+                .map(|w| w.id)
+                .collect();
+            tasks::promote(
+                c,
+                &ops::Actor::user(workspaces),
+                &block_id,
+                agent.as_deref(),
+            )
         })?;
         changed(&app, &pages, "Tasks");
         Ok(id)
@@ -258,12 +327,21 @@ pub async fn todo_promote(app: tauri::AppHandle, block_id: String, agent: Option
 // ---------------------------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn mirror_get(app: tauri::AppHandle, workspace_id: String) -> AppResult<mirror::MirrorConfig> {
-    blocking("mirror_get", move || run(&app, "mirror_get", |c| mirror::config(c, &workspace_id))).await
+pub async fn mirror_get(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<mirror::MirrorConfig> {
+    blocking("mirror_get", move || {
+        run(&app, "mirror_get", |c| mirror::config(c, &workspace_id))
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn mirror_choose(app: tauri::AppHandle, workspace_id: String) -> AppResult<Option<mirror::MirrorConfig>> {
+pub async fn mirror_choose(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> AppResult<Option<mirror::MirrorConfig>> {
     worker::dialog("mirror_choose", move || {
         use tauri_plugin_dialog::DialogExt;
         writable(&app)?;
@@ -271,26 +349,44 @@ pub async fn mirror_choose(app: tauri::AppHandle, workspace_id: String) -> AppRe
             return Ok(None);
         };
         let path = super::path_of(folder)?.to_string_lossy().into_owned();
-        run(&app, "mirror_choose", |c| mirror::configure(c, &workspace_id, true, Some(path))).map(Some)
+        run(&app, "mirror_choose", |c| {
+            mirror::configure(c, &workspace_id, true, Some(path))
+        })
+        .map(Some)
     })
     .await
 }
 
 #[tauri::command]
-pub async fn mirror_set_enabled(app: tauri::AppHandle, workspace_id: String, enabled: bool) -> AppResult<mirror::MirrorConfig> {
+pub async fn mirror_set_enabled(
+    app: tauri::AppHandle,
+    workspace_id: String,
+    enabled: bool,
+) -> AppResult<mirror::MirrorConfig> {
     blocking("mirror_set_enabled", move || {
         writable(&app)?;
-        run(&app, "mirror_set_enabled", |c| mirror::configure(c, &workspace_id, enabled, None))
+        run(&app, "mirror_set_enabled", |c| {
+            mirror::configure(c, &workspace_id, enabled, None)
+        })
     })
     .await
 }
 
 /// Asks for a project folder and writes the agent's Claude Code subagent file into it.
 #[tauri::command]
-pub async fn agent_export_subagent(app: tauri::AppHandle, id: String, force: bool) -> AppResult<Option<spec::Exported>> {
+pub async fn agent_export_subagent(
+    app: tauri::AppHandle,
+    id: String,
+    force: bool,
+) -> AppResult<Option<spec::Exported>> {
     worker::dialog("agent_export_subagent", move || {
         use tauri_plugin_dialog::DialogExt;
-        let Some(folder) = app.dialog().file().set_title("Choose the project folder").blocking_pick_folder() else {
+        let Some(folder) = app
+            .dialog()
+            .file()
+            .set_title("Choose the project folder")
+            .blocking_pick_folder()
+        else {
             return Ok(None);
         };
         let dir = super::path_of(folder)?;
@@ -305,10 +401,19 @@ pub async fn agent_export_subagent(app: tauri::AppHandle, id: String, force: boo
 
 /// Asks for a project folder and writes the Suivelle section of its AGENTS.md.
 #[tauri::command]
-pub async fn agents_export_agents_md(app: tauri::AppHandle, page_ids: Vec<String>, force: bool) -> AppResult<Option<spec::Exported>> {
+pub async fn agents_export_agents_md(
+    app: tauri::AppHandle,
+    page_ids: Vec<String>,
+    force: bool,
+) -> AppResult<Option<spec::Exported>> {
     worker::dialog("agents_export_agents_md", move || {
         use tauri_plugin_dialog::DialogExt;
-        let Some(folder) = app.dialog().file().set_title("Choose the project folder").blocking_pick_folder() else {
+        let Some(folder) = app
+            .dialog()
+            .file()
+            .set_title("Choose the project folder")
+            .blocking_pick_folder()
+        else {
             return Ok(None);
         };
         let dir = super::path_of(folder)?;
@@ -337,11 +442,17 @@ pub async fn clients_scan(app: tauri::AppHandle) -> AppResult<clients::Scan> {
 
 /// Connects an app: its agent, a token, and the suivelle entry in its MCP config.
 #[tauri::command]
-pub async fn client_connect(app: tauri::AppHandle, client_id: String, input: ConnectInput) -> AppResult<clients::ConnectResult> {
+pub async fn client_connect(
+    app: tauri::AppHandle,
+    client_id: String,
+    input: ConnectInput,
+) -> AppResult<clients::ConnectResult> {
     blocking("client_connect", move || {
         writable(&app)?;
         let env = Env::system()?;
-        let out = run(&app, "client_connect", |c| clients::connect(c, &env, &client_id, input))?;
+        let out = run(&app, "client_connect", |c| {
+            clients::connect(c, &env, &client_id, input)
+        })?;
         changed(&app, &[], "Agents");
         Ok(out)
     })
@@ -349,21 +460,31 @@ pub async fn client_connect(app: tauri::AppHandle, client_id: String, input: Con
 }
 
 #[tauri::command]
-pub async fn client_repair(app: tauri::AppHandle, client_id: String) -> AppResult<clients::ConnectResult> {
+pub async fn client_repair(
+    app: tauri::AppHandle,
+    client_id: String,
+) -> AppResult<clients::ConnectResult> {
     blocking("client_repair", move || {
         writable(&app)?;
         let env = Env::system()?;
-        run(&app, "client_repair", |c| clients::repair(c, &env, &client_id))
+        run(&app, "client_repair", |c| {
+            clients::repair(c, &env, &client_id)
+        })
     })
     .await
 }
 
 #[tauri::command]
-pub async fn client_disconnect(app: tauri::AppHandle, client_id: String) -> AppResult<clients::DisconnectResult> {
+pub async fn client_disconnect(
+    app: tauri::AppHandle,
+    client_id: String,
+) -> AppResult<clients::DisconnectResult> {
     blocking("client_disconnect", move || {
         writable(&app)?;
         let env = Env::system()?;
-        run(&app, "client_disconnect", |c| clients::disconnect(c, &env, &client_id))
+        run(&app, "client_disconnect", |c| {
+            clients::disconnect(c, &env, &client_id)
+        })
     })
     .await
 }
@@ -377,20 +498,32 @@ pub struct SubagentScan {
 
 /// Claude Code subagents in the user's folder, or (with `project`) in a project folder the user picks.
 #[tauri::command]
-pub async fn subagents_scan(app: tauri::AppHandle, project: bool) -> AppResult<Option<SubagentScan>> {
+pub async fn subagents_scan(
+    app: tauri::AppHandle,
+    project: bool,
+) -> AppResult<Option<SubagentScan>> {
     worker::dialog("subagents_scan", move || {
         use tauri_plugin_dialog::DialogExt;
         let dir = if project {
-            let Some(folder) = app.dialog().file().set_title("Choose the project folder").blocking_pick_folder() else {
+            let Some(folder) = app
+                .dialog()
+                .file()
+                .set_title("Choose the project folder")
+                .blocking_pick_folder()
+            else {
                 return Ok(None);
             };
             super::path_of(folder)?
         } else {
-            dirs::home_dir().ok_or_else(|| AppError::Internal("Could not find the user folder.".into()))?
+            dirs::home_dir()
+                .ok_or_else(|| AppError::Internal("Could not find the user folder.".into()))?
         };
         let folder = dir.join(".claude").join("agents");
         let items = run(&app, "subagents_scan", |c| subagents::scan(c, &dir))?;
-        Ok(Some(SubagentScan { folder: folder.to_string_lossy().into_owned(), items }))
+        Ok(Some(SubagentScan {
+            folder: folder.to_string_lossy().into_owned(),
+            items,
+        }))
     })
     .await
 }
@@ -404,7 +537,9 @@ pub async fn subagents_import(
 ) -> AppResult<Vec<subagents::Imported>> {
     blocking("subagents_import", move || {
         writable(&app)?;
-        let out = run(&app, "subagents_import", |c| subagents::import(c, &paths, &workspace_ids, mode))?;
+        let out = run(&app, "subagents_import", |c| {
+            subagents::import(c, &paths, &workspace_ids, mode)
+        })?;
         changed(&app, &[], "Agents");
         Ok(out)
     })

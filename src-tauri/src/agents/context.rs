@@ -61,7 +61,13 @@ pub struct Neighborhood {
 }
 
 /// Breadth-first walk up to `hops` (1–3) from `page_id`, at most `limit` pages.
-pub fn neighbors(conn: &Connection, agent: &Agent, page_id: &str, hops: u8, limit: usize) -> AppResult<Neighborhood> {
+pub fn neighbors(
+    conn: &Connection,
+    agent: &Agent,
+    page_id: &str,
+    hops: u8,
+    limit: usize,
+) -> AppResult<Neighborhood> {
     let center = agent.page(conn, page_id)?;
     let hops = hops.clamp(1, 3);
     let limit = limit.clamp(1, 500);
@@ -95,7 +101,13 @@ pub fn neighbors(conn: &Connection, agent: &Agent, page_id: &str, hops: u8, limi
 }
 
 /// The shortest chain of connections between two pages (up to `max_hops`), if any.
-pub fn path(conn: &Connection, agent: &Agent, from: &str, to: &str, max_hops: u8) -> AppResult<Option<Vec<Link>>> {
+pub fn path(
+    conn: &Connection,
+    agent: &Agent,
+    from: &str,
+    to: &str,
+    max_hops: u8,
+) -> AppResult<Option<Vec<Link>>> {
     let a = agent.page(conn, from)?;
     let b = agent.page(conn, to)?;
     if a.id == b.id {
@@ -156,17 +168,33 @@ fn clip(s: &str, max: usize, note: &mut Vec<String>, what: &str) -> String {
         cut = i;
     }
     if cut == 0 {
-        cut = s.char_indices().take_while(|(i, _)| *i <= max).last().map_or(0, |(i, _)| i);
+        cut = s
+            .char_indices()
+            .take_while(|(i, _)| *i <= max)
+            .last()
+            .map_or(0, |(i, _)| i);
     }
-    note.push(format!("{what} was shortened ({} of {} characters).", cut, s.len()));
+    note.push(format!(
+        "{what} was shortened ({} of {} characters).",
+        cut,
+        s.len()
+    ));
     format!("{}\n…", &s[..cut])
 }
 
 /// A bounded Markdown briefing: the page, what it connects to, matching memories and the
 /// agent's open tasks. `budget_tokens` is approximate (four characters per token).
-pub fn pack(conn: &Connection, agent: &Agent, page_id: Option<&str>, query: Option<&str>, budget_tokens: usize) -> AppResult<String> {
+pub fn pack(
+    conn: &Connection,
+    agent: &Agent,
+    page_id: Option<&str>,
+    query: Option<&str>,
+    budget_tokens: usize,
+) -> AppResult<String> {
     if page_id.is_none() && query.is_none_or(|q| q.trim().is_empty()) {
-        return Err(AppError::Validation("Give a page_id, a query, or both.".into()));
+        return Err(AppError::Validation(
+            "Give a page_id, a query, or both.".into(),
+        ));
     }
     let budget = budget_tokens.clamp(500, 50_000) * 4;
     let mut notes = Vec::new();
@@ -197,13 +225,25 @@ pub fn pack(conn: &Connection, agent: &Agent, page_id: Option<&str>, query: Opti
                     l.via,
                     l.title,
                     l.page_id,
-                    if line.is_empty() { String::new() } else { format!(": {line}") }
+                    if line.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {line}")
+                    }
                 ));
             }
             if near.len() > 40 {
-                notes.push(format!("Only 40 of {} connected pages are listed; use graph_neighbors for the rest.", near.len()));
+                notes.push(format!(
+                    "Only 40 of {} connected pages are listed; use graph_neighbors for the rest.",
+                    near.len()
+                ));
             }
-            out.push_str(&clip(&section, budget * 20 / 100, &mut notes, "The connected pages"));
+            out.push_str(&clip(
+                &section,
+                budget * 20 / 100,
+                &mut notes,
+                "The connected pages",
+            ));
             out.push('\n');
         }
     }
@@ -218,7 +258,14 @@ pub fn pack(conn: &Connection, agent: &Agent, page_id: Option<&str>, query: Opti
     )?;
     let mut generic = Vec::new();
     if memories.len() < 5 {
-        generic = memory::recall(conn, agent, &memory::Recall { limit: Some(5), ..Default::default() })?;
+        generic = memory::recall(
+            conn,
+            agent,
+            &memory::Recall {
+                limit: Some(5),
+                ..Default::default()
+            },
+        )?;
         generic.retain(|g| !memories.iter().any(|m| m.page_id == g.page_id));
     }
     if !memories.is_empty() || !generic.is_empty() {
@@ -228,13 +275,26 @@ pub fn pack(conn: &Connection, agent: &Agent, page_id: Option<&str>, query: Opti
             section.push_str("\nRecent, not matched to the topic:\n\n");
             section.push_str(&memory::render(&generic, false));
         }
-        out.push_str(&clip(&section, budget * 25 / 100, &mut notes, "The memories"));
+        out.push_str(&clip(
+            &section,
+            budget * 25 / 100,
+            &mut notes,
+            "The memories",
+        ));
         out.push('\n');
     }
-    let open = tasks::list(conn, agent, &tasks::ListInput { mine: true, limit: Some(20), ..Default::default() })?
-        .into_iter()
-        .filter(|t| matches!(t.status().as_str(), "Queued" | "In progress" | "Review"))
-        .collect::<Vec<_>>();
+    let open = tasks::list(
+        conn,
+        agent,
+        &tasks::ListInput {
+            mine: true,
+            limit: Some(20),
+            ..Default::default()
+        },
+    )?
+    .into_iter()
+    .filter(|t| matches!(t.status().as_str(), "Queued" | "In progress" | "Review"))
+    .collect::<Vec<_>>();
     if !open.is_empty() {
         out.push_str("## Your open tasks\n\n");
         out.push_str(&tasks::render(&open));

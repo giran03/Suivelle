@@ -55,12 +55,21 @@ pub fn config(conn: &Connection, ws: &str) -> AppResult<MirrorConfig> {
 }
 
 fn save(conn: &Connection, ws: &str, c: &MirrorConfig) -> AppResult<()> {
-    super::set_setting(conn, &key(ws), &serde_json::to_string(c).unwrap_or_default())
+    super::set_setting(
+        conn,
+        &key(ws),
+        &serde_json::to_string(c).unwrap_or_default(),
+    )
 }
 
 /// Turns the mirror on (into `path`) or off for a workspace. The folder must be empty, or one
 /// this workspace mirrored before.
-pub fn configure(conn: &Connection, ws: &str, enabled: bool, path: Option<String>) -> AppResult<MirrorConfig> {
+pub fn configure(
+    conn: &Connection,
+    ws: &str,
+    enabled: bool,
+    path: Option<String>,
+) -> AppResult<MirrorConfig> {
     validate_id(ws, "workspace")?;
     if repo::workspace::get(conn, ws)?.is_none() {
         return Err(AppError::NotFound("workspace".into()));
@@ -78,14 +87,19 @@ pub fn configure(conn: &Connection, ws: &str, enabled: bool, path: Option<String
             .and_then(|s| serde_json::from_str::<Value>(&s).ok())
             .is_some_and(|v| v["workspaceId"] == ws);
         if !ours {
-            let mut entries = std::fs::read_dir(&dir)?.filter_map(Result::ok).filter(|e| !e.file_name().to_string_lossy().starts_with('.'));
+            let mut entries = std::fs::read_dir(&dir)?
+                .filter_map(Result::ok)
+                .filter(|e| !e.file_name().to_string_lossy().starts_with('.'));
             if entries.next().is_some() {
                 return Err(AppError::Validation(
                     "Choose an empty folder (or one this workspace mirrored before). To bring existing notes in, use Import.".into(),
                 ));
             }
             let info = serde_json::json!({ "workspaceId": ws, "createdAt": now(), "note": "Suivelle keeps this folder in step with a workspace. The database is the source of truth; edits here come back as proposals." });
-            std::fs::write(&marker, serde_json::to_string_pretty(&info).unwrap_or_default())?;
+            std::fs::write(
+                &marker,
+                serde_json::to_string_pretty(&info).unwrap_or_default(),
+            )?;
         }
         if c.path != dir.to_string_lossy() {
             conn.execute("DELETE FROM mirror_file WHERE workspace_id = ?1", [ws])?;
@@ -93,7 +107,9 @@ pub fn configure(conn: &Connection, ws: &str, enabled: bool, path: Option<String
         c.path = dir.to_string_lossy().into_owned();
     }
     if enabled && c.path.is_empty() {
-        return Err(AppError::Validation("Choose a folder for the mirror first.".into()));
+        return Err(AppError::Validation(
+            "Choose a folder for the mirror first.".into(),
+        ));
     }
     c.enabled = enabled;
     c.last_error = None;
@@ -167,14 +183,22 @@ fn wikilinks(conn: &Connection, ws: &str, md: &str) -> String {
     let mut rest = md;
     while let Some(i) = rest.find(&needle) {
         let after = &rest[i + needle.len()..];
-        let open = rest[..i].rfind('[').filter(|o| !rest[*o..i].contains('\n') && !rest[*o..i].contains(']'));
+        let open = rest[..i]
+            .rfind('[')
+            .filter(|o| !rest[*o..i].contains('\n') && !rest[*o..i].contains(']'));
         let close = after.find(')');
         match (open, close) {
             (Some(o), Some(c)) if c == 36 => {
                 let text = &rest[o + 1..i];
                 let id = &after[..c];
-                let title = repo::page::get(conn, id).ok().flatten().filter(|p| p.workspace_id == ws && p.deleted_at.is_none()).map(|p| p.title);
-                let unique = title.as_ref().is_some_and(|t| resolve_title(conn, ws, t).ok().flatten().as_deref() == Some(id));
+                let title = repo::page::get(conn, id)
+                    .ok()
+                    .flatten()
+                    .filter(|p| p.workspace_id == ws && p.deleted_at.is_none())
+                    .map(|p| p.title);
+                let unique = title.as_ref().is_some_and(|t| {
+                    resolve_title(conn, ws, t).ok().flatten().as_deref() == Some(id)
+                });
                 match title {
                     Some(t) if unique && !t.contains('|') && !t.contains(']') => {
                         out.push_str(&rest[..o]);
@@ -199,7 +223,8 @@ fn wikilinks(conn: &Connection, ws: &str, md: &str) -> String {
 }
 
 fn tags_of(conn: &Connection, page_id: &str) -> AppResult<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT DISTINCT tag FROM block_tag WHERE page_id = ?1 ORDER BY tag")?;
+    let mut stmt =
+        conn.prepare("SELECT DISTINCT tag FROM block_tag WHERE page_id = ?1 ORDER BY tag")?;
     let rows = stmt.query_map([page_id], |r| r.get(0))?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
@@ -216,20 +241,37 @@ fn body(conn: &Connection, ws: &str, page_id: &str) -> AppResult<String> {
 /// The record's values by property name, when the page is a record.
 fn properties(conn: &Connection, page_id: &str) -> AppResult<Option<Map<String, Value>>> {
     let rec: Option<(String, String)> = conn
-        .query_row("SELECT id, database_id FROM db_record WHERE page_id = ?1", [page_id], |r| Ok((r.get(0)?, r.get(1)?)))
+        .query_row(
+            "SELECT id, database_id FROM db_record WHERE page_id = ?1",
+            [page_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
         .optional()?;
-    let Some((rid, dbid)) = rec else { return Ok(None) };
+    let Some((rid, dbid)) = rec else {
+        return Ok(None);
+    };
     let props = crate::databases::service::load_properties(conn, &dbid)?;
-    let row = crate::databases::service::load_rows(conn, &[rid])?.into_iter().next();
+    let row = crate::databases::service::load_rows(conn, &[rid])?
+        .into_iter()
+        .next();
     Ok(row.map(|r| super::hub::readable(conn, &props, &r.values)))
 }
 
 /// The full file for a page.
 pub fn render(conn: &Connection, ws: &str, page_id: &str) -> AppResult<String> {
     let page = repo::page::get(conn, page_id)?.ok_or_else(|| AppError::NotFound("page".into()))?;
-    let mut fm = format!("---\nsuivelle: 1\nid: {}\ntitle: {}\nkind: {}\n", page.id, json(&page.title), page.kind);
+    let mut fm = format!(
+        "---\nsuivelle: 1\nid: {}\ntitle: {}\nkind: {}\n",
+        page.id,
+        json(&page.title),
+        page.kind
+    );
     let by: Option<String> = conn
-        .query_row("SELECT a.name FROM page p JOIN agent a ON a.id = p.created_by WHERE p.id = ?1", [page_id], |r| r.get(0))
+        .query_row(
+            "SELECT a.name FROM page p JOIN agent a ON a.id = p.created_by WHERE p.id = ?1",
+            [page_id],
+            |r| r.get(0),
+        )
         .optional()?;
     if let Some(a) = by {
         fm.push_str(&format!("created_by: {}\n", json(a)));
@@ -252,8 +294,14 @@ pub fn render(conn: &Connection, ws: &str, page_id: &str) -> AppResult<String> {
             "SELECT p.title FROM db_record r JOIN db_database d ON d.id = r.database_id JOIN page p ON p.id = r.page_id
              WHERE d.page_id = ?1 AND p.deleted_at IS NULL ORDER BY r.unique_id LIMIT 2000",
         )?;
-        let titles: Vec<String> = stmt.query_map([page_id], |r| r.get(0))?.collect::<Result<_, _>>()?;
-        titles.iter().map(|t| format!("- [[{}]]", t.replace(['[', ']', '|'], ""))).collect::<Vec<_>>().join("\n")
+        let titles: Vec<String> = stmt
+            .query_map([page_id], |r| r.get(0))?
+            .collect::<Result<_, _>>()?;
+        titles
+            .iter()
+            .map(|t| format!("- [[{}]]", t.replace(['[', ']', '|'], "")))
+            .collect::<Vec<_>>()
+            .join("\n")
     } else {
         body(conn, ws, page_id)?
     };
@@ -261,12 +309,21 @@ pub fn render(conn: &Connection, ws: &str, page_id: &str) -> AppResult<String> {
 }
 
 fn hash(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().take(16).map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .take(16)
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn stat(path: &Path) -> Option<(i64, i64)> {
     let m = std::fs::metadata(path).ok()?;
-    let ms = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as i64;
+    let ms = m
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis() as i64;
     Some((m.len() as i64, ms))
 }
 
@@ -295,7 +352,15 @@ fn known(conn: &Connection, ws: &str) -> AppResult<HashMap<String, Known>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-fn record(conn: &Connection, ws: &str, page_id: &str, rel: &str, file: &Path, h: &str, page_updated: &str) -> AppResult<()> {
+fn record(
+    conn: &Connection,
+    ws: &str,
+    page_id: &str,
+    rel: &str,
+    file: &Path,
+    h: &str,
+    page_updated: &str,
+) -> AppResult<()> {
     let (size, modified) = stat(file).unwrap_or((0, 0));
     conn.execute(
         "INSERT INTO mirror_file (workspace_id, page_id, path, hash, size, modified_ms, page_updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -306,7 +371,8 @@ fn record(conn: &Connection, ws: &str, page_id: &str, rel: &str, file: &Path, h:
 }
 
 fn full(root: &Path, rel: &str) -> PathBuf {
-    rel.split('/').fold(root.to_path_buf(), |p, part| p.join(part))
+    rel.split('/')
+        .fold(root.to_path_buf(), |p, part| p.join(part))
 }
 
 /// Removes a file the mirror wrote, unless someone changed it since, and then empty folders.
@@ -333,7 +399,9 @@ pub fn sync_out(conn: &Connection, ws: &str, root: &Path, everything: bool) -> A
     let mut written = 0;
     let mut renders = 0;
     for p in &pages {
-        let Some(rel) = paths.get(&p.id) else { continue };
+        let Some(rel) = paths.get(&p.id) else {
+            continue;
+        };
         let prev = had.remove(&p.id);
         let moved = prev.as_ref().is_some_and(|k| &k.path != rel);
         let stale = prev.as_ref().is_none_or(|k| k.page_updated != p.updated);
@@ -374,7 +442,10 @@ pub fn sync_out(conn: &Connection, ws: &str, root: &Path, everything: bool) -> A
             continue;
         }
         remove_ours(root, &k.path, &k.hash);
-        conn.execute("DELETE FROM mirror_file WHERE workspace_id = ?1 AND page_id = ?2", params![ws, page_id])?;
+        conn.execute(
+            "DELETE FROM mirror_file WHERE workspace_id = ?1 AND page_id = ?2",
+            params![ws, page_id],
+        )?;
     }
     Ok(written)
 }
@@ -400,30 +471,53 @@ pub fn parse_file(text: &str) -> FileDoc {
             return doc;
         }
     };
-    let Some(end) = rest.find("\n---").filter(|e| rest[e + 4..].starts_with('\n') || rest.len() == e + 4) else {
+    let Some(end) = rest
+        .find("\n---")
+        .filter(|e| rest[e + 4..].starts_with('\n') || rest.len() == e + 4)
+    else {
         doc.body = text.clone();
         return doc;
     };
     for line in rest[..end].lines() {
         if let Some((k, v)) = line.split_once(':') {
             let v = v.trim();
-            let value = serde_json::from_str::<Value>(v).unwrap_or_else(|_| Value::String(v.trim_matches(|c| c == '"' || c == '\'').to_string()));
+            let value = serde_json::from_str::<Value>(v).unwrap_or_else(|_| {
+                Value::String(v.trim_matches(|c| c == '"' || c == '\'').to_string())
+            });
             doc.front.insert(k.trim().to_string(), value);
         }
     }
-    doc.body = rest[(end + 4).min(rest.len())..].trim_start_matches('\n').to_string();
+    doc.body = rest[(end + 4).min(rest.len())..]
+        .trim_start_matches('\n')
+        .to_string();
     doc
 }
 
 fn stem(rel: &str) -> String {
-    rel.rsplit('/').next().unwrap_or(rel).trim_end_matches(".md").to_string()
+    rel.rsplit('/')
+        .next()
+        .unwrap_or(rel)
+        .trim_end_matches(".md")
+        .to_string()
 }
 
 /// The changes a file asks for, compared with the page as it is.
-fn diff(conn: &Connection, ws: &str, page_id: &str, rel: &str, doc: &FileDoc) -> AppResult<Vec<Op>> {
+fn diff(
+    conn: &Connection,
+    ws: &str,
+    page_id: &str,
+    rel: &str,
+    doc: &FileDoc,
+) -> AppResult<Vec<Op>> {
     let page = repo::page::get(conn, page_id)?.ok_or_else(|| AppError::NotFound("page".into()))?;
     let mut ops = Vec::new();
-    let front_title = doc.front.get("title").and_then(Value::as_str).map(str::trim).unwrap_or_default().to_string();
+    let front_title = doc
+        .front
+        .get("title")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
     let file_stem = stem(rel);
     let new_title = if !front_title.is_empty() && front_title != page.title {
         Some(front_title)
@@ -433,22 +527,36 @@ fn diff(conn: &Connection, ws: &str, page_id: &str, rel: &str, doc: &FileDoc) ->
         None
     };
     if let Some(t) = new_title {
-        ops.push(Op::RenamePage { page_id: page_id.into(), title: t });
+        ops.push(Op::RenamePage {
+            page_id: page_id.into(),
+            title: t,
+        });
     }
     if let Some(a) = doc.front.get("aliases").and_then(Value::as_array) {
-        let want: Vec<String> = a.iter().filter_map(|x| x.as_str().map(String::from)).collect();
+        let want: Vec<String> = a
+            .iter()
+            .filter_map(|x| x.as_str().map(String::from))
+            .collect();
         if want != content::aliases(conn, page_id)? {
-            ops.push(Op::SetAliases { page_id: page_id.into(), aliases: want });
+            ops.push(Op::SetAliases {
+                page_id: page_id.into(),
+                aliases: want,
+            });
         }
     }
-    if let (Some(Value::Object(want)), Some(have)) = (doc.front.get("properties"), properties(conn, page_id)?) {
+    if let (Some(Value::Object(want)), Some(have)) =
+        (doc.front.get("properties"), properties(conn, page_id)?)
+    {
         let changed: Map<String, Value> = want
             .iter()
             .filter(|(k, v)| have.get(*k) != Some(*v))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         if !changed.is_empty() {
-            ops.push(Op::SetValues { page_id: page_id.into(), values: changed });
+            ops.push(Op::SetValues {
+                page_id: page_id.into(),
+                values: changed,
+            });
         }
     }
     if page.kind != "database" && doc.body.trim_end() != body(conn, ws, page_id)?.trim_end() {
@@ -463,7 +571,9 @@ fn diff(conn: &Connection, ws: &str, page_id: &str, rel: &str, doc: &FileDoc) ->
 }
 
 fn walk(root: &Path, dir: &Path, out: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in entries.filter_map(Result::ok) {
         let name = e.file_name().to_string_lossy().into_owned();
         if name.starts_with('.') || out.len() > 20_000 {
@@ -474,7 +584,12 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<String>) {
             walk(root, &path, out);
         } else if name.ends_with(".md") && !name.ends_with(".conflict.md") {
             if let Ok(rel) = path.strip_prefix(root) {
-                out.push(rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/"));
+                out.push(
+                    rel.components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join("/"),
+                );
             }
         }
     }
@@ -489,12 +604,24 @@ pub struct Inbound {
 }
 
 /// Reads edits made to the folder. `apply` applies them; otherwise each becomes a proposal.
-pub fn sync_in(conn: &mut Connection, ws: &str, root: &Path, apply: bool, scan_new: bool) -> AppResult<Inbound> {
+pub fn sync_in(
+    conn: &mut Connection,
+    ws: &str,
+    root: &Path,
+    apply: bool,
+    scan_new: bool,
+) -> AppResult<Inbound> {
     let mut result = Inbound::default();
     let rows = known(conn, ws)?;
     let mut handled = 0;
     let actor = Actor::mirror(ws);
-    let take = |conn: &mut Connection, title: String, why: String, ops: Vec<Op>, force_review: bool, result: &mut Inbound| -> AppResult<()> {
+    let take = |conn: &mut Connection,
+                title: String,
+                why: String,
+                ops: Vec<Op>,
+                force_review: bool,
+                result: &mut Inbound|
+     -> AppResult<()> {
         if ops.is_empty() {
             return Ok(());
         }
@@ -517,9 +644,21 @@ pub fn sync_in(conn: &mut Connection, ws: &str, root: &Path, apply: bool, scan_n
             // The file was deleted: propose trashing the page (if it is still live).
             if repo::page::get(conn, page_id)?.is_some_and(|p| p.deleted_at.is_none()) {
                 handled += 1;
-                take(conn, format!("Delete “{}” (its file was removed)", stem(&k.path)), format!("{} was deleted from the mirror folder.", k.path), vec![Op::TrashPage { page_id: page_id.clone() }], true, &mut result)?;
+                take(
+                    conn,
+                    format!("Delete “{}” (its file was removed)", stem(&k.path)),
+                    format!("{} was deleted from the mirror folder.", k.path),
+                    vec![Op::TrashPage {
+                        page_id: page_id.clone(),
+                    }],
+                    true,
+                    &mut result,
+                )?;
             }
-            conn.execute("DELETE FROM mirror_file WHERE workspace_id = ?1 AND page_id = ?2", params![ws, page_id])?;
+            conn.execute(
+                "DELETE FROM mirror_file WHERE workspace_id = ?1 AND page_id = ?2",
+                params![ws, page_id],
+            )?;
             continue;
         };
         if size == k.size && modified == k.modified {
@@ -542,9 +681,19 @@ pub fn sync_in(conn: &mut Connection, ws: &str, root: &Path, apply: bool, scan_n
             let copy = file.with_file_name(format!("{}.conflict.md", stem(&k.path)));
             let _ = std::fs::write(&copy, &bytes);
             take(conn, format!("Conflicting edit to “{}”", page.title), format!("{} changed in the folder while the page also changed in Suivelle. The folder's version is saved beside it as a .conflict.md file.", k.path), ops, true, &mut result)?;
-            conn.execute("UPDATE mirror_file SET page_updated = '' WHERE workspace_id = ?1 AND page_id = ?2", params![ws, page_id])?;
+            conn.execute(
+                "UPDATE mirror_file SET page_updated = '' WHERE workspace_id = ?1 AND page_id = ?2",
+                params![ws, page_id],
+            )?;
         } else {
-            take(conn, format!("Edit to “{}” in the mirror folder", page.title), format!("{} was edited outside Suivelle.", k.path), ops, false, &mut result)?;
+            take(
+                conn,
+                format!("Edit to “{}” in the mirror folder", page.title),
+                format!("{} was edited outside Suivelle.", k.path),
+                ops,
+                false,
+                &mut result,
+            )?;
             conn.execute(
                 "UPDATE mirror_file SET hash = ?3, size = ?4, modified_ms = ?5 WHERE workspace_id = ?1 AND page_id = ?2",
                 params![ws, page_id, h, size, modified],
@@ -555,7 +704,10 @@ pub fn sync_in(conn: &mut Connection, ws: &str, root: &Path, apply: bool, scan_n
         let mut files = Vec::new();
         walk(root, root, &mut files);
         let tracked: HashSet<&str> = rows.values().map(|k| k.path.as_str()).collect();
-        let new: Vec<String> = files.into_iter().filter(|f| !tracked.contains(f.as_str())).collect();
+        let new: Vec<String> = files
+            .into_iter()
+            .filter(|f| !tracked.contains(f.as_str()))
+            .collect();
         if new.len() > MAX_FOREIGN_FILES {
             return Err(AppError::Validation(format!(
                 "The mirror folder has {} Markdown files Suivelle did not write. Bring them in with Import instead.",
@@ -564,35 +716,71 @@ pub fn sync_in(conn: &mut Connection, ws: &str, root: &Path, apply: bool, scan_n
         }
         let pages = live_pages(conn, ws)?;
         let paths = layout(&pages);
-        let folder_of: HashMap<String, String> = paths.iter().map(|(id, rel)| (rel.trim_end_matches(".md").to_string(), id.clone())).collect();
+        let folder_of: HashMap<String, String> = paths
+            .iter()
+            .map(|(id, rel)| (rel.trim_end_matches(".md").to_string(), id.clone()))
+            .collect();
         for rel in new.into_iter().take(MAX_INBOUND_PER_PASS) {
             let file = full(root, &rel);
-            let Ok(text) = std::fs::read_to_string(&file) else { continue };
+            let Ok(text) = std::fs::read_to_string(&file) else {
+                continue;
+            };
             let doc = parse_file(&text);
             let known_id = doc.front.get("id").and_then(Value::as_str).filter(|id| {
-                repo::page::get(conn, id).ok().flatten().is_some_and(|p| p.workspace_id == ws && p.deleted_at.is_none())
+                repo::page::get(conn, id)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|p| p.workspace_id == ws && p.deleted_at.is_none())
             });
             if let Some(id) = known_id {
                 // A page's file was renamed or moved by hand: take its edits, and the app puts
                 // the file back where it belongs.
                 let ops = diff(conn, ws, id, &rel, &doc)?;
-                take(conn, format!("Edit to “{}” in the mirror folder", stem(&rel)), format!("{rel} was renamed or moved outside Suivelle."), ops, false, &mut result)?;
+                take(
+                    conn,
+                    format!("Edit to “{}” in the mirror folder", stem(&rel)),
+                    format!("{rel} was renamed or moved outside Suivelle."),
+                    ops,
+                    false,
+                    &mut result,
+                )?;
                 let _ = std::fs::remove_file(&file);
                 conn.execute("UPDATE mirror_file SET page_updated = '' WHERE workspace_id = ?1 AND page_id = ?2", params![ws, id])?;
                 continue;
             }
             let dir = rel.rsplit_once('/').map(|(d, _)| d.to_string());
             let parent = dir.as_ref().and_then(|d| folder_of.get(d)).cloned();
-            let title = doc.front.get("title").and_then(Value::as_str).map(String::from).unwrap_or_else(|| stem(&rel));
+            let title = doc
+                .front
+                .get("title")
+                .and_then(Value::as_str)
+                .map(String::from)
+                .unwrap_or_else(|| stem(&rel));
             let op = Op::CreatePage {
                 key: None,
                 workspace_id: Some(ws.into()),
                 parent,
                 title: title.clone(),
                 markdown: doc.body.clone(),
-                aliases: doc.front.get("aliases").and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
+                aliases: doc
+                    .front
+                    .get("aliases")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             };
-            take(conn, format!("New page “{title}” from the mirror folder"), format!("{rel} was added to the mirror folder."), vec![op], false, &mut result)?;
+            take(
+                conn,
+                format!("New page “{title}” from the mirror folder"),
+                format!("{rel} was added to the mirror folder."),
+                vec![op],
+                false,
+                &mut result,
+            )?;
             // The app writes the page under its own name once it exists; the new file is replaced.
             if apply {
                 let _ = std::fs::remove_file(&file);
@@ -611,7 +799,11 @@ pub fn spawn(app: tauri::AppHandle) {
         let mut pass: u64 = 0;
         loop {
             pass += 1;
-            if !crate::updates::preparing() && app.try_state::<crate::SafeMode>().is_some_and(|s| s.0.is_none()) {
+            if !crate::updates::preparing()
+                && app
+                    .try_state::<crate::SafeMode>()
+                    .is_some_and(|s| s.0.is_none())
+            {
                 if let Some(db) = app.try_state::<Db>() {
                     run_once(&app, &db, pass);
                 }
@@ -626,18 +818,28 @@ fn run_once(app: &tauri::AppHandle, db: &Db, pass: u64) {
         Ok(c) => repo::workspace::list(&c)
             .unwrap_or_default()
             .into_iter()
-            .filter_map(|w| config(&c, &w.id).ok().filter(|m| m.enabled).map(|m| (w.id, m)))
+            .filter_map(|w| {
+                config(&c, &w.id)
+                    .ok()
+                    .filter(|m| m.enabled)
+                    .map(|m| (w.id, m))
+            })
             .collect(),
         Err(_) => return,
     };
     for (ws, mut cfg) in workspaces {
         let root = PathBuf::from(&cfg.path);
         let Ok(mut conn) = db.0.lock() else { return };
-        let apply = super::settings(&conn).map(|s| s.mirror_edits == "apply").unwrap_or(false);
+        let apply = super::settings(&conn)
+            .map(|s| s.mirror_edits == "apply")
+            .unwrap_or(false);
         let inbound = if root.is_dir() {
             sync_in(&mut conn, &ws, &root, apply, pass % 3 == 1)
         } else {
-            Err(AppError::Validation(format!("The mirror folder {} is missing.", cfg.path)))
+            Err(AppError::Validation(format!(
+                "The mirror folder {} is missing.",
+                cfg.path
+            )))
         };
         let outbound = inbound.as_ref().map_err(|e| e.to_string()).and_then(|_| {
             // Every ten minutes, re-render everything so renamed link targets catch up.
@@ -647,7 +849,11 @@ fn run_once(app: &tauri::AppHandle, db: &Db, pass: u64) {
         if outbound.is_ok() {
             cfg.last_sync = Some(now());
             cfg.files = conn
-                .query_row("SELECT COUNT(*) FROM mirror_file WHERE workspace_id = ?1", [&ws], |r| r.get(0))
+                .query_row(
+                    "SELECT COUNT(*) FROM mirror_file WHERE workspace_id = ?1",
+                    [&ws],
+                    |r| r.get(0),
+                )
                 .unwrap_or(0);
         }
         let _ = save(&conn, &ws, &cfg);

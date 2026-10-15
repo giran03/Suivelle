@@ -99,7 +99,10 @@ fn title_of(conn: &Connection, id: &str) -> Option<String> {
 pub fn body_markdown(conn: &Connection, page_id: &str) -> AppResult<String> {
     let rows = repo::block::list(conn, page_id)?;
     // Top-level rows in reading order, so markers can name the block they stand for.
-    let mut top: Vec<&Block> = rows.iter().filter(|r| r.parent_block_id.is_none()).collect();
+    let mut top: Vec<&Block> = rows
+        .iter()
+        .filter(|r| r.parent_block_id.is_none())
+        .collect();
     top.sort_by(|a, b| a.position.total_cmp(&b.position).then(a.id.cmp(&b.id)));
     let tree = blocks::tree_from_rows(&rows);
     let title = |id: &str| title_of(conn, id);
@@ -138,7 +141,10 @@ pub fn body_markdown(conn: &Connection, page_id: &str) -> AppResult<String> {
     }
     flush(&mut run, &mut out);
     // The renderer escapes brackets; `[[wikilinks]]` read better, and are read back as links.
-    Ok(out.join("\n\n").replace(r"\[\[", "[[").replace(r"\]\]", "]]"))
+    Ok(out
+        .join("\n\n")
+        .replace(r"\[\[", "[[")
+        .replace(r"\]\]", "]]"))
 }
 
 /// A short fingerprint of the page body, so a later write can tell whether it changed meanwhile.
@@ -150,7 +156,11 @@ pub fn content_hash(conn: &Connection, page_id: &str) -> AppResult<String> {
 }
 
 /// Finds a live page in the workspace by exact title (case-insensitive), then by alias.
-pub fn resolve_title(conn: &Connection, workspace_id: &str, text: &str) -> AppResult<Option<String>> {
+pub fn resolve_title(
+    conn: &Connection,
+    workspace_id: &str,
+    text: &str,
+) -> AppResult<Option<String>> {
     let key = norm(text);
     if key.is_empty() {
         return Ok(None);
@@ -186,7 +196,8 @@ pub fn wikilinks(text: &str) -> Vec<(std::ops::Range<usize>, String, Option<Stri
             break;
         };
         let inner = &text[start + 2..end];
-        if !inner.is_empty() && !inner.contains('[') && !inner.contains('\n') && inner.len() <= 300 {
+        if !inner.is_empty() && !inner.contains('[') && !inner.contains('\n') && inner.len() <= 300
+        {
             let (target, label) = match inner.split_once('|') {
                 Some((t, l)) => (t, Some(l.trim().to_string()).filter(|l| !l.is_empty())),
                 None => (inner, None),
@@ -214,7 +225,10 @@ pub fn block_wikilinks(block_type: &str, schema_version: i64, data_json: &str) -
         .flatten()
         .filter_map(|item| match item {
             Inline::Text { text, marks }
-                if text.contains("[[") && !marks.iter().any(|m| matches!(m, Mark::Code | Mark::Link(_))) =>
+                if text.contains("[[")
+                    && !marks
+                        .iter()
+                        .any(|m| matches!(m, Mark::Code | Mark::Link(_))) =>
             {
                 Some(wikilinks(text).into_iter().map(|(_, target, _)| target))
             }
@@ -226,7 +240,11 @@ pub fn block_wikilinks(block_type: &str, schema_version: i64, data_json: &str) -
 
 /// Rewrites resolvable `[[wikilinks]]` in running text as mentions or links, and turns
 /// `[Title](suivelle://page/<id>)` back into a mention when its text is the page's title.
-pub fn link_inlines(conn: &Connection, workspace_id: &str, items: Vec<Inline>) -> AppResult<Vec<Inline>> {
+pub fn link_inlines(
+    conn: &Connection,
+    workspace_id: &str,
+    items: Vec<Inline>,
+) -> AppResult<Vec<Inline>> {
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         match item {
@@ -235,12 +253,16 @@ pub fn link_inlines(conn: &Connection, workspace_id: &str, items: Vec<Inline>) -
                     Mark::Link(h) => h.strip_prefix(INTERNAL_PAGE_LINK).map(String::from),
                     _ => None,
                 }) {
-                    if marks.len() == 1 && title_of(conn, &id).is_some_and(|t| norm(&t) == norm(&text)) {
+                    if marks.len() == 1
+                        && title_of(conn, &id).is_some_and(|t| norm(&t) == norm(&text))
+                    {
                         out.push(Inline::Mention(id));
                         continue;
                     }
                 }
-                let code = marks.iter().any(|m| matches!(m, Mark::Code | Mark::Link(_)));
+                let code = marks
+                    .iter()
+                    .any(|m| matches!(m, Mark::Code | Mark::Link(_)));
                 let links = if code { vec![] } else { wikilinks(&text) };
                 if links.is_empty() {
                     out.push(Inline::Text { text, marks });
@@ -261,7 +283,10 @@ pub fn link_inlines(conn: &Connection, workspace_id: &str, items: Vec<Inline>) -
                         Some(label) => {
                             let mut m = marks.clone();
                             m.push(Mark::Link(format!("{INTERNAL_PAGE_LINK}{id}")));
-                            out.push(Inline::Text { text: label, marks: m });
+                            out.push(Inline::Text {
+                                text: label,
+                                marks: m,
+                            });
                         }
                         None => out.push(Inline::Mention(id)),
                     }
@@ -323,7 +348,12 @@ pub struct Prepared {
     pub blocks: Vec<Blk>,
 }
 
-pub fn prepare(conn: &Connection, workspace_id: &str, md: &str, take_title: bool) -> AppResult<Prepared> {
+pub fn prepare(
+    conn: &Connection,
+    workspace_id: &str,
+    md: &str,
+    take_title: bool,
+) -> AppResult<Prepared> {
     if md.len() > MAX_MARKDOWN_BYTES {
         return Err(AppError::Validation(format!(
             "Markdown is limited to {} KB per page",
@@ -337,7 +367,10 @@ pub fn prepare(conn: &Connection, workspace_id: &str, md: &str, take_title: bool
         (None, markdown::fragment(md))
     };
     link_tree(conn, workspace_id, &mut list)?;
-    Ok(Prepared { title, blocks: list })
+    Ok(Prepared {
+        title,
+        blocks: list,
+    })
 }
 
 /// Writes Markdown into a page inside the caller's transaction. Returns how many blocks changed.
@@ -346,10 +379,18 @@ pub fn write_markdown(tx: &Connection, page: &Page, md: &str, mode: WriteMode) -
     write_blocks(tx, page, prepared.blocks, mode)
 }
 
-pub fn write_blocks(tx: &Connection, page: &Page, new: Vec<Blk>, mode: WriteMode) -> AppResult<usize> {
+pub fn write_blocks(
+    tx: &Connection,
+    page: &Page,
+    new: Vec<Blk>,
+    mode: WriteMode,
+) -> AppResult<usize> {
     let rows = repo::block::list(tx, &page.id)?;
     let by_id: HashMap<&str, &Block> = rows.iter().map(|r| (r.id.as_str(), r)).collect();
-    let mut top: Vec<&Block> = rows.iter().filter(|r| r.parent_block_id.is_none()).collect();
+    let mut top: Vec<&Block> = rows
+        .iter()
+        .filter(|r| r.parent_block_id.is_none())
+        .collect();
     top.sort_by(|a, b| a.position.total_cmp(&b.position).then(a.id.cmp(&b.id)));
     let start = match mode {
         WriteMode::Append => top.last().map_or(0.0, |b| b.position.floor() + 1.0),
@@ -358,7 +399,10 @@ pub fn write_blocks(tx: &Connection, page: &Page, new: Vec<Blk>, mode: WriteMode
     // Old childless top-level blocks that new ones may keep the identity of, by content.
     let mut reusable: HashMap<(String, String), Vec<String>> = HashMap::new();
     if mode == WriteMode::Replace {
-        let has_children: HashSet<&str> = rows.iter().filter_map(|r| r.parent_block_id.as_deref()).collect();
+        let has_children: HashSet<&str> = rows
+            .iter()
+            .filter_map(|r| r.parent_block_id.as_deref())
+            .collect();
         for r in &top {
             if round_trips(&r.block_type) && !has_children.contains(r.id.as_str()) {
                 let b = Blk::from_row(&r.block_type, &r.data_json, r.schema_version);
@@ -375,7 +419,10 @@ pub fn write_blocks(tx: &Connection, page: &Page, new: Vec<Blk>, mode: WriteMode
         let position = start + i as f64;
         if let Some(id) = keep_marker(b) {
             // Only markers for blocks this page has and that were not already placed.
-            if let Some(row) = by_id.get(id.as_str()).filter(|r| r.parent_block_id.is_none()) {
+            if let Some(row) = by_id
+                .get(id.as_str())
+                .filter(|r| r.parent_block_id.is_none())
+            {
                 if mode == WriteMode::Replace && kept.insert(id.clone()) {
                     upserts.push(BlockUpsert {
                         id: row.id.clone(),
@@ -472,7 +519,8 @@ pub fn resolve_pending(tx: &Connection, page: &Page) -> AppResult<usize> {
         }
         // Keep the block's other attributes: only its rich text changes.
         let mut data: serde_json::Value = serde_json::from_str(&row.data_json).unwrap_or_default();
-        if let (Some(obj), Some(content)) = (data.as_object_mut(), b.data().get("content").cloned()) {
+        if let (Some(obj), Some(content)) = (data.as_object_mut(), b.data().get("content").cloned())
+        {
             obj.insert("content".into(), content);
         } else {
             continue;
@@ -503,7 +551,9 @@ pub fn resolve_pending(tx: &Connection, page: &Page) -> AppResult<usize> {
 /// Replaces a page's aliases.
 pub fn set_aliases(tx: &Connection, page: &Page, aliases: &[String]) -> AppResult<()> {
     if aliases.len() > 20 {
-        return Err(AppError::Validation("a page can have up to 20 aliases".into()));
+        return Err(AppError::Validation(
+            "a page can have up to 20 aliases".into(),
+        ));
     }
     tx.execute("DELETE FROM page_alias WHERE page_id = ?1", [&page.id])?;
     for a in aliases {
@@ -521,7 +571,8 @@ pub fn set_aliases(tx: &Connection, page: &Page, aliases: &[String]) -> AppResul
 }
 
 pub fn aliases(conn: &Connection, page_id: &str) -> AppResult<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT alias FROM page_alias WHERE page_id = ?1 ORDER BY alias")?;
+    let mut stmt =
+        conn.prepare("SELECT alias FROM page_alias WHERE page_id = ?1 ORDER BY alias")?;
     let rows = stmt.query_map([page_id], |r| r.get(0))?;
     Ok(rows.collect::<Result<_, _>>()?)
 }

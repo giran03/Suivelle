@@ -19,7 +19,11 @@ const END: &str = "<!-- suivelle:end -->";
 pub const SERVER_NAME: &str = "suivelle";
 
 fn fingerprint(s: &str) -> String {
-    Sha256::digest(s.trim_end().as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(s.trim_end().as_bytes())
+        .iter()
+        .take(8)
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// `My Agent` → `my-agent`.
@@ -47,7 +51,9 @@ fn yaml_str(s: &str) -> String {
 /// The subagent file's text (without its fingerprint line).
 pub fn subagent(conn: &Connection, agent: &Agent) -> AppResult<String> {
     let instructions = match agent.instructions_page_id.as_deref() {
-        Some(p) if repo::page::get(conn, p)?.is_some_and(|p| p.deleted_at.is_none()) => content::body_markdown(conn, p)?,
+        Some(p) if repo::page::get(conn, p)?.is_some_and(|p| p.deleted_at.is_none()) => {
+            content::body_markdown(conn, p)?
+        }
         _ => String::new(),
     };
     let names: Vec<String> = tools::TOOLS
@@ -59,7 +65,11 @@ pub fn subagent(conn: &Connection, agent: &Agent) -> AppResult<String> {
     let mut fm = format!(
         "---\nname: {}\ndescription: {}\ntools: {}\n",
         slug(&agent.name),
-        yaml_str(if agent.role.trim().is_empty() { &agent.name } else { agent.role.trim() }),
+        yaml_str(if agent.role.trim().is_empty() {
+            &agent.name
+        } else {
+            agent.role.trim()
+        }),
         names.join(", ")
     );
     if matches!(model.as_str(), "sonnet" | "opus" | "haiku" | "inherit") {
@@ -88,8 +98,16 @@ pub struct Exported {
 }
 
 fn stamp_of(text: &str) -> Option<String> {
-    let line = text.lines().rev().find(|l| l.starts_with("<!-- suivelle:fingerprint "))?;
-    Some(line.trim_start_matches("<!-- suivelle:fingerprint ").trim_end_matches(" -->").trim().to_string())
+    let line = text
+        .lines()
+        .rev()
+        .find(|l| l.starts_with("<!-- suivelle:fingerprint "))?;
+    Some(
+        line.trim_start_matches("<!-- suivelle:fingerprint ")
+            .trim_end_matches(" -->")
+            .trim()
+            .to_string(),
+    )
 }
 
 fn without_stamp(text: &str) -> String {
@@ -100,44 +118,79 @@ fn without_stamp(text: &str) -> String {
 }
 
 /// Writes `.claude/agents/<slug>.md` under `project`. With `force`, overwrites hand edits.
-pub fn export_subagent(conn: &Connection, agent: &Agent, project: &Path, force: bool) -> AppResult<Exported> {
+pub fn export_subagent(
+    conn: &Connection,
+    agent: &Agent,
+    project: &Path,
+    force: bool,
+) -> AppResult<Exported> {
     let dir = project.join(".claude").join("agents");
     let path = dir.join(format!("{}.md", slug(&agent.name)));
     let text = subagent(conn, agent)?;
-    let fresh = format!("{}\n\n<!-- suivelle:fingerprint {} -->\n", text.trim_end(), fingerprint(&text));
+    let fresh = format!(
+        "{}\n\n<!-- suivelle:fingerprint {} -->\n",
+        text.trim_end(),
+        fingerprint(&text)
+    );
     let status = match std::fs::read_to_string(&path) {
         Err(_) => "created",
         Ok(old) => {
             let edited = stamp_of(&old).is_none_or(|s| s != fingerprint(&without_stamp(&old)));
             if edited && !force {
-                return Ok(Exported { path: path.to_string_lossy().into(), status: "modified".into() });
+                return Ok(Exported {
+                    path: path.to_string_lossy().into(),
+                    status: "modified".into(),
+                });
             }
             if without_stamp(&old).trim_end() == text.trim_end() {
-                return Ok(Exported { path: path.to_string_lossy().into(), status: "unchanged".into() });
+                return Ok(Exported {
+                    path: path.to_string_lossy().into(),
+                    status: "unchanged".into(),
+                });
             }
             "updated"
         }
     };
     std::fs::create_dir_all(&dir)?;
     std::fs::write(&path, fresh)?;
-    Ok(Exported { path: path.to_string_lossy().into(), status: status.into() })
+    Ok(Exported {
+        path: path.to_string_lossy().into(),
+        status: status.into(),
+    })
 }
 
 /// The managed section for `AGENTS.md`: the chosen pages' text, then the agent roster and how
 /// to connect.
-pub fn agents_section(conn: &Connection, agents: &[Agent], page_ids: &[String]) -> AppResult<String> {
+pub fn agents_section(
+    conn: &Connection,
+    agents: &[Agent],
+    page_ids: &[String],
+) -> AppResult<String> {
     let mut s = String::from("## From Suivelle\n\n_This section is written by Suivelle. Edit the source pages there, not here._\n\n");
     for id in page_ids {
         let page = repo::page::get(conn, id)?
             .filter(|p| p.deleted_at.is_none())
             .ok_or_else(|| AppError::NotFound("page".into()))?;
-        s.push_str(&format!("### {}\n\n{}\n\n", page.title, content::body_markdown(conn, id)?.trim()));
+        s.push_str(&format!(
+            "### {}\n\n{}\n\n",
+            page.title,
+            content::body_markdown(conn, id)?.trim()
+        ));
     }
     let active: Vec<&Agent> = agents.iter().filter(|a| a.status == "active").collect();
     if !active.is_empty() {
         s.push_str("### Agents\n\n");
         for a in active {
-            s.push_str(&format!("- **{}** ({} mode){}\n", a.name, a.mode, if a.role.is_empty() { String::new() } else { format!(": {}", a.role) }));
+            s.push_str(&format!(
+                "- **{}** ({} mode){}\n",
+                a.name,
+                a.mode,
+                if a.role.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", a.role)
+                }
+            ));
         }
         s.push('\n');
     }
@@ -148,10 +201,20 @@ pub fn agents_section(conn: &Connection, agents: &[Agent], page_ids: &[String]) 
 }
 
 /// Writes (or replaces) the managed section in `<project>/AGENTS.md`, leaving the rest alone.
-pub fn export_agents_md(conn: &Connection, agents: &[Agent], page_ids: &[String], project: &Path, force: bool) -> AppResult<Exported> {
+pub fn export_agents_md(
+    conn: &Connection,
+    agents: &[Agent],
+    page_ids: &[String],
+    project: &Path,
+    force: bool,
+) -> AppResult<Exported> {
     let path: PathBuf = project.join("AGENTS.md");
     let section = agents_section(conn, agents, page_ids)?;
-    let block = format!("{BEGIN}\n<!-- suivelle:fingerprint {} -->\n{}\n{END}", fingerprint(&section), section.trim_end());
+    let block = format!(
+        "{BEGIN}\n<!-- suivelle:fingerprint {} -->\n{}\n{END}",
+        fingerprint(&section),
+        section.trim_end()
+    );
     let old = std::fs::read_to_string(&path).ok();
     let (text, status) = match &old {
         None => (format!("# Agent instructions\n\n{block}\n"), "created"),
@@ -161,16 +224,28 @@ pub fn export_agents_md(conn: &Connection, agents: &[Agent], page_ids: &[String]
                 let stamp = stamp_of(inner);
                 let body = without_stamp(inner);
                 if !force && stamp.is_none_or(|s| s != fingerprint(body.trim())) {
-                    return Ok(Exported { path: path.to_string_lossy().into(), status: "modified".into() });
+                    return Ok(Exported {
+                        path: path.to_string_lossy().into(),
+                        status: "modified".into(),
+                    });
                 }
                 if body.trim() == section.trim() {
-                    return Ok(Exported { path: path.to_string_lossy().into(), status: "unchanged".into() });
+                    return Ok(Exported {
+                        path: path.to_string_lossy().into(),
+                        status: "unchanged".into(),
+                    });
                 }
-                (format!("{}{block}{}", &o[..b], &o[e + END.len()..]), "updated")
+                (
+                    format!("{}{block}{}", &o[..b], &o[e + END.len()..]),
+                    "updated",
+                )
             }
             _ => (format!("{}\n\n{block}\n", o.trim_end()), "updated"),
         },
     };
     std::fs::write(&path, text)?;
-    Ok(Exported { path: path.to_string_lossy().into(), status: status.into() })
+    Ok(Exported {
+        path: path.to_string_lossy().into(),
+        status: status.into(),
+    })
 }

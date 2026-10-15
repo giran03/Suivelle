@@ -160,7 +160,10 @@ pub struct Cli {
 
 pub fn catalogue() -> &'static Catalogue {
     static CATALOGUE: OnceLock<Catalogue> = OnceLock::new();
-    CATALOGUE.get_or_init(|| serde_json::from_str(include_str!("catalogue.json")).expect("the bundled agent app catalogue is valid"))
+    CATALOGUE.get_or_init(|| {
+        serde_json::from_str(include_str!("catalogue.json"))
+            .expect("the bundled agent app catalogue is valid")
+    })
 }
 
 fn client(id: &str) -> AppResult<&'static Client> {
@@ -200,7 +203,9 @@ impl Env {
         Ok(Env {
             home: dirs::home_dir().ok_or_else(missing)?,
             config: dirs::config_dir().ok_or_else(missing)?,
-            path: std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default(),
+            path: std::env::var_os("PATH")
+                .map(|p| std::env::split_paths(&p).collect())
+                .unwrap_or_default(),
             os: std::env::consts::OS,
             cli: true,
             credentials: secret::available(),
@@ -225,7 +230,11 @@ impl Env {
     }
 
     fn paths(&self, spec: &OsPaths) -> Vec<PathBuf> {
-        let os = if self.os == "windows" || self.os == "macos" { self.os } else { "linux" };
+        let os = if self.os == "windows" || self.os == "macos" {
+            self.os
+        } else {
+            "linux"
+        };
         spec.get("any")
             .into_iter()
             .chain(spec.get(os))
@@ -236,7 +245,11 @@ impl Env {
 
     /// A program on PATH, the way a shell would find it.
     pub fn find_exe(&self, name: &str) -> Option<PathBuf> {
-        let exts: &[&str] = if self.os == "windows" { &[".exe", ".cmd", ".bat"] } else { &[""] };
+        let exts: &[&str] = if self.os == "windows" {
+            &[".exe", ".cmd", ".bat"]
+        } else {
+            &[""]
+        };
         self.path
             .iter()
             .flat_map(|dir| exts.iter().map(move |e| dir.join(format!("{name}{e}"))))
@@ -259,7 +272,11 @@ pub struct Entry {
 impl Entry {
     pub fn fingerprint(&self) -> String {
         let text = serde_json::to_string(self).unwrap_or_default();
-        Sha256::digest(text.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect()
+        Sha256::digest(text.as_bytes())
+            .iter()
+            .take(8)
+            .map(|b| format!("{b:02x}"))
+            .collect()
     }
 
     /// The token the entry carries, if it carries one itself.
@@ -281,15 +298,25 @@ impl Shape {
             out.push(("type".into(), t.clone()));
         }
         if self.command_array {
-            let all: Vec<Value> = std::iter::once(&e.command).chain(&e.args).map(|s| Value::String(s.clone())).collect();
+            let all: Vec<Value> = std::iter::once(&e.command)
+                .chain(&e.args)
+                .map(|s| Value::String(s.clone()))
+                .collect();
             out.push((self.command.clone(), Value::Array(all)));
         } else {
             out.push((self.command.clone(), Value::String(e.command.clone())));
             let args = e.args.iter().map(|s| Value::String(s.clone())).collect();
-            out.push((self.args.clone().unwrap_or_else(|| "args".into()), Value::Array(args)));
+            out.push((
+                self.args.clone().unwrap_or_else(|| "args".into()),
+                Value::Array(args),
+            ));
         }
         if !e.env.is_empty() {
-            let env = e.env.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect();
+            let env = e
+                .env
+                .iter()
+                .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+                .collect();
             out.push((self.env.clone(), Value::Object(env)));
         }
         for (k, v) in &self.extra {
@@ -303,23 +330,38 @@ impl Shape {
     pub fn read(&self, v: &Value) -> Entry {
         let strings = |v: Option<&Value>| -> Vec<String> {
             v.and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|s| s.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default()
         };
         let (command, args) = if self.command_array {
             let mut all = strings(v.get(&self.command));
-            let command = if all.is_empty() { String::new() } else { all.remove(0) };
+            let command = if all.is_empty() {
+                String::new()
+            } else {
+                all.remove(0)
+            };
             (command, all)
         } else {
             (
-                v.get(&self.command).and_then(Value::as_str).unwrap_or_default().to_string(),
+                v.get(&self.command)
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
                 strings(v.get(self.args.as_deref().unwrap_or("args"))),
             )
         };
         let env = v
             .get(&self.env)
             .and_then(Value::as_object)
-            .map(|m| m.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect())
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            })
             .unwrap_or_default();
         Entry { command, args, env }
     }
@@ -373,20 +415,32 @@ fn read_file(path: &Path) -> AppResult<FileText> {
     let meta = match std::fs::metadata(path) {
         Ok(m) => m,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(FileText { text: String::new(), bom: false, existed: false })
+            return Ok(FileText {
+                text: String::new(),
+                bom: false,
+                existed: false,
+            })
         }
         Err(e) => return Err(e.into()),
     };
     if meta.len() > MAX_CONFIG {
-        return Err(AppError::Validation(format!("{} is too large to edit safely.", path.display())));
+        return Err(AppError::Validation(format!(
+            "{} is too large to edit safely.",
+            path.display()
+        )));
     }
     let bytes = std::fs::read(path)?;
     let (bom, bytes) = match bytes.strip_prefix(b"\xEF\xBB\xBF") {
         Some(rest) => (true, rest.to_vec()),
         None => (false, bytes),
     };
-    let text = String::from_utf8(bytes).map_err(|_| AppError::Validation(format!("{} is not UTF-8 text.", path.display())))?;
-    Ok(FileText { text, bom, existed: true })
+    let text = String::from_utf8(bytes)
+        .map_err(|_| AppError::Validation(format!("{} is not UTF-8 text.", path.display())))?;
+    Ok(FileText {
+        text,
+        bom,
+        existed: true,
+    })
 }
 
 /// Writes `text` over `path` atomically, after copying the previous version to
@@ -397,9 +451,14 @@ fn write_file(path: &Path, old: &FileText, text: &str) -> AppResult<Option<PathB
         Ok(m) if m.file_type().is_symlink() => std::fs::canonicalize(path)?,
         _ => path.to_path_buf(),
     };
-    let dir = target.parent().ok_or_else(|| AppError::Validation("Bad config path.".into()))?;
+    let dir = target
+        .parent()
+        .ok_or_else(|| AppError::Validation("Bad config path.".into()))?;
     std::fs::create_dir_all(dir)?;
-    let name = target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = target
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let backup = if old.existed {
         let b = dir.join(format!("{name}.suivelle-backup"));
         std::fs::copy(&target, &b)?;
@@ -448,7 +507,11 @@ fn targets(env: &Env, c: &Client) -> Vec<PathBuf> {
     if let Some((p, _)) = found.first() {
         return vec![p.clone()];
     }
-    all.get(c.config.create).or(all.first()).cloned().into_iter().collect()
+    all.get(c.config.create)
+        .or(all.first())
+        .cloned()
+        .into_iter()
+        .collect()
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -482,7 +545,10 @@ fn run(exe: &Path, args: &[String]) -> Result<(), String> {
     use std::io::Read;
     use std::process::{Command, Stdio};
     let mut cmd = Command::new(exe);
-    cmd.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -506,8 +572,18 @@ fn run(exe: &Path, args: &[String]) -> Result<(), String> {
                 return if status.success() {
                     Ok(())
                 } else {
-                    let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
-                    Err(if last.is_empty() { format!("exited with {status}") } else { last })
+                    let last = err
+                        .lines()
+                        .rev()
+                        .find(|l| !l.trim().is_empty())
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    Err(if last.is_empty() {
+                        format!("exited with {status}")
+                    } else {
+                        last
+                    })
                 };
             }
             Ok(None) if started.elapsed() > CLI_TIMEOUT => {
@@ -545,7 +621,10 @@ struct Record {
 
 impl Record {
     fn extras(&self) -> (Option<PathBuf>, Vec<PathBuf>) {
-        (self.instructions_path.as_ref().map(PathBuf::from), self.commands.iter().map(PathBuf::from).collect())
+        (
+            self.instructions_path.as_ref().map(PathBuf::from),
+            self.commands.iter().map(PathBuf::from).collect(),
+        )
     }
 }
 
@@ -623,7 +702,11 @@ fn shared_instructions(conn: &Connection, client_id: &str, path: &Path) -> bool 
 /// The app an agent is connected through, if any.
 pub fn client_of(conn: &Connection, agent_id: &str) -> AppResult<Option<String>> {
     Ok(conn
-        .query_row("SELECT client_id FROM agent_client WHERE agent_id = ?1", [agent_id], |r| r.get(0))
+        .query_row(
+            "SELECT client_id FROM agent_client WHERE agent_id = ?1",
+            [agent_id],
+            |r| r.get(0),
+        )
         .optional()?)
 }
 
@@ -672,8 +755,19 @@ pub struct ClientStatus {
 }
 
 fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus> {
-    let mut found: Vec<String> = c.detect.exe.iter().filter(|e| env.find_exe(e).is_some()).map(|e| format!("{e} on PATH")).collect();
-    found.extend(env.paths(&c.detect.paths).into_iter().filter(|p| p.exists()).map(|p| p.display().to_string()));
+    let mut found: Vec<String> = c
+        .detect
+        .exe
+        .iter()
+        .filter(|e| env.find_exe(e).is_some())
+        .map(|e| format!("{e} on PATH"))
+        .collect();
+    found.extend(
+        env.paths(&c.detect.paths)
+            .into_iter()
+            .filter(|p| p.exists())
+            .map(|p| p.display().to_string()),
+    );
     let files = existing(env, c);
     let installed = !found.is_empty() || !files.is_empty();
     let rec = record(conn, &c.id)?;
@@ -686,7 +780,9 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
         _ => "file",
     };
     let unreadable = files.iter().find_map(|(_, e)| e.as_ref().err().cloned());
-    let entry = files.iter().find_map(|(_, e)| e.as_ref().ok().cloned().flatten());
+    let entry = files
+        .iter()
+        .find_map(|(_, e)| e.as_ref().ok().cloned().flatten());
     let (status, detail) = match (&rec, &agent, &entry) {
         _ if unreadable.is_some() => ("unreadable", unreadable),
         (None, _, None) => ("not_connected", None),
@@ -722,17 +818,28 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
     };
     let config_paths = match &rec {
         Some(r) if !r.config_paths.is_empty() => r.config_paths.clone(),
-        _ => targets(env, c).iter().map(|p| p.display().to_string()).collect(),
+        _ => targets(env, c)
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
     };
-    let (instructions_path, instructions_place) = match (rec.as_ref().and_then(|r| r.instructions_path.clone()), extras::instructions_of(env, c)) {
+    let (instructions_path, instructions_place) = match (
+        rec.as_ref().and_then(|r| r.instructions_path.clone()),
+        extras::instructions_of(env, c),
+    ) {
         (Some(p), _) => (Some(p), None),
         (None, Some(Instructions::File(p))) => (Some(p.display().to_string()), None),
         (None, Some(Instructions::Place(place))) => (None, Some(place)),
         (None, None) => (None, None),
     };
-    let instructions_added = instructions_path
-        .as_ref()
-        .is_some_and(|p| read_file(Path::new(p)).is_ok_and(|f| matches!(extras::block_state(&f.text), extras::BlockState::Current | extras::BlockState::Unmarked)));
+    let instructions_added = instructions_path.as_ref().is_some_and(|p| {
+        read_file(Path::new(p)).is_ok_and(|f| {
+            matches!(
+                extras::block_state(&f.text),
+                extras::BlockState::Current | extras::BlockState::Unmarked
+            )
+        })
+    });
     Ok(ClientStatus {
         id: c.id.clone(),
         name: c.name.clone(),
@@ -752,9 +859,13 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
         instructions_place,
         instructions_added,
         commands: extras::typed_names(c),
-        commands_added: rec.as_ref().is_some_and(|r| !r.commands.is_empty() && extras::problem(None, &r.extras().1).is_none()),
+        commands_added: rec.as_ref().is_some_and(|r| {
+            !r.commands.is_empty() && extras::problem(None, &r.extras().1).is_none()
+        }),
         start_lines: extras::block("\n"),
-        extras_pending: rec.as_ref().is_some_and(|r| r.want_instructions.is_none() && r.method != "manual")
+        extras_pending: rec
+            .as_ref()
+            .is_some_and(|r| r.want_instructions.is_none() && r.method != "manual")
             && (c.instructions.is_some() || c.commands.is_some()),
     })
 }
@@ -838,7 +949,11 @@ pub struct ConnectResult {
 fn unique_name(conn: &Connection, base: &str) -> AppResult<String> {
     let taken = |n: &str| -> AppResult<bool> {
         Ok(conn
-            .query_row("SELECT 1 FROM agent WHERE name = ?1 COLLATE NOCASE", [n], |_| Ok(()))
+            .query_row(
+                "SELECT 1 FROM agent WHERE name = ?1 COLLATE NOCASE",
+                [n],
+                |_| Ok(()),
+            )
             .optional()?
             .is_some())
     };
@@ -851,16 +966,26 @@ fn unique_name(conn: &Connection, base: &str) -> AppResult<String> {
             return Ok(n);
         }
     }
-    Err(AppError::Validation("Choose a different agent name.".into()))
+    Err(AppError::Validation(
+        "Choose a different agent name.".into(),
+    ))
 }
 
 /// Connects an app (or repairs its connection): its agent, a fresh token, the connector, and the
 /// suivelle entry in its config.
-pub fn connect(conn: &mut Connection, env: &Env, client_id: &str, input: ConnectInput) -> AppResult<ConnectResult> {
+pub fn connect(
+    conn: &mut Connection,
+    env: &Env,
+    client_id: &str,
+    input: ConnectInput,
+) -> AppResult<ConnectResult> {
     let c = client(client_id)?;
     let rec = record(conn, client_id)?;
     if rec.is_none() && !input.replace && !input.manual {
-        if let Some(p) = existing(env, c).into_iter().find(|(_, e)| matches!(e, Ok(Some(_)))) {
+        if let Some(p) = existing(env, c)
+            .into_iter()
+            .find(|(_, e)| matches!(e, Ok(Some(_))))
+        {
             return Err(AppError::Validation(format!(
                 "{} already has a server named “suivelle” ({}). Confirm to replace it.",
                 c.name,
@@ -869,12 +994,17 @@ pub fn connect(conn: &mut Connection, env: &Env, client_id: &str, input: Connect
         }
     }
     let (agent, created) = match (&rec, &input.agent_id) {
-        (Some(r), _) if super::get(conn, &r.agent_id).is_ok() => (super::get(conn, &r.agent_id)?, false),
+        (Some(r), _) if super::get(conn, &r.agent_id).is_ok() => {
+            (super::get(conn, &r.agent_id)?, false)
+        }
         (_, Some(id)) => {
             validate_id(id, "agent")?;
             let a = super::get(conn, id)?;
             if client_of(conn, id)?.is_some_and(|other| other != client_id) {
-                return Err(AppError::Validation(format!("{} is already connected to another app.", a.name)));
+                return Err(AppError::Validation(format!(
+                    "{} is already connected to another app.",
+                    a.name
+                )));
             }
             (a, false)
         }
@@ -900,7 +1030,14 @@ pub fn connect(conn: &mut Connection, env: &Env, client_id: &str, input: Connect
     result
 }
 
-fn connect_agent(conn: &mut Connection, env: &Env, c: &Client, agent: &Agent, rec: Option<&Record>, input: &ConnectInput) -> AppResult<ConnectResult> {
+fn connect_agent(
+    conn: &mut Connection,
+    env: &Env,
+    c: &Client,
+    agent: &Agent,
+    rec: Option<&Record>,
+    input: &ConnectInput,
+) -> AppResult<ConnectResult> {
     let manual = input.manual;
     let source = env.bundled.as_ref().ok_or_else(|| {
         AppError::Validation("The suivelle-mcp connector is missing from this copy of Suivelle. Reinstall Suivelle, or build it with `cargo build -p suivelle-mcp`.".into())
@@ -909,7 +1046,11 @@ fn connect_agent(conn: &mut Connection, env: &Env, c: &Client, agent: &Agent, re
     let token = super::rotate_token(conn, &agent.id)?;
     let entry = if env.credentials {
         secret::store(&agent.id, &token)?;
-        Entry { command: command.display().to_string(), args: vec!["--credential".into(), agent.id.clone()], env: BTreeMap::new() }
+        Entry {
+            command: command.display().to_string(),
+            args: vec!["--credential".into(), agent.id.clone()],
+            env: BTreeMap::new(),
+        }
     } else {
         Entry {
             command: command.display().to_string(),
@@ -938,7 +1079,8 @@ fn connect_agent(conn: &mut Connection, env: &Env, c: &Client, agent: &Agent, re
     if method == "file" {
         for path in &paths {
             let old = read_file(path)?;
-            let (text, created) = write_entry(c, &old.text, &entry).map_err(|e| AppError::Validation(format!("{}: {e}", path.display())))?;
+            let (text, created) = write_entry(c, &old.text, &entry)
+                .map_err(|e| AppError::Validation(format!("{}: {e}", path.display())))?;
             created_container |= created;
             if text != old.text {
                 if let Some(b) = write_file(path, &old, &text)? {
@@ -947,24 +1089,40 @@ fn connect_agent(conn: &mut Connection, env: &Env, c: &Client, agent: &Agent, re
             }
             let back = read_file(path)?;
             if read_entry(c, &back.text).ok().flatten().as_ref() != Some(&entry) {
-                return Err(AppError::Internal(format!("{} did not read back as written. Its backup is beside it.", path.display())));
+                return Err(AppError::Internal(format!(
+                    "{} did not read back as written. Its backup is beside it.",
+                    path.display()
+                )));
             }
         }
     }
     // The session-start lines and command files; not for entries pasted by hand.
-    let extra = if manual { extras::Added::default() } else { extras::add(env, c, input.instructions, input.commands) };
+    let extra = if manual {
+        extras::Added::default()
+    } else {
+        extras::add(env, c, input.instructions, input.commands)
+    };
     backups.extend(extra.backups.iter().cloned());
     notes.extend(extra.notes.iter().cloned());
     if let Some(old) = rec {
         // Take out what was added before and is no longer wanted.
         let (was_instr, was_cmds) = old.extras();
-        let stale: Vec<PathBuf> = was_cmds.into_iter().filter(|p| !extra.commands.contains(p)).collect();
+        let stale: Vec<PathBuf> = was_cmds
+            .into_iter()
+            .filter(|p| !extra.commands.contains(p))
+            .collect();
         let drop_instr = was_instr.filter(|p| extra.instructions.as_ref() != Some(p));
-        let keep = drop_instr.as_deref().is_some_and(|p| shared_instructions(conn, &c.id, p));
+        let keep = drop_instr
+            .as_deref()
+            .is_some_and(|p| shared_instructions(conn, &c.id, p));
         notes.extend(extras::remove(drop_instr.as_deref(), &stale, keep));
     }
     let changed: Vec<String> = match method {
-        "cli" => existing(env, c).into_iter().filter(|(_, e)| matches!(e, Ok(Some(_)))).map(|(p, _)| p.display().to_string()).collect(),
+        "cli" => existing(env, c)
+            .into_iter()
+            .filter(|(_, e)| matches!(e, Ok(Some(_))))
+            .map(|(p, _)| p.display().to_string())
+            .collect(),
         _ => paths.iter().map(|p| p.display().to_string()).collect(),
     };
     save_record(
@@ -982,7 +1140,11 @@ fn connect_agent(conn: &mut Connection, env: &Env, c: &Client, agent: &Agent, re
             want_instructions: Some(input.instructions),
             want_commands: Some(input.commands),
             instructions_path: extra.instructions.as_ref().map(|p| p.display().to_string()),
-            commands: extra.commands.iter().map(|p| p.display().to_string()).collect(),
+            commands: extra
+                .commands
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect(),
         },
     )?;
     Ok(ConnectResult {
@@ -1020,7 +1182,11 @@ pub struct DisconnectResult {
 }
 
 /// Removes the suivelle entry and revokes the agent's token. The agent and its history stay.
-pub fn disconnect(conn: &mut Connection, env: &Env, client_id: &str) -> AppResult<DisconnectResult> {
+pub fn disconnect(
+    conn: &mut Connection,
+    env: &Env,
+    client_id: &str,
+) -> AppResult<DisconnectResult> {
     let c = client(client_id)?;
     let rec = record(conn, client_id)?.ok_or_else(|| AppError::NotFound("connection".into()))?;
     let mut notes = Vec::new();
@@ -1029,7 +1195,9 @@ pub fn disconnect(conn: &mut Connection, env: &Env, client_id: &str) -> AppResul
         if let (Some(cli), true) = (&c.cli, env.cli) {
             if let Some(exe) = env.find_exe(&cli.exe) {
                 done = run(&exe, &cli_args(c, &cli.remove, &Entry::default())).is_ok()
-                    && !existing(env, c).iter().any(|(_, e)| matches!(e, Ok(Some(_))));
+                    && !existing(env, c)
+                        .iter()
+                        .any(|(_, e)| matches!(e, Ok(Some(_))));
             }
         }
     }
@@ -1043,20 +1211,30 @@ pub fn disconnect(conn: &mut Connection, env: &Env, client_id: &str) -> AppResul
         for path in paths {
             let step = || -> AppResult<()> {
                 let old = read_file(&path)?;
-                if !old.existed || read_entry(c, &old.text).map_err(AppError::Validation)?.is_none() {
+                if !old.existed
+                    || read_entry(c, &old.text)
+                        .map_err(AppError::Validation)?
+                        .is_none()
+                {
                     return Ok(());
                 }
-                let text = remove_entry(c, &old.text, rec.created_container).map_err(AppError::Validation)?;
+                let text = remove_entry(c, &old.text, rec.created_container)
+                    .map_err(AppError::Validation)?;
                 write_file(&path, &old, &text)?;
                 Ok(())
             };
             if let Err(e) = step() {
-                notes.push(format!("Could not edit {} ({e}). The entry stays there but no longer works.", path.display()));
+                notes.push(format!(
+                    "Could not edit {} ({e}). The entry stays there but no longer works.",
+                    path.display()
+                ));
             }
         }
     }
     let (instructions, commands) = rec.extras();
-    let keep = instructions.as_deref().is_some_and(|p| shared_instructions(conn, &rec.client_id, p));
+    let keep = instructions
+        .as_deref()
+        .is_some_and(|p| shared_instructions(conn, &rec.client_id, p));
     notes.extend(extras::remove(instructions.as_deref(), &commands, keep));
     if super::get(conn, &rec.agent_id).is_ok() {
         super::revoke_token(conn, &rec.agent_id)?;
@@ -1064,6 +1242,12 @@ pub fn disconnect(conn: &mut Connection, env: &Env, client_id: &str) -> AppResul
     if rec.credential {
         secret::delete(&rec.agent_id);
     }
-    conn.execute("DELETE FROM agent_client WHERE client_id = ?1", [&rec.client_id])?;
-    Ok(DisconnectResult { client: status_of(conn, env, c)?, notes })
+    conn.execute(
+        "DELETE FROM agent_client WHERE client_id = ?1",
+        [&rec.client_id],
+    )?;
+    Ok(DisconnectResult {
+        client: status_of(conn, env, c)?,
+        notes,
+    })
 }

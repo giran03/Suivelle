@@ -39,7 +39,9 @@ pub fn get(conn: &Connection, workspace_id: &str) -> AppResult<Option<Hub>> {
         )
         .optional()?;
     // A hub whose databases were deleted is rebuilt rather than half-used.
-    Ok(hub.filter(|h| live_database(conn, &h.memory_database_id) && live_database(conn, &h.tasks_database_id)))
+    Ok(hub.filter(|h| {
+        live_database(conn, &h.memory_database_id) && live_database(conn, &h.tasks_database_id)
+    }))
 }
 
 /// The workspace's hub, created inside the caller's transaction when it has none.
@@ -51,7 +53,16 @@ pub fn ensure(tx: &Connection, workspace_id: &str) -> AppResult<Hub> {
     if repo::workspace::get(tx, workspace_id)?.is_none() {
         return Err(AppError::NotFound("workspace".into()));
     }
-    let page = crate::transfer::insert_page(tx, None, workspace_id, None, "Agent Hub", None, "page", false)?;
+    let page = crate::transfer::insert_page(
+        tx,
+        None,
+        workspace_id,
+        None,
+        "Agent Hub",
+        None,
+        "page",
+        false,
+    )?;
     let (memory, tasks) = templates::build_agent_hub(tx, workspace_id, &page.id)?;
     let intro = "Shared memory, tasks and instructions for the local AI agents connected to this workspace. Agents write here through Settings > Agents; everything they change is listed in the Review inbox and can be reverted.";
     super::content::write_markdown(tx, &page, intro, super::content::WriteMode::Replace)?;
@@ -84,7 +95,9 @@ pub fn option_id(prop: &Property, name: &str) -> Option<String> {
         .and_then(Value::as_array)?
         .iter()
         .find(|o| {
-            o["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(name.trim()))
+            o["name"]
+                .as_str()
+                .is_some_and(|n| n.eq_ignore_ascii_case(name.trim()))
                 || o["id"].as_str() == Some(name)
         })
         .and_then(|o| o["id"].as_str().map(String::from))
@@ -105,7 +118,8 @@ pub fn to_stored(conn: &Connection, prop: &Property, v: &Value) -> AppResult<Val
     if v.is_null() {
         return Ok(Value::Null);
     }
-    let unknown = |name: &str| AppError::Validation(format!("'{}' has no option '{name}'.", prop.name));
+    let unknown =
+        |name: &str| AppError::Validation(format!("'{}' has no option '{name}'.", prop.name));
     Ok(match prop.property_type.as_str() {
         "select" | "status" => {
             let s = v.as_str().unwrap_or_default();
@@ -113,8 +127,15 @@ pub fn to_stored(conn: &Connection, prop: &Property, v: &Value) -> AppResult<Val
         }
         "multi_select" => {
             let names: Vec<String> = match v {
-                Value::Array(a) => a.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
-                Value::String(s) => s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
+                Value::Array(a) => a
+                    .iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect(),
+                Value::String(s) => s
+                    .split(',')
+                    .map(|x| x.trim().to_string())
+                    .filter(|x| !x.is_empty())
+                    .collect(),
                 _ => vec![],
             };
             let mut ids = Vec::new();
@@ -127,21 +148,27 @@ pub fn to_stored(conn: &Connection, prop: &Property, v: &Value) -> AppResult<Val
             Value::String(s) => json!({ "start": s }),
             other => other.clone(),
         },
-        "number" => match v {
-            Value::String(s) => s
-                .trim()
-                .parse::<f64>()
-                .map(|n| json!(n))
-                .map_err(|_| AppError::Validation(format!("'{}' needs a number.", prop.name)))?,
-            other => other.clone(),
-        },
+        "number" => {
+            match v {
+                Value::String(s) => s.trim().parse::<f64>().map(|n| json!(n)).map_err(|_| {
+                    AppError::Validation(format!("'{}' needs a number.", prop.name))
+                })?,
+                other => other.clone(),
+            }
+        }
         "checkbox" => match v {
-            Value::String(s) => json!(matches!(s.to_lowercase().as_str(), "true" | "yes" | "1" | "x")),
+            Value::String(s) => json!(matches!(
+                s.to_lowercase().as_str(),
+                "true" | "yes" | "1" | "x"
+            )),
             other => other.clone(),
         },
         "relation" => {
             let items: Vec<String> = match v {
-                Value::Array(a) => a.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
+                Value::Array(a) => a
+                    .iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect(),
                 Value::String(s) => vec![s.clone()],
                 _ => vec![],
             };
@@ -159,7 +186,9 @@ pub fn to_stored(conn: &Connection, prop: &Property, v: &Value) -> AppResult<Val
                         |r| r.get(0),
                     )
                     .optional()?;
-                ids.push(id.ok_or_else(|| AppError::Validation(format!("'{}' found no record '{it}'.", prop.name)))?);
+                ids.push(id.ok_or_else(|| {
+                    AppError::Validation(format!("'{}' found no record '{it}'.", prop.name))
+                })?);
             }
             json!(ids)
         }
@@ -168,7 +197,11 @@ pub fn to_stored(conn: &Connection, prop: &Property, v: &Value) -> AppResult<Val
 }
 
 /// A record's values by property name, in readable form.
-pub fn readable(conn: &Connection, props: &[Property], values: &Map<String, Value>) -> Map<String, Value> {
+pub fn readable(
+    conn: &Connection,
+    props: &[Property],
+    values: &Map<String, Value>,
+) -> Map<String, Value> {
     let mut out = Map::new();
     for p in props {
         let Some(v) = values.get(&p.id) else { continue };
@@ -212,12 +245,25 @@ pub fn readable(conn: &Connection, props: &[Property], values: &Map<String, Valu
 }
 
 /// Values by property name to the stored map the record services take.
-pub fn stored_map(conn: &Connection, database_id: &str, values: &Map<String, Value>) -> AppResult<Map<String, Value>> {
+pub fn stored_map(
+    conn: &Connection,
+    database_id: &str,
+    values: &Map<String, Value>,
+) -> AppResult<Map<String, Value>> {
     let props = load_properties(conn, database_id)?;
     let mut out = Map::new();
     for (name, v) in values {
         let p = property(&props, name)?;
-        if matches!(p.property_type.as_str(), "title" | "formula" | "rollup" | "created_time" | "updated_time" | "unique_id" | "button") {
+        if matches!(
+            p.property_type.as_str(),
+            "title"
+                | "formula"
+                | "rollup"
+                | "created_time"
+                | "updated_time"
+                | "unique_id"
+                | "button"
+        ) {
             continue;
         }
         out.insert(p.id.clone(), to_stored(conn, p, v)?);

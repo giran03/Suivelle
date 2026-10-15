@@ -83,10 +83,26 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "canvas_boards_repair",
         include_str!("../../migrations/0016_canvas_boards_repair.sql"),
     ),
-    (17, "agents", include_str!("../../migrations/0017_agents.sql")),
-    (18, "agent_clients", include_str!("../../migrations/0018_agent_clients.sql")),
-    (19, "agent_client_extras", include_str!("../../migrations/0019_agent_client_extras.sql")),
-    (20, "proposal_resume", include_str!("../../migrations/0020_proposal_resume.sql")),
+    (
+        17,
+        "agents",
+        include_str!("../../migrations/0017_agents.sql"),
+    ),
+    (
+        18,
+        "agent_clients",
+        include_str!("../../migrations/0018_agent_clients.sql"),
+    ),
+    (
+        19,
+        "agent_client_extras",
+        include_str!("../../migrations/0019_agent_client_extras.sql"),
+    ),
+    (
+        20,
+        "proposal_resume",
+        include_str!("../../migrations/0020_proposal_resume.sql"),
+    ),
 ];
 
 /// The schema version a fully migrated database has.
@@ -272,14 +288,23 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
                 ("agent_client", "want_instructions", "INTEGER"),
                 ("agent_client", "want_commands", "INTEGER"),
                 ("agent_client", "instructions_path", "TEXT"),
-                ("agent_client", "commands_json", "TEXT NOT NULL DEFAULT '[]'"),
+                (
+                    "agent_client",
+                    "commands_json",
+                    "TEXT NOT NULL DEFAULT '[]'",
+                ),
             ],
-            20 => &[("proposal", "resume", "INTEGER NOT NULL DEFAULT 0"), ("proposal", "waiting_until", "TEXT")],
+            20 => &[
+                ("proposal", "resume", "INTEGER NOT NULL DEFAULT 0"),
+                ("proposal", "waiting_until", "TEXT"),
+            ],
             _ => &[],
         };
         for (table, column, kind) in columns {
             let has: bool = tx.query_row(
-                &format!("SELECT EXISTS(SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1)"),
+                &format!(
+                    "SELECT EXISTS(SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1)"
+                ),
                 [column],
                 |r| r.get(0),
             )?;

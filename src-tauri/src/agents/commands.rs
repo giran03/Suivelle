@@ -94,7 +94,10 @@ pub fn page_titled(conn: &Connection, agent: &Agent, title: &str) -> AppResult<O
         "SELECT id FROM page WHERE workspace_id = ?1 AND deleted_at IS NULL AND title = ?2 COLLATE NOCASE ORDER BY created_at LIMIT 1",
     )?;
     for ws in &agent.workspace_ids {
-        if let Some(id) = stmt.query_map(rusqlite::params![ws, title], |r| r.get::<_, String>(0))?.next() {
+        if let Some(id) = stmt
+            .query_map(rusqlite::params![ws, title], |r| r.get::<_, String>(0))?
+            .next()
+        {
             return Ok(Some(id?));
         }
     }
@@ -104,9 +107,14 @@ pub fn page_titled(conn: &Connection, agent: &Agent, title: &str) -> AppResult<O
 /// Where the session-start lines go for the app this agent is connected through.
 fn instructions_hint(conn: &Connection, agent: &Agent) -> String {
     let generic = "Find your app's user-level instructions file (Claude Code: ~/.claude/CLAUDE.md, Codex: ~/.codex/AGENTS.md, Gemini CLI: ~/.gemini/GEMINI.md, opencode: ~/.config/opencode/AGENTS.md).".to_string();
-    let Ok(Some(client)) = super::clients::client_of(conn, &agent.id) else { return generic };
+    let Ok(Some(client)) = super::clients::client_of(conn, &agent.id) else {
+        return generic;
+    };
     match super::clients::instructions_target(&client) {
-        Some(super::clients::Instructions::File(path)) => format!("Your app reads user-level instructions from `{}`.", path.display()),
+        Some(super::clients::Instructions::File(path)) => format!(
+            "Your app reads user-level instructions from `{}`.",
+            path.display()
+        ),
         Some(super::clients::Instructions::Place(place)) => {
             format!("Your app keeps user-level instructions in {place}; you cannot edit that, so show the user the block and ask them to paste it there.")
         }
@@ -116,11 +124,20 @@ fn instructions_hint(conn: &Connection, agent: &Agent) -> String {
 
 /// The text of a command for this agent: an "Agent command: <name>" page when there is one,
 /// otherwise the built-in text. `protocol` gives the default Agent protocol.
-pub fn text(conn: &Connection, agent: &Agent, name: &str, arguments: Option<&str>) -> AppResult<String> {
+pub fn text(
+    conn: &Connection,
+    agent: &Agent,
+    name: &str,
+    arguments: Option<&str>,
+) -> AppResult<String> {
     if name == "protocol" {
         return Ok(PROTOCOL.to_string());
     }
-    let cmd = find(name).ok_or_else(|| AppError::Validation(format!("Unknown command '{name}'. Use init, setup, sync, wrap-up or protocol.")))?;
+    let cmd = find(name).ok_or_else(|| {
+        AppError::Validation(format!(
+            "Unknown command '{name}'. Use init, setup, sync, wrap-up or protocol."
+        ))
+    })?;
     let body = match page_titled(conn, agent, &format!("{OVERRIDE_PREFIX} {name}"))? {
         Some(id) => super::content::body_markdown(conn, &id)?,
         None => cmd.text.to_string(),
@@ -129,7 +146,10 @@ pub fn text(conn: &Connection, agent: &Agent, name: &str, arguments: Option<&str
     if out.contains("{instructions}") {
         out = out.replace("{instructions}", &instructions_hint(conn, agent));
     }
-    if let Some(a) = arguments.map(str::trim).filter(|a| !a.is_empty() && *a != "$ARGUMENTS" && *a != "{{args}}") {
+    if let Some(a) = arguments
+        .map(str::trim)
+        .filter(|a| !a.is_empty() && *a != "$ARGUMENTS" && *a != "{{args}}")
+    {
         out.push_str(&format!("\n\nThe user added: {a}"));
     }
     Ok(out)

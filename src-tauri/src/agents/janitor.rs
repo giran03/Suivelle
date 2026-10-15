@@ -15,15 +15,42 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
 pub const CHECKS: &[(&str, &str)] = &[
-    ("broken_links", "Links and mentions to pages that are in the trash or gone"),
-    ("unresolved_links", "[[Wikilinks]] no page answers to, with likely matches"),
-    ("duplicate_titles", "Pages in one workspace that share a title"),
-    ("empty_pages", "Pages with no content and no subpages, older than a week"),
-    ("isolated_pages", "Top-level pages with no subpages and no links in or out"),
-    ("tag_variants", "Tags that differ only in case or punctuation"),
-    ("memory", "Memories past their expiry date, or superseded but still active"),
-    ("tasks", "Agent tasks with an expired lease, stuck in review, or failed"),
-    ("proposals", "Proposals waiting for review for more than a week"),
+    (
+        "broken_links",
+        "Links and mentions to pages that are in the trash or gone",
+    ),
+    (
+        "unresolved_links",
+        "[[Wikilinks]] no page answers to, with likely matches",
+    ),
+    (
+        "duplicate_titles",
+        "Pages in one workspace that share a title",
+    ),
+    (
+        "empty_pages",
+        "Pages with no content and no subpages, older than a week",
+    ),
+    (
+        "isolated_pages",
+        "Top-level pages with no subpages and no links in or out",
+    ),
+    (
+        "tag_variants",
+        "Tags that differ only in case or punctuation",
+    ),
+    (
+        "memory",
+        "Memories past their expiry date, or superseded but still active",
+    ),
+    (
+        "tasks",
+        "Agent tasks with an expired lease, stuck in review, or failed",
+    ),
+    (
+        "proposals",
+        "Proposals waiting for review for more than a week",
+    ),
 ];
 
 #[derive(Debug, Clone, Serialize)]
@@ -40,7 +67,14 @@ pub struct Finding {
     pub fix: Option<Op>,
 }
 
-fn finding(check: &str, severity: &str, title: String, detail: String, page_id: Option<String>, fix: Option<Op>) -> Finding {
+fn finding(
+    check: &str,
+    severity: &str,
+    title: String,
+    detail: String,
+    page_id: Option<String>,
+    fix: Option<Op>,
+) -> Finding {
     Finding {
         check: check.into(),
         severity: severity.into(),
@@ -58,7 +92,9 @@ fn levenshtein(a: &str, b: &str) -> usize {
     for (i, ca) in a.iter().enumerate() {
         let mut cur = vec![i + 1; b.len() + 1];
         for (j, cb) in b.iter().enumerate() {
-            cur[j + 1] = (prev[j] + usize::from(ca != cb)).min(prev[j + 1] + 1).min(cur[j] + 1);
+            cur[j + 1] = (prev[j] + usize::from(ca != cb))
+                .min(prev[j + 1] + 1)
+                .min(cur[j] + 1);
         }
         prev = cur;
     }
@@ -66,7 +102,12 @@ fn levenshtein(a: &str, b: &str) -> usize {
 }
 
 /// Runs `checks` (all of them when empty) over one workspace. At most `limit` findings per check.
-pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: usize) -> AppResult<Vec<Finding>> {
+pub fn report(
+    conn: &Connection,
+    workspace_id: &str,
+    checks: &[String],
+    limit: usize,
+) -> AppResult<Vec<Finding>> {
     let want = |c: &str| checks.is_empty() || checks.iter().any(|x| x == c);
     let limit = limit.clamp(1, 200) as i64;
     let mut out = Vec::new();
@@ -79,7 +120,13 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
              WHERE s.workspace_id = ?1 AND (t.id IS NULL OR t.deleted_at IS NOT NULL) LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![workspace_id, limit], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, Option<String>>(3)?, r.get::<_, bool>(4)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+                r.get::<_, bool>(4)?,
+            ))
         })?;
         for row in rows {
             let (src, src_title, _target, target_title, trashed) = row?;
@@ -88,7 +135,9 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                 "warning",
                 format!("“{}” links to a missing page", src_title),
                 match (target_title, trashed) {
-                    (Some(t), true) => format!("“{t}” is in the trash. Restore it or remove the link."),
+                    (Some(t), true) => {
+                        format!("“{t}” is in the trash. Restore it or remove the link.")
+                    }
                     _ => "The linked page was deleted. Remove the link.".into(),
                 },
                 Some(src),
@@ -104,13 +153,17 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
              WHERE u.workspace_id = ?1 GROUP BY u.target_norm ORDER BY COUNT(*) DESC LIMIT ?2",
         )?;
         let rows: Vec<(String, i64, String)> = stmt
-            .query_map(params![workspace_id, limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .query_map(params![workspace_id, limit], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })?
             .collect::<Result<_, _>>()?;
         let titles: Vec<(String, String)> = if rows.is_empty() {
             vec![]
         } else {
             let mut t = conn.prepare("SELECT id, title FROM page WHERE workspace_id = ?1 AND deleted_at IS NULL AND kind = 'page' LIMIT 5000")?;
-            let v = t.query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+            let v = t
+                .query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<_, _>>()?;
             v
         };
         for (text, count, source) in rows {
@@ -144,7 +197,14 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                     }),
                 ),
             };
-            out.push(finding("unresolved_links", "info", format!("[[{text}]] has no page"), detail, Some(source), fix));
+            out.push(finding(
+                "unresolved_links",
+                "info",
+                format!("[[{text}]] has no page"),
+                detail,
+                Some(source),
+                fix,
+            ));
         }
     }
 
@@ -154,7 +214,13 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
              WHERE workspace_id = ?1 AND deleted_at IS NULL AND kind = 'page' AND trim(title) <> ''
              GROUP BY lower(trim(title)) HAVING COUNT(*) > 1 LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![workspace_id, limit], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?)))?;
+        let rows = stmt.query_map(params![workspace_id, limit], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?;
         for row in rows {
             let (title, n, ids) = row?;
             out.push(finding(
@@ -177,14 +243,20 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                AND NOT EXISTS (SELECT 1 FROM page c WHERE c.parent_page_id = p.id AND c.deleted_at IS NULL)
              ORDER BY p.updated_at LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![workspace_id, limit], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let rows = stmt.query_map(params![workspace_id, limit], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
         for row in rows {
             let (id, title) = row?;
             out.push(finding(
                 "empty_pages",
                 "info",
-                format!("“{}” is empty", if title.is_empty() { "Untitled" } else { &title }),
-                "Nothing has been written here for a week. Fill it in or move it to the trash.".into(),
+                format!(
+                    "“{}” is empty",
+                    if title.is_empty() { "Untitled" } else { &title }
+                ),
+                "Nothing has been written here for a week. Fill it in or move it to the trash."
+                    .into(),
                 Some(id.clone()),
                 Some(Op::TrashPage { page_id: id }),
             ));
@@ -200,7 +272,9 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                AND NOT EXISTS (SELECT 1 FROM page_reference r WHERE r.source_page_id = p.id OR r.target_page_id = p.id)
              ORDER BY p.updated_at LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![workspace_id, limit], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let rows = stmt.query_map(params![workspace_id, limit], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
         for row in rows {
             let (id, title) = row?;
             out.push(finding(
@@ -215,14 +289,22 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
     }
 
     if want("tag_variants") {
-        let mut stmt = conn.prepare("SELECT tag, COUNT(*) FROM block_tag WHERE workspace_id = ?1 GROUP BY tag")?;
-        let tags: Vec<(String, i64)> = stmt.query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+        let mut stmt = conn
+            .prepare("SELECT tag, COUNT(*) FROM block_tag WHERE workspace_id = ?1 GROUP BY tag")?;
+        let tags: Vec<(String, i64)> = stmt
+            .query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<_, _>>()?;
         let mut groups: HashMap<String, Vec<(String, i64)>> = HashMap::new();
         for (t, n) in tags {
-            let key: String = t.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect();
+            let key: String = t
+                .to_lowercase()
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect();
             groups.entry(key).or_default().push((t, n));
         }
-        let mut variants: Vec<Vec<(String, i64)>> = groups.into_values().filter(|g| g.len() > 1).collect();
+        let mut variants: Vec<Vec<(String, i64)>> =
+            groups.into_values().filter(|g| g.len() > 1).collect();
         variants.sort_by_key(|g| std::cmp::Reverse(g.iter().map(|x| x.1).sum::<i64>()));
         for mut g in variants.into_iter().take(limit as usize) {
             g.sort_by_key(|x| std::cmp::Reverse(x.1));
@@ -231,7 +313,10 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                 "tag_variants",
                 "info",
                 format!("{} spellings of #{}", g.len(), g[0].0),
-                format!("{}. Pick one spelling so tag pages collect everything.", names.join(", ")),
+                format!(
+                    "{}. Pick one spelling so tag pages collect everything.",
+                    names.join(", ")
+                ),
                 None,
                 None,
             ));
@@ -245,17 +330,26 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
             let mut stmt = conn.prepare(
                 "SELECT r.id FROM db_record r JOIN page p ON p.id = r.page_id WHERE r.database_id = ?1 AND p.deleted_at IS NULL LIMIT 2000",
             )?;
-            let ids: Vec<String> = stmt.query_map([&h.memory_database_id], |r| r.get(0))?.collect::<Result<_, _>>()?;
+            let ids: Vec<String> = stmt
+                .query_map([&h.memory_database_id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
             for row in load_rows(conn, &ids)? {
                 let v = hub::readable(conn, &props, &row.values);
                 if v.get("Status").and_then(Value::as_str) != Some("Active") {
                     continue;
                 }
                 let expires = v.get("Expires").and_then(Value::as_str).unwrap_or_default();
-                let superseded = v.get("Superseded by").and_then(Value::as_array).is_some_and(|a| !a.is_empty());
+                let superseded = v
+                    .get("Superseded by")
+                    .and_then(Value::as_array)
+                    .is_some_and(|a| !a.is_empty());
                 let status = if superseded {
-                    Some(("Superseded", "A newer memory replaces it, but it is still marked active."))
-                } else if !expires.is_empty() && &expires[..expires.len().min(10)] < today.as_str() {
+                    Some((
+                        "Superseded",
+                        "A newer memory replaces it, but it is still marked active.",
+                    ))
+                } else if !expires.is_empty() && &expires[..expires.len().min(10)] < today.as_str()
+                {
                     Some(("Expired", "Its expiry date has passed."))
                 } else {
                     None
@@ -269,7 +363,10 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
                         format!("Memory “{}” is out of date", row.title),
                         why.into(),
                         Some(row.page_id.clone()),
-                        Some(Op::SetValues { page_id: row.page_id, values }),
+                        Some(Op::SetValues {
+                            page_id: row.page_id,
+                            values,
+                        }),
                     ));
                 }
             }
@@ -281,24 +378,48 @@ pub fn report(conn: &Connection, workspace_id: &str, checks: &[String], limit: u
         for t in tasks::all(conn, workspace_id, false)? {
             let status = t.status();
             let updated: String = conn
-                .query_row("SELECT updated_at FROM page WHERE id = ?1", [&t.page_id], |r| r.get(0))
+                .query_row(
+                    "SELECT updated_at FROM page WHERE id = ?1",
+                    [&t.page_id],
+                    |r| r.get(0),
+                )
                 .unwrap_or_default();
             let old = chrono::DateTime::parse_from_rfc3339(&updated)
                 .map(|u| at - u.with_timezone(&chrono::Utc) > chrono::Duration::days(7))
                 .unwrap_or(false);
-            let lease = t.values.get("Lease until").and_then(Value::as_str).unwrap_or_default().to_string();
+            let lease = t
+                .values
+                .get("Lease until")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             let expired = status == "In progress"
-                && chrono::DateTime::parse_from_rfc3339(&lease).map(|l| l.with_timezone(&chrono::Utc) < at).unwrap_or(true);
+                && chrono::DateTime::parse_from_rfc3339(&lease)
+                    .map(|l| l.with_timezone(&chrono::Utc) < at)
+                    .unwrap_or(true);
             let (severity, detail) = if expired {
-                ("warning", "Its lease ran out; the agent stopped reporting. It goes back to the queue.")
+                (
+                    "warning",
+                    "Its lease ran out; the agent stopped reporting. It goes back to the queue.",
+                )
             } else if status == "Review" && old {
                 ("info", "Waiting for review for over a week.")
             } else if status == "Failed" {
-                ("warning", "Agents gave up on it. Rewrite it or take it on yourself.")
+                (
+                    "warning",
+                    "Agents gave up on it. Rewrite it or take it on yourself.",
+                )
             } else {
                 continue;
             };
-            out.push(finding("tasks", severity, format!("Task “{}”", t.title), detail.into(), Some(t.page_id), None));
+            out.push(finding(
+                "tasks",
+                severity,
+                format!("Task “{}”", t.title),
+                detail.into(),
+                Some(t.page_id),
+                None,
+            ));
         }
     }
 
@@ -332,7 +453,13 @@ pub fn upkeep(conn: &mut Connection, workspace_id: &str) -> AppResult<usize> {
         .collect();
     if !ops.is_empty() {
         changed += ops.len();
-        apply_as(conn, &Actor::janitor(workspace_id), "Mark out-of-date memories", None, &ops)?;
+        apply_as(
+            conn,
+            &Actor::janitor(workspace_id),
+            "Mark out-of-date memories",
+            None,
+            &ops,
+        )?;
     }
     Ok(changed)
 }
@@ -349,7 +476,10 @@ pub fn render(list: &[Finding]) -> String {
                 f.check,
                 f.title,
                 f.detail,
-                f.page_id.as_ref().map(|p| format!(" (page {p})")).unwrap_or_default()
+                f.page_id
+                    .as_ref()
+                    .map(|p| format!(" (page {p})"))
+                    .unwrap_or_default()
             )
         })
         .collect()

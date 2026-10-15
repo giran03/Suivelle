@@ -49,7 +49,13 @@ impl Recorder {
 
     /// Like [`touch`](Self::touch), with the state to return to given by the caller (a record's
     /// previous values, as JSON, for "values").
-    pub fn touch_with(&mut self, tx: &Connection, page_id: &str, op: &str, state: Option<String>) -> AppResult<()> {
+    pub fn touch_with(
+        &mut self,
+        tx: &Connection,
+        page_id: &str,
+        op: &str,
+        state: Option<String>,
+    ) -> AppResult<()> {
         tx.execute(
             "INSERT OR IGNORE INTO changeset_page (changeset_id, page_id, op, revision_id) VALUES (?1, ?2, ?3, ?4)",
             params![self.id, page_id, op, state],
@@ -159,7 +165,11 @@ pub fn revert(conn: &mut Connection, id: &str) -> AppResult<Vec<String>> {
         .optional()?;
     match reverted {
         None => return Err(AppError::NotFound("changeset".into())),
-        Some(Some(_)) => return Err(AppError::Validation("These changes were already reverted.".into())),
+        Some(Some(_)) => {
+            return Err(AppError::Validation(
+                "These changes were already reverted.".into(),
+            ))
+        }
         Some(None) => {}
     }
     let mut stmt = conn.prepare(
@@ -191,7 +201,10 @@ pub fn revert(conn: &mut Connection, id: &str) -> AppResult<Vec<String>> {
                 }
             }
             "moved" => {
-                if let (Some(parent), Some(p)) = (revision.as_deref().and_then(|r| r.strip_prefix("parent:")), page) {
+                if let (Some(parent), Some(p)) = (
+                    revision.as_deref().and_then(|r| r.strip_prefix("parent:")),
+                    page,
+                ) {
                     if p.deleted_at.is_none() {
                         let parent = (!parent.is_empty()).then(|| parent.to_string());
                         if p.parent_page_id != parent {
@@ -213,9 +226,15 @@ pub fn revert(conn: &mut Connection, id: &str) -> AppResult<Vec<String>> {
                     .and_then(|r| serde_json::from_str(r).ok())
                     .unwrap_or_default();
                 let record: Option<String> = conn
-                    .query_row("SELECT id FROM db_record WHERE page_id = ?1", [&page_id], |r| r.get(0))
+                    .query_row(
+                        "SELECT id FROM db_record WHERE page_id = ?1",
+                        [&page_id],
+                        |r| r.get(0),
+                    )
                     .optional()?;
-                if let (Some(record_id), true) = (record, page.is_some_and(|p| p.deleted_at.is_none())) {
+                if let (Some(record_id), true) =
+                    (record, page.is_some_and(|p| p.deleted_at.is_none()))
+                {
                     for (property_id, value) in before {
                         crate::databases::service::set_value(
                             conn,

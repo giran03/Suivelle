@@ -1001,11 +1001,17 @@ pub(crate) fn build_agent_hub(
     )?;
     let status = m.p("Status")?.clone();
     let active = m.option("Status", "Active")?;
-    b.view(&m, "board", "By kind", &["Status", "Scope", "Source"], |c| {
-        c.group = Some(group_by(m.p("Kind")?));
-        c.filter = Some(leaf(&status, "=", json!(active)));
-        Ok(())
-    })?;
+    b.view(
+        &m,
+        "board",
+        "By kind",
+        &["Status", "Scope", "Source"],
+        |c| {
+            c.group = Some(group_by(m.p("Kind")?));
+            c.filter = Some(leaf(&status, "=", json!(active)));
+            Ok(())
+        },
+    )?;
 
     let mut t = b.database("Agent tasks")?;
     b.prop(&mut t, "Status", "select", options(&AGENT_TASK_STATUSES))?;
