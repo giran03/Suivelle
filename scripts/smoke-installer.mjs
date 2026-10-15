@@ -20,11 +20,12 @@ const pending = new Map();
 
 async function until(check, label) {
   const end = Date.now() + 60_000;
+  let lastError;
   while (Date.now() < end) {
-    try { const result = await check(); if (result) return result; } catch {}
+    try { const result = await check(); if (result) return result; } catch (error) { lastError = error; }
     await delay(500);
   }
-  throw new Error(`Timed out: ${label}`);
+  throw new Error(`Timed out: ${label}; ${lastError?.message ?? 'no matching result'}`);
 }
 
 function install(installer) {
@@ -58,11 +59,15 @@ async function evaluate(expression) {
 const invoke = (cmd, args = {}) => evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(cmd)}, ${JSON.stringify(args)})`);
 
 async function launch() {
-  app = spawn(exe, [], { windowsHide: true, env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222' }, stdio: 'ignore' });
+  app = spawn(exe, [], { windowsHide: true, env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  app.stdout.on('data', bytes => console.log(bytes.toString()));
+  app.stderr.on('data', bytes => console.log(bytes.toString()));
   const target = await until(async () => {
     assert.equal(app.exitCode, null, 'App exited during startup.');
     const targets = await (await fetch('http://127.0.0.1:9222/json/list')).json();
-    return targets.find(t => t.type === 'page' && /tauri\.localhost|^tauri:/.test(t.url));
+    const target = targets.find(t => t.type === 'page' && /tauri\.localhost|^tauri:/.test(t.url));
+    if (!target) throw new Error(`WebView targets: ${JSON.stringify(targets.map(t => ({ type: t.type, url: t.url })))}`);
+    return target;
   }, 'installed WebView');
   socket = new WebSocket(target.webSocketDebuggerUrl);
   socket.addEventListener('message', event => {
@@ -113,6 +118,11 @@ try {
   await launch();
   assert.equal((await invoke('page_get', { id: page.id })).title, page.title, 'Data must survive a second launch.');
   console.log('Installer smoke passed: custom directory, rendered app, writable migration, workspace/page/block preservation, connector refresh, and repeated launch.');
+} catch (error) {
+  const log = join(data, 'logs', 'suivelle.log');
+  if (existsSync(log)) console.log(readFileSync(log, 'utf8').slice(-12_000));
+  console.log(`App exit code: ${app?.exitCode}; database created: ${existsSync(join(data, 'workspace.db'))}`);
+  throw error;
 } finally {
   stop();
 }
