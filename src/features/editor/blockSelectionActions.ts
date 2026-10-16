@@ -1,11 +1,61 @@
 import { key } from "../shortcuts/bindings";
 import type { Editor } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
+import { Fragment } from "@tiptap/pm/model";
 import type { MenuItem } from "../../components/ContextMenu";
 import { toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
+import { TURN_INTO, canTurnInto, turnSelectedBlocksInto } from "./blockKinds";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
 import { imagePresentation } from "./imageModel";
+import { canSyncSelection, syncSelectedBlocks } from "./synced";
+
+const MERGEABLE_INLINE = {
+  quote: "Merge into one quote",
+  callout: "Merge into one callout",
+  paragraph: "Merge into one paragraph",
+} as const;
+
+export type MergeableInlineType = keyof typeof MERGEABLE_INLINE;
+
+export function mergeSelectedInlineBlocks(
+  editor: Editor,
+  typeName: MergeableInlineType,
+) {
+  const { selection, doc, schema } = editor.state;
+  if (!editor.isEditable || !(selection instanceof BlockRangeSelection))
+    return false;
+  const blocks = blockRange(doc, selection.from, selection.to);
+  if (
+    blocks.length < 2 ||
+    !blocks.every((b) => b.node.type.name === typeName)
+  )
+    return false;
+  const hardBreak = schema.nodes.hardBreak;
+  let content = Fragment.empty;
+  blocks.forEach((b, i) => {
+    if (i > 0 && hardBreak)
+      content = content.append(Fragment.from(hardBreak.create()));
+    content = content.append(b.node.content);
+  });
+  const first = blocks[0].node;
+  const merged = first.type.create({ ...first.attrs }, content);
+  const from = selection.from;
+  const tr = closeHistory(editor.state.tr).replaceWith(
+    from,
+    selection.to,
+    merged,
+  );
+  tr.setSelection(
+    BlockRangeSelection.create(tr.doc, from, from + merged.nodeSize),
+  );
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+export function mergeSelectedQuotes(editor: Editor) {
+  return mergeSelectedInlineBlocks(editor, "quote");
+}
 
 export function duplicateSelectedBlocks(editor: Editor) {
   const { selection } = editor.state;
@@ -105,6 +155,13 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
     }
   };
   const blocks = blockRange(editor.state.doc, selection.from, selection.to);
+  const convertible = blocks.length > 0 && blocks.every((b) => canTurnInto(b.node));
+  const mergeType =
+    blocks.length > 1
+      ? (Object.keys(MERGEABLE_INLINE) as MergeableInlineType[]).find((t) =>
+          blocks.every((b) => b.node.type.name === t),
+        )
+      : undefined;
   const $from = selection.$from,
     $to = selection.$to;
   const sameParent = $from.sameParent($to);
@@ -184,6 +241,32 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
                 }),
               }))
             : []),
+          ...(mergeType
+            ? [
+                {
+                  label: MERGEABLE_INLINE[mergeType],
+                  separated: true,
+                  onSelect: action(() => {
+                    mergeSelectedInlineBlocks(editor, mergeType);
+                  }),
+                },
+              ]
+            : []),
+          {
+            label: "Turn into synced block",
+            separated: true,
+            disabled: !canSyncSelection(editor),
+            onSelect: action(() => void syncSelectedBlocks(editor)),
+          },
+          ...TURN_INTO.map((k, i) => ({
+            label: `Turn into ${k.title}`,
+            shortcut: k.shortcut,
+            separated: i === 0,
+            disabled: !convertible,
+            onSelect: action(() => {
+              turnSelectedBlocksInto(editor, k.id);
+            }),
+          })),
           {
             label: "Delete blocks", shortcut: [key("Delete"), key("Backspace")],
             danger: true,

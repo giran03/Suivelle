@@ -11,7 +11,9 @@ import { useMediaPaste } from "../features/editor/mediaPaste";
 import { useCalendarComposer } from "../features/calendar/store";
 import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
-import { usePeek } from "../features/peek/store";
+import { installSplit } from "../features/split/store";
+import { installDockHint } from "../features/split/dropOnSplit";
+import { SplitFrame } from "../features/split/SplitFrame";
 import { installReminderToasts } from "../features/explore/events";
 import { installAgentEvents } from "../features/agents/events";
 import { useAgents } from "../features/agents/store";
@@ -27,7 +29,7 @@ import { useHistoryPanel } from "../features/history/store";
 import { usePalette } from "../features/palette/store";
 import { Sidebar } from "../features/pages/Sidebar";
 import { Topbar } from "../features/pages/Topbar";
-import { TrashView } from "../features/pages/TrashView";
+const TrashView = lazy(() => import("../features/pages/TrashView").then((m) => ({ default: m.TrashView })));
 const WorkspaceCanvas = lazy(() => import("../features/canvas/WorkspaceCanvas").then((m) => ({ default: m.WorkspaceCanvas })));
 import { BrandMark } from "../components/BrandMark";
 import { Icon } from "../components/Icon";
@@ -41,7 +43,8 @@ import { installSessionPersistence } from "../features/session/persist";
 import { installFileDropGuard } from "../features/session/fileDropGuard";
 import { ShortcutSheet } from "../features/shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../features/settings/store";
-import { QuickCapture } from "../features/capture/QuickCapture";
+import { useQuickCapture } from "../features/capture/store";
+const QuickCapture = lazy(() => import("../features/capture/QuickCapture").then((m) => ({ default: m.QuickCapture })));
 import { ipc, toAppError } from "../lib/ipc";
 import { useFindBar } from "../features/find/store";
 import { closeTab, cycleTab, installTabs, useTabs } from "../features/tabs/tabs";
@@ -51,6 +54,7 @@ import { usePreviewCard } from "../features/preview/store";
 import { installPagePreview } from "../features/preview/install";
 import { useAppIcon } from "../lib/appIcon";
 import { useAppearance } from "../lib/appearance";
+import { useThemes } from "../features/settings/themes";
 import { usePreferences } from "../stores/preferences";
 import { sidebarHidden, sidebarRail, useLayout } from "../stores/layout";
 import { useWorkspace } from "../stores/workspace";
@@ -66,7 +70,6 @@ const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog").
 const WorkspaceDialog = lazy(() => import("../features/workspaces/WorkspaceDialog").then((m) => ({ default: m.WorkspaceDialog })));
 const MediaPasteDialog = lazy(() => import("../features/editor/MediaPasteDialog"));
 const CalendarComposer = lazy(() => import("../features/calendar/CalendarComposer").then((m) => ({ default: m.CalendarComposer })));
-const PeekPanel = lazy(() => import("../features/peek/PeekPanel").then((m) => ({ default: m.PeekPanel })));
 const NodeMap = lazy(() => import("../features/node-map/NodeMap").then(m => ({ default: m.NodeMap })));
 const ExploreDialog = lazy(() => import("../features/explore/ExploreDialog").then((m) => ({ default: m.ExploreDialog })));
 const OutlinePanel = lazy(() => import("../features/outline/OutlinePanel").then((m) => ({ default: m.OutlinePanel })));
@@ -171,7 +174,7 @@ function Content() {
   const createPage = useWorkspace((s) => s.createPage);
   const epoch = useWorkspace((s) => s.editorEpoch);
 
-  if (view === "trash") return <TrashView />;
+  if (view === "trash") return <Suspense fallback={<Loading label="Loading trash…" />}><TrashView /></Suspense>;
   if (view === "node-map") return <Suspense fallback={<Loading label="Loading map…" />}><NodeMap /></Suspense>;
   if (view === "canvas") return <Suspense fallback={<Loading label="Loading canvas…" />}><WorkspaceCanvas /></Suspense>;
   if (selectedPageId && kind === "dashboard") {
@@ -270,6 +273,7 @@ function ConstellationArt() {
 }
 
 export function App() {
+  const captureOpen = useQuickCapture((s) => s.open);
   const previewOpen = usePreviewCard((s) => s.pageId !== null);
   const updatePreparing = useUpdates((s) => isPreparing(s.phase));
   const SettingsDialogOpen = useSettingsDialog((s) => s.open);
@@ -280,7 +284,6 @@ export function App() {
   const CalendarComposerOpen = useCalendarComposer((s) => s.request !== null);
   const outlineOpen = useOutline((s) => s.open);
   const exploreOpen = useExplore((s) => !!s.panel);
-  const peekOpen = usePeek((s) => !!s.pageId);
   const TransferDialogOpen = useTransferDialog((s) => s.open);
   const HistoryPanelOpen = useHistoryPanel((s) => s.open);
   const TemplateGalleryOpen = useTemplateGallery((s) => s.open);
@@ -293,7 +296,8 @@ export function App() {
   const legacyTheme = useWorkspace((s) => s.settings.theme);
   const workspaceReady = useWorkspace((s) => s.ready);
   const appTheme = usePreferences((s) => s.theme);
-  const theme = appTheme ?? legacyTheme;
+  const previewMode = useThemes((s) => s.previewMode);
+  const theme = previewMode ?? appTheme ?? legacyTheme;
   const error = useWorkspace((s) => s.error);
   const clearError = useWorkspace((s) => s.clearError);
   const isDatabase = useWorkspace((s) => s.view === "canvas" || s.view === "node-map" || (s.view === "page" && (s.selectedPage?.kind === "database" || s.selectedPage?.kind === "dashboard")));
@@ -313,6 +317,7 @@ export function App() {
   useEffect(() => installSessionPersistence(), []);
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
+  useEffect(() => { const a = installSplit(); const b = installDockHint(); return () => { a(); b(); }; }, []);
   useEffect(() => installReminderToasts(), []);
   useEffect(() => installAgentEvents(), []);
   useEffect(() => installTrayRecent(), []);
@@ -408,6 +413,7 @@ export function App() {
         <Topbar />
         <Suspense fallback={null}><TabBar /></Suspense>
         <div className="page-panes">
+        <SplitFrame>
         <div className="main-scroll" data-fill={isDatabase ? "" : undefined}>
           {error && (
             <div className="error" role="alert">
@@ -419,7 +425,7 @@ export function App() {
             <Suspense fallback={<Loading label="Loading page…" />}><Content /></Suspense>
           </ErrorBoundary>
         </div>
-        <OnDemand open={peekOpen}><PeekPanel /></OnDemand>
+        </SplitFrame>
         </div>
         <OnDemand open={FindBarOpen}><FindBar /></OnDemand>
         <Toast />
@@ -436,7 +442,7 @@ export function App() {
       <ShortcutSheet />
       <OnDemand open={SettingsDialogOpen}><SettingsDialog /></OnDemand>
       <OnDemand open={FilesDialogOpen}><FilesDialog /></OnDemand>
-      <QuickCapture />
+      <OnDemand open={captureOpen}><QuickCapture /></OnDemand>
       <OnDemand open={previewOpen}><PagePreviewCard /></OnDemand>
     </div>
     <OnDemand open={WorkspaceDialogOpen}><WorkspaceDialog /></OnDemand>

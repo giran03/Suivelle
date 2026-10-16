@@ -24,9 +24,9 @@ pub const COMMANDS: &[Command] = &[
         description: "Set up Suivelle for this app (once per computer)",
         text: "# /suivelle_init: set up Suivelle for this app\n\n\
 1. Call whoami. Report your agent name, mode and workspaces in one line.\n\
-2. Session-start lines. {instructions} The block, exactly:\n\n\
+2. Session-start lines: call start_lines. Suivelle appends its block to your app's instructions file, keeping everything already there unchanged with a backup, or reports the lines are already present. Do not edit that file yourself.\n\
+   Only if start_lines says this agent was not connected through an app: {instructions} Read the file; if it does not already contain \"call suivelle whoami\", add this block at the very end with an edit that inserts only these lines (never rewrite, reorder or shorten the file; never remove anyone's instructions), then read it again and confirm everything that was there is still there:\n\n\
 ```\n<!-- suivelle:start -->\n{start_lines}\n<!-- suivelle:end -->\n```\n\n\
-   If these lines are already there (with or without the markers), leave them. Otherwise show the user the block and where it goes, and add it at the end only if they agree. Change nothing else.\n\
 3. Agent protocol. If whoami had no \"## Agent protocol\" section, get the default with command(name=\"protocol\") and create it with page_create(title=\"Agent protocol\"); it waits for the user's review.\n\
 4. Finish with one line: what was in place, what you added, what awaits review. Suggest /suivelle_setup in a project next.",
     },
@@ -73,6 +73,26 @@ This page is included in whoami; there is no need to page_read it.\n\n\
 ## 1. Session start (in a code repository only)\n\n\
 Skip this section for questions that don't need project context. Run it before the first task that does.\n\n\
 1. **Resolve [Project]:** package manifest name (package.json, Cargo.toml, pyproject.toml, …) → git remote repo name → folder name.\n\
+2. **Hub found** (whoami lists \"[Project] project\" under Project pages): context_pack(project=\"[Project]\", query=\"<task topic>\", budget_tokens=2000) before reading repo files. It holds the hub, its subpages and the matching memories in scope [Project]; call memory_recall(scope=\"[Project]\") only for a fact the pack did not cover. Pass known_hash from an earlier pack to skip an unchanged hub. (Knowing [Project] before the first call, whoami(project=\"[Project]\", topic=\"<task topic>\") does both at once.)\n\
+3. **Hub not found:** if proposal_status shows a pending proposal creating it, say it awaits review and continue. Otherwise ask the user once whether to set up [Project]; if yes, follow /suivelle_setup (command(name=\"setup\")).\n\n\
+## 2. During the session\n\n\
+- **Record:** new lasting facts or decisions via memory_write(scope=\"[Project]\").\n\
+- **Correct:** to change a memory, write a new one with supersedes; never duplicate.\n\
+- **Sync pages:** when architecture or conventions change, page_read the subpage, then page_update with base_hash.\n\
+- **Isolation:** scope every query and write to [Project].\n\
+- **Pending changes:** when a change waits for review and the task depends on it, call proposal_wait(proposal_id); if the wait runs out, finish what you can and stop: a \"Continue: …\" task brings the decision to your next session.\n\
+- **End:** before the user leaves, offer /suivelle_wrap-up when decisions were made.";
+
+/// Earlier built-in protocols, newest first, so Vault health can tell an "Agent protocol" page
+/// nobody edited from one written by hand. Add the outgoing text here whenever `PROTOCOL`
+/// changes.
+pub const PAST_PROTOCOLS: &[&str] = &[
+    // 0.1.5
+    "# Suivelle MCP Protocol\n\n\
+This page is included in whoami; there is no need to page_read it.\n\n\
+## 1. Session start (in a code repository only)\n\n\
+Skip this section for questions that don't need project context. Run it before the first task that does.\n\n\
+1. **Resolve [Project]:** package manifest name (package.json, Cargo.toml, pyproject.toml, …) → git remote repo name → folder name.\n\
 2. **Find the hub:** search Suivelle for \"[Project] project\" (titles_only).\n\
 3. **Hub found:** context_pack(page_id=<hub id>, query=\"<task topic>\", budget_tokens=2000) before reading repo files. It already includes matching memories; call memory_recall(scope=\"[Project]\", limit=5) only for a fact the pack did not cover.\n\
 4. **Hub not found:** if proposal_status shows a pending proposal creating it, say it awaits review and continue. Otherwise ask the user once whether to set up [Project]; if yes, follow /suivelle_setup (command(name=\"setup\")).\n\n\
@@ -82,7 +102,8 @@ Skip this section for questions that don't need project context. Run it before t
 - **Sync pages:** when architecture or conventions change, page_read the subpage, then page_update with base_hash.\n\
 - **Isolation:** scope every query and write to [Project].\n\
 - **Pending changes:** when a change waits for review and the task depends on it, call proposal_wait(proposal_id); if the wait runs out, finish what you can and stop: a \"Continue: …\" task brings the decision to your next session.\n\
-- **End:** before the user leaves, offer /suivelle_wrap-up when decisions were made.";
+- **End:** before the user leaves, offer /suivelle_wrap-up when decisions were made.",
+];
 
 pub fn find(name: &str) -> Option<&'static Command> {
     COMMANDS.iter().find(|c| c.name == name)

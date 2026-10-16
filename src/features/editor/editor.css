@@ -263,3 +263,16 @@
 
 /* dragging a page from the sidebar over the text: dropping it there inserts a link */
 body.page-drag .ProseMirror { cursor: copy; }
+
+/* Where a dragged sidebar page will land: a caret with a skeleton chip, following the pointer. */
+.page-drop-caret { position: fixed; z-index: 80; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent-ui); pointer-events: none; opacity: 0; transition: opacity var(--t-fast) ease-out; }
+.page-drop-caret[data-on] { opacity: 1; }
+.page-drop-chip { position: absolute; left: 6px; top: 50%; width: 96px; height: 1.15em; transform: translateY(-50%); border-radius: var(--r-sm); background: linear-gradient(90deg, color-mix(in srgb, var(--accent-ui) 16%, transparent) 0%, color-mix(in srgb, var(--accent-ui) 34%, transparent) 50%, color-mix(in srgb, var(--accent-ui) 16%, transparent) 100%) 0 0 / 200% 100%; outline: 1px solid color-mix(in srgb, var(--accent-ui) 40%, transparent); animation: page-drop-shimmer 1.2s linear infinite; }
+@keyframes page-drop-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .page-drop-chip { animation: none; } .page-drop-caret { transition: none; } }
+
+/* Placeholder lines while a page's blocks load; they wait a beat so quick loads never flash. */
+.editor-loading { display: grid; gap: 14px; padding: 6px 0 18px; pointer-events: none; opacity: 0; animation: editor-loading-in var(--t-base, 200ms) ease-out 160ms forwards; }
+.editor-loading-line { display: block; height: 14px; border-radius: var(--r-sm); background: var(--hover); }
+@keyframes editor-loading-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .editor-loading { animation-duration: 1ms; } }

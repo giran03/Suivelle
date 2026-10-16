@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { emptyTheme, sanitizeTheme, type ThemeConfig, type ThemeProfile } from "./theme";
+import type { ThemeSetting } from "../../types";
 
 const KEY = "suivelle.themes.v1";
 function read(): { config: ThemeConfig; profiles: ThemeProfile[] } {
@@ -12,9 +13,10 @@ interface ThemeState {
   config: ThemeConfig;
   profiles: ThemeProfile[];
   preview: ThemeConfig | null;
-  setPreview: (preview: ThemeConfig | null) => void;
+  previewMode: ThemeSetting | null;
+  setPreview: (preview: ThemeConfig | null, mode?: ThemeSetting | null) => void;
   apply: (config: ThemeConfig) => void;
-  saveProfile: (name: string, config: ThemeConfig) => void;
+  saveProfile: (name: string, config: ThemeConfig) => string;
   deleteProfile: (id: string) => void;
 }
 export const useThemes = create<ThemeState>((set, get) => {
@@ -24,13 +26,15 @@ export const useThemes = create<ThemeState>((set, get) => {
     set({ config, profiles });
   };
   return {
-    ...read(), preview: null,
-    setPreview: (preview) => set({ preview }),
-    apply: (config) => { persist(sanitizeTheme(config), get().profiles); set({ preview: null }); },
+    ...read(), preview: null, previewMode: null,
+    setPreview: (preview, mode = null) => set({ preview, previewMode: preview ? mode : null }),
+    apply: (config) => { persist(sanitizeTheme(config), get().profiles); set({ preview: null, previewMode: null }); },
     saveProfile: (name, config) => {
       if (!name.trim()) throw new Error("Give this theme a name.");
       if (get().profiles.length >= 100) throw new Error("Remove a saved theme before adding another (limit: 100).");
-      persist(get().config, [...get().profiles, { id: crypto.randomUUID(), name: name.trim().slice(0, 80), config: sanitizeTheme(config) }]);
+      const id = crypto.randomUUID();
+      persist(get().config, [...get().profiles, { id, name: name.trim().slice(0, 80), config: sanitizeTheme(config) }]);
+      return id;
     },
     deleteProfile: (id) => persist(get().config, get().profiles.filter((p) => p.id !== id)),
   };

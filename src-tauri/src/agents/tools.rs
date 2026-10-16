@@ -58,8 +58,12 @@ pub const TOOLS: &[Tool] = &[
         name: "whoami",
         group: None,
         writes: false,
-        description: "Who you are in Suivelle: your name, role, mode (propose, write or auto), tool groups, workspaces, and your instructions. Call this first.",
-        schema: || obj(json!({}), &[]),
+        description: "Who you are in Suivelle: your name, role, mode (propose, write or auto), tool groups, workspaces, their project pages, and your instructions. Call this first. With project (and topic), it also returns that project's context pack, so a session starts in one call.",
+        schema: || obj(json!({
+            "project": {"type": "string", "description": "The repository's project name; its \"<project> project\" page and memories are packed."},
+            "topic": {"type": "string", "description": "What the task is about, to pick matching memories."},
+            "budget_tokens": {"type": "integer", "minimum": 500, "maximum": 50000}
+        }), &[]),
     },
     Tool {
         name: "command",
@@ -70,6 +74,13 @@ pub const TOOLS: &[Tool] = &[
             "name": {"type": "string", "enum": ["init", "setup", "sync", "wrap-up", "protocol"]},
             "arguments": {"type": "string", "description": "Whatever the user typed after the command."}
         }), &["name"]),
+    },
+    Tool {
+        name: "start_lines",
+        group: None,
+        writes: true,
+        description: "For /suivelle_init: adds Suivelle's session-start lines to your app's user-level instructions file (such as ~/.claude/CLAUDE.md). Suivelle only appends its marked block; everything already in the file is kept unchanged, with a backup. Says so when the lines are already there.",
+        schema: || obj(json!({}), &[]),
     },
     Tool {
         name: "search",
@@ -252,6 +263,7 @@ pub const TOOLS: &[Tool] = &[
             "kind": {"type": "string", "enum": ["Fact", "Decision", "Preference", "Feedback", "Project", "Reference"]},
             "scope": {"type": "string"},
             "include_inactive": {"type": "boolean"},
+            "include_body": {"type": "boolean", "description": "Default true; false lists titles and ids only."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 50}
         }), &[]),
     },
@@ -285,10 +297,13 @@ pub const TOOLS: &[Tool] = &[
         name: "context_pack",
         group: Some("memory"),
         writes: false,
-        description: "One bounded briefing: a page, what it connects to, matching memories and your open tasks.",
+        description: "One bounded briefing: a page, what it connects to, matching memories and your open tasks. Memories are limited to the page's project unless scope says otherwise.",
         schema: || obj(json!({
             "page_id": {"type": "string"},
+            "project": {"type": "string", "description": "Packs the \"<project> project\" page when page_id is not given, with memories in that scope."},
             "query": {"type": "string"},
+            "scope": {"type": "string"},
+            "known_hash": {"type": "string", "description": "The page hash from an earlier pack or page_read; an unchanged page is not resent."},
             "budget_tokens": {"type": "integer", "minimum": 500, "maximum": 50000}
         }), &[]),
     },
@@ -387,6 +402,15 @@ pub fn find(name: &str) -> Option<&'static Tool> {
     TOOLS.iter().find(|t| t.name == name)
 }
 
+/// Tools whose results carry text people and other agents wrote. The warning is given on these
+/// (and in the server instructions and whoami), not repeated on every tool.
+fn returns_content(name: &str) -> bool {
+    matches!(
+        name,
+        "search" | "page_read" | "memory_recall" | "context_pack"
+    )
+}
+
 /// The tools this agent may call, as MCP tool definitions.
 pub fn definitions(agent: &Agent) -> Vec<Value> {
     TOOLS
@@ -395,7 +419,7 @@ pub fn definitions(agent: &Agent) -> Vec<Value> {
         .map(|t| {
             json!({
                 "name": t.name,
-                "description": format!("{}{}", t.description, if t.writes || t.name.contains("read") || t.name == "search" { UNTRUSTED } else { "" }),
+                "description": format!("{}{}", t.description, if returns_content(t.name) { UNTRUSTED } else { "" }),
                 "inputSchema": (t.schema)(),
                 "annotations": { "readOnlyHint": !t.writes, "destructiveHint": false, "openWorldHint": false }
             })
@@ -558,9 +582,12 @@ struct Forget {
 }
 
 #[derive(Deserialize)]
-struct Pack {
-    page_id: Option<String>,
-    query: Option<String>,
+struct Whoami {
+    #[serde(default)]
+    project: Option<String>,
+    #[serde(default)]
+    topic: Option<String>,
+    #[serde(default)]
     budget_tokens: Option<usize>,
 }
 
@@ -771,6 +798,16 @@ pub fn call(
             );
             for (id, name) in context::workspaces(conn, agent)? {
                 s.push_str(&format!("- {name} (id {id})\n"));
+                let hubs = context::project_hubs(conn, &id)?;
+                if !hubs.is_empty() {
+                    s.push_str(&format!(
+                        "  Project pages: {}\n",
+                        hubs.iter()
+                            .map(|(pid, t)| format!("{t} ({pid})"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
             }
             // The agent's own instructions, even when its page sits in a workspace the agent no
             // longer sees (its workspaces were changed after it was created).
@@ -793,7 +830,50 @@ pub fn call(
                     content::body_markdown(conn, &id)?
                 ));
             }
+            let x: Whoami = args(a)?;
+            if let Some(project) = x
+                .project
+                .as_deref()
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+            {
+                if !agent.can_use("memory") {
+                    s.push_str("\n(A project's context pack needs the memory tool group.)\n");
+                } else if super::commands::page_titled(conn, agent, &format!("{project} project"))?
+                    .is_none()
+                {
+                    s.push_str(&format!("\nThere is no \"{project} project\" page yet.\n"));
+                } else {
+                    s.push('\n');
+                    s.push_str(&context::pack(
+                        conn,
+                        agent,
+                        &context::PackInput {
+                            project: Some(project.to_string()),
+                            query: x.topic,
+                            budget_tokens: Some(x.budget_tokens.unwrap_or(2000)),
+                            ..Default::default()
+                        },
+                    )?);
+                }
+            }
             Ok(Output::text(s))
+        }
+        "start_lines" => {
+            use super::clients::{self, StartLines};
+            let env = clients::Env::system()?;
+            Ok(Output::text(match clients::install_start_lines(conn, &env, &agent.id)? {
+                StartLines::Added(p) => format!(
+                    "Added the Suivelle session-start lines at the end of {}. Everything else in the file is unchanged; the previous version is kept beside it as {}.suivelle-backup.",
+                    p.display(),
+                    p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+                ),
+                StartLines::Present(p) => format!("The session-start lines are already in {}; nothing was changed.", p.display()),
+                StartLines::Paste(place) => format!(
+                    "Your app keeps its instructions in {place}, which Suivelle cannot edit. Show the user these lines to paste there, after anything already in it:\n\n```\n{}\n```",
+                    clients::extras::block("\n")
+                ),
+            }))
         }
         "command" => {
             let x: CommandArgs = args(a)?;
@@ -1233,17 +1313,33 @@ pub fn call(
         }
         "memory_recall" => {
             let x: memory::Recall = args(&snake_keys(a))?;
+            let found = memory::recall(conn, agent, &x)?;
             Ok(Output::text(memory::render(
-                &memory::recall(conn, agent, &x)?,
-                true,
+                &found,
+                memory::Style {
+                    body_chars: 1200,
+                    scope: x.scope.as_deref(),
+                    agent: Some(&agent.name),
+                },
             )))
         }
         "memory_write" => {
             let x: memory::Write = args(&snake_keys(a))?;
-            let (id, changed) = memory::write(conn, agent, x)?;
+            let w = memory::write(conn, agent, x)?;
+            let text = if w.existing {
+                format!("Already recorded as memory {}; nothing was written.", w.id)
+            } else {
+                match &w.similar {
+                    Some((id, title)) => format!(
+                        "Saved memory {}. Similar active memory in this scope: {id} \"{title}\". If the new one replaces it, write again with supersedes={id}, or memory_forget the one that is wrong.",
+                        w.id
+                    ),
+                    None => format!("Saved memory {}.", w.id),
+                }
+            };
             Ok(Output {
-                text: format!("Saved memory {id}."),
-                changed,
+                text,
+                changed: w.changed,
                 ..Default::default()
             })
         }
@@ -1257,14 +1353,8 @@ pub fn call(
             })
         }
         "context_pack" => {
-            let x: Pack = args(a)?;
-            Ok(Output::text(context::pack(
-                conn,
-                agent,
-                x.page_id.as_deref(),
-                x.query.as_deref(),
-                x.budget_tokens.unwrap_or(6000),
-            )?))
+            let x: context::PackInput = args(&snake_keys(a))?;
+            Ok(Output::text(context::pack(conn, agent, &x)?))
         }
         "task_next" => match tasks::next(conn, agent)? {
             None => Ok(Output::text("No tasks are waiting for you.")),

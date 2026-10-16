@@ -1,10 +1,19 @@
 import { create } from "zustand";
-import { useWorkspace } from "../../stores/workspace";
+import { useSplit } from "../split/store";
 
-/** The page shown in the side peek beside the open page, if any. */
-export const usePeek = create<{ pageId: string | null; show: (pageId: string) => void; hide: () => void }>((set) => ({
+/**
+ * The "open beside" entry point. Side panes now live in the split view; this keeps the older
+ * show/hide calls working and exposes the first side pane's page.
+ */
+const first = () => useSplit.getState().panes[0] ?? null;
+
+export const usePeek = create<{ pageId: string | null; show: (pageId: string) => void; hide: () => void }>(() => ({
   pageId: null,
-  // The page already open needs no peek; two editors on one page would race each other's saves.
-  show: (pageId) => { const s = useWorkspace.getState(); if (s.view !== "page" || s.selectedPageId !== pageId) set({ pageId }); },
-  hide: () => set({ pageId: null }),
+  show: (pageId) => useSplit.getState().place(pageId),
+  hide: () => useSplit.getState().closeAll(),
 }));
+
+useSplit.subscribe(() => {
+  const pageId = first();
+  if (usePeek.getState().pageId !== pageId) usePeek.setState({ pageId });
+});

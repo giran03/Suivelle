@@ -373,20 +373,49 @@ export const useWorkspace = create<State>((set, get) => {
             .then(() => ipc.historyCheckpoint(prev.id))
             .catch(() => undefined);
         }
-        const { page, ancestors } = await loadSelectionContext(id);
+        // A page the sidebar already lists opens at once from that copy, while the full record and its
+        // ancestors load behind it; the editor starts loading content immediately instead of after a round trip.
+        const before = { selectedPageId: get().selectedPageId, selectedPage: get().selectedPage, ancestors: get().ancestors, view: get().view, history: get().history };
+        const cached = findPage(id);
+        let early = false;
+        if (cached && owner && cached.workspaceId === owner && !cached.deletedAt) {
+          const chain: Page[] = [];
+          for (let p = cached.parentPageId ? findPage(cached.parentPageId) : undefined; p; p = p.parentPageId ? findPage(p.parentPageId) : undefined) chain.unshift(p);
+          const complete = !cached.parentPageId || (chain.length > 0 && chain[0].parentPageId === null);
+          early = true;
+          set((s) => ({
+            selectedPageId: id,
+            selectedPage: cached,
+            ancestors: complete ? chain : s.ancestors,
+            view: "page",
+            history: opts?.fromHistory ? s.history : hist.push(s.history, id),
+          }));
+        }
+        let loaded: Awaited<ReturnType<typeof loadSelectionContext>>;
+        try {
+          loaded = await loadSelectionContext(id);
+        } catch (e) {
+          if (early && mine === selectionSeq) set(before);
+          throw e;
+        }
+        const { page, ancestors } = loaded;
         if (mine !== selectionSeq || owner !== get().workspace?.id) return;
-        if (page.workspaceId !== owner) throw new Error("Open this page from its workspace.");
+        if (page.workspaceId !== owner) {
+          if (early) set(before);
+          throw new Error("Open this page from its workspace.");
+        }
         if (owner) rememberPage(owner, id);
         // Reveal the page in the tree: expand and load every ancestor.
         const expanded = { ...get().expanded };
         ancestors.forEach((a) => (expanded[a.id] = true));
         set((s) => ({
           selectedPageId: id,
-          selectedPage: page,
+          // Keep the object the editor already holds when nothing changed, so it is not reloaded.
+          selectedPage: early && s.selectedPage?.id === id && s.selectedPage.revision === page.revision && s.selectedPage.updatedAt === page.updatedAt ? s.selectedPage : page,
           ancestors,
           expanded,
           view: "page",
-          history: opts?.fromHistory ? s.history : hist.push(s.history, id),
+          history: early || opts?.fromHistory ? s.history : hist.push(s.history, id),
         }));
         if (ancestors.length) await reloadTree();
         // Feeds the recent pages list; failing to record a visit must never block opening.

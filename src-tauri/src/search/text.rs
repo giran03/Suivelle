@@ -242,10 +242,7 @@ pub fn fts_query(input: &str, titles_only: bool) -> Option<String> {
         .split_whitespace()
         .filter(|t| t.chars().any(char::is_alphanumeric))
         .take(8)
-        .map(|t| {
-            let t: String = t.chars().take(64).collect();
-            format!("\"{}\"*", t.replace('"', "\"\""))
-        })
+        .map(quoted_prefix)
         .collect();
     if terms.is_empty() {
         return None;
@@ -256,6 +253,47 @@ pub fn fts_query(input: &str, titles_only: bool) -> Option<String> {
     } else {
         joined
     })
+}
+
+fn quoted_prefix(t: &str) -> String {
+    let t: String = t.chars().take(64).collect();
+    format!("\"{}\"*", t.replace('"', "\"\""))
+}
+
+/// Words too common to tell memories apart (English and French).
+pub const STOPWORDS: &[&str] = &[
+    "a", "an", "and", "are", "as", "at", "be", "by", "do", "for", "from", "how", "in", "is", "it",
+    "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "with", "au", "aux",
+    "avec", "ce", "dans", "de", "des", "du", "en", "est", "et", "la", "le", "les", "pour", "que",
+    "qui", "sur", "un", "une",
+];
+
+/// The words of `input` as separate FTS5 expressions (one quoted prefix term each), lowercased,
+/// without duplicates, single characters or stopwords, at most eight. Matching each word on
+/// its own lets a caller count how many of them a page contains across all its documents.
+/// When every word is filtered out, the original words are kept.
+pub fn fts_terms(input: &str) -> Vec<String> {
+    let words: Vec<String> = input
+        .split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '?' | '!'))
+        .map(|t| {
+            t.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .filter(|t| !t.is_empty())
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    let keep = |w: &&String| w.chars().count() > 1 && !STOPWORDS.contains(&w.as_str());
+    let picked: Vec<&String> = if words.iter().any(|w| keep(&w)) {
+        words.iter().filter(keep).collect()
+    } else {
+        words.iter().collect()
+    };
+    picked
+        .into_iter()
+        .filter(|w| seen.insert(w.as_str()))
+        .take(8)
+        .map(|w| quoted_prefix(w))
+        .collect()
 }
 
 /// Longest tag kept, in characters; anything longer is cut there.

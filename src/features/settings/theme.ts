@@ -178,8 +178,9 @@ export function contrastWarnings(colors: Record<ColorRole, string>) {
   return checks.map(([fg, bg, minimum]) => ({ fg, bg, minimum, ratio: contrast(effective[fg], effective[bg]) })).filter((test) => test.ratio < test.minimum);
 }
 
-export function parseThemeFile(text: string): { name: string; config: ThemeConfig } {
+export function parseThemeFile(text: string, fileName?: string): { name: string; config: ThemeConfig } {
   const data = JSON.parse(text) as Record<string, unknown>;
   if (!data || data.format !== "suivelle-theme" || data.version !== 1) throw new Error("Choose a Suivelle theme file (version 1).");
-  return { name: typeof data.name === "string" ? data.name.trim().slice(0, 80) || "Imported theme" : "Imported theme", config: sanitizeTheme(data.config, true) };
+  const name = fileName?.replace(/\.json$/i, "").trim() || (typeof data.name === "string" ? data.name.trim() : "") || "Imported theme";
+  return { name: name.slice(0, 80), config: sanitizeTheme(data.config, true) };
 }

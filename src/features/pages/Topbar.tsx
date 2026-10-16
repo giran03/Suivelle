@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { useBoards } from "../canvas/store";
 import { Icon } from "../../components/Icon";
 import { useOutline } from "../outline/store";
@@ -12,6 +13,7 @@ import { usePalette } from "../palette/store";
 import { sidebarInvisible, useLayout } from "../../stores/layout";
 import { useSaveStatus } from "../../stores/saveStatus";
 import { IconSwap, SwapText } from "../../components/Swap";
+const LayoutButton = lazy(() => import("../split/LayoutButton").then((m) => ({ default: m.LayoutButton })));
 
 const label = (p: Page) => p.title || "Untitled";
 
@@ -126,6 +128,7 @@ export function Topbar() {
             </nav>
             <div className="topbar-actions">
               <SaveIndicator />
+              <Suspense fallback={null}><LayoutButton /></Suspense>
               <button
                 className={`icon-btn${page.favorite ? " on" : ""}`}
                 aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"}
@@ -148,6 +151,7 @@ export function Topbar() {
           </>
         )
       )}
+      {(view !== "page" || !page) && <div className="topbar-actions"><Suspense fallback={null}><LayoutButton /></Suspense></div>}
       {READ_ONLY && <span className="showcase-access" title="Browse pages, search, and explore views. Content is read-only.">Read-only showcase</span>}
       <button type="button" className="topbar-search" onClick={() => usePalette.getState().show()} aria-label={READ_ONLY ? "Search pages" : "Search or create a page"} aria-keyshortcuts={searchShortcut.aria}>
         <Icon name="search" />

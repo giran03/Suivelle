@@ -1361,7 +1361,15 @@ pub async fn export_theme(app: tauri::AppHandle, json: String) -> AppResult<bool
         let Some(file) = app
             .dialog()
             .file()
-            .set_file_name("suivelle-theme.json")
+            .set_file_name(format!(
+                "{}.json",
+                crate::transfer::export::safe_name(
+                    theme["name"]
+                        .as_str()
+                        .filter(|name| !name.trim().is_empty())
+                        .unwrap_or("suivelle-theme")
+                )
+            ))
             .add_filter("Suivelle theme", &["json"])
             .blocking_save_file()
         else {

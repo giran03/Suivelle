@@ -17,7 +17,6 @@ import { UpdatesSection } from "../updates/Updates";
 import { ThemeEditor } from "./ThemeEditor";
 import { useThemes } from "./themes";
 import { radioKeys } from "./radioKeys";
-import type { PaletteMode } from "./theme";
 import { READ_ONLY } from "../../lib/access";
 import { seedGettingStarted } from "../onboarding/gettingStarted";
 
@@ -199,7 +198,7 @@ function SettingsBody() {
   const [results, setResults] = useState<{ page: string; title: string; element: HTMLElement }[]>([]);
   const committed = useThemes((s) => s.config);
   const [draft, setDraft] = useState(committed);
-  const [draftMode, setDraftMode] = useState<PaletteMode | null>(null);
+  const [draftMode, setDraftMode] = useState<ThemeSetting | null>(null);
   const [preview, setPreview] = useState(true);
   const [confirmClose, setConfirmClose] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -245,8 +244,8 @@ function SettingsBody() {
     observer.observe(shell); return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    useThemes.getState().setPreview(dirty && preview ? draft : null);
-  }, [draft, dirty, preview]);
+    useThemes.getState().setPreview(dirty && preview ? draft : null, draftMode);
+  }, [draft, draftMode, dirty, preview]);
   useEffect(() => () => useThemes.getState().setPreview(null), []);
   useEffect(() => {
     useSettingsDialog.setState({ closeGuard: dirty ? (after) => { afterClose.current = after; setConfirmClose(true); } : null });
@@ -293,9 +292,9 @@ function SettingsBody() {
           <Row title="Theme mode" hint="For the whole application. System follows your Windows setting.">
             <Segmented<ThemeSetting>
               label="Theme"
-              value={theme}
+              value={preview && draftMode ? draftMode : theme}
               options={[["system", "System"], ["light", "Light"], ["dark", "Dark"]]}
-              onChange={(v) => void setTheme(v)}
+              onChange={setDraftMode}
             />
           </Row>
           <ThemeEditor config={draft} onChange={(config, mode) => { setDraft(config); if (mode) setDraftMode(mode); }} preview={preview} onPreview={setPreview} />

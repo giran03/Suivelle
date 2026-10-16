@@ -35,6 +35,8 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
   const [selectedProfile, setSelectedProfile] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importBusy = useRef(false);
   const exportBusy = useRef(false);
   const file = useRef<HTMLInputElement>(null);
   const colors = resolvePalette(config, mode, choices);
@@ -42,7 +44,7 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
   const customAccent = config.palettes.light.accent !== undefined || config.palettes.dark.accent !== undefined;
   const selectedPreset = PALETTE_PRESETS[mode].findIndex((preset) => COLOR_ROLES.every(([role]) => config.palettes[mode][role] === preset.colors[role]));
   const selectMode = (next: PaletteMode) => {
-    if (next === mode) return;
+    if (next === mode) { onChange(config, next); return; }
     setMode(next);
     onChange({ ...config, palettes: { ...config.palettes, [next]: { ...PALETTE_PRESETS[next][0].colors } } }, next);
   };
@@ -58,10 +60,23 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
     if (exportBusy.current) return;
     exportBusy.current = true; setExporting(true); setMessage(null);
     try {
-      const saved = await ipc.exportTheme(JSON.stringify({ format: "suivelle-theme", version: 1, name: name.trim() || "My theme", config }, null, 2));
+      const exportName = name.trim() || profiles.find(p => p.id === selectedProfile)?.name || "My theme";
+      const saved = await ipc.exportTheme(JSON.stringify({ format: "suivelle-theme", version: 1, name: exportName, config }, null, 2));
       setMessage(saved ? "Theme exported." : "Export canceled.");
     } catch (error) { setMessage(`Could not export the theme: ${toAppError(error).message}`); }
     finally { exportBusy.current = false; setExporting(false); }
+  };
+  const importTheme = async (chosen: File) => {
+    if (importBusy.current) return;
+    importBusy.current = true; setImporting(true); setMessage(null);
+    try {
+      if (chosen.size > 128 * 1024) throw new Error("Choose a theme file smaller than 128 KB.");
+      const imported = parseThemeFile(await chosen.text(), chosen.name);
+      const id = useThemes.getState().saveProfile(imported.name, imported.config);
+      setSelectedProfile(id); setName(""); onChange(imported.config);
+      setMessage(`“${imported.name}” imported to your library. Review the preview, then Apply.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not read this theme file."); }
+    finally { importBusy.current = false; setImporting(false); }
   };
   const style = Object.fromEntries(Object.entries(colors).map(([key, value]) => [`--${key}`, value])) as CSSProperties;
   return <>
@@ -99,11 +114,11 @@ export function ThemeEditor({ config, onChange, preview, onPreview }: { config: 
     {warnings.length > 0 && <details className="theme-contrast"><summary><Icon name="warning" />{warnings.length} contrast {warnings.length === 1 ? "warning" : "warnings"} in the {mode} palette</summary><p className="set-hint">Colors stay exactly as chosen. Review these pairs before applying.</p><ul>{warnings.map(({ fg, bg, minimum, ratio }) => <li key={`${fg}:${bg}`}><span>{COLOR_ROLES.find(([key]) => key === fg)![1]} on {COLOR_ROLES.find(([key]) => key === bg)![1].toLowerCase()}: {ratio.toFixed(2)}:1 (aim for {minimum}:1)</span><button className="btn ghost" onClick={() => setColor(fg, readableText(colors[bg]))}>Use readable text</button></li>)}</ul></details>}
     <section className="theme-library"><h3>Saved themes</h3>
       <label className="set-hint" htmlFor="saved-theme">Choose a saved theme</label>
-      <div className="theme-library-row"><select id="saved-theme" value={selectedProfile} onChange={(e) => { const profile = profiles.find((p) => p.id === e.target.value); setSelectedProfile(e.target.value); if (profile) { onChange(profile.config); setName(`${profile.name} copy`); } }}><option value="">{profiles.length ? "Select a theme…" : "No saved themes yet"}</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select><button className="btn ghost" disabled={!selectedProfile} onClick={() => attempt(() => { useThemes.getState().deleteProfile(selectedProfile); setSelectedProfile(""); }, "Theme removed from your library.")}>Remove</button></div>
+      <div className="theme-library-row"><select id="saved-theme" value={selectedProfile} disabled={importing} onChange={(e) => { const profile = profiles.find((p) => p.id === e.target.value); setSelectedProfile(e.target.value); setName(""); if (profile) onChange(profile.config); }}><option value="">{profiles.length ? "Select a theme…" : "No saved themes yet"}</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select><button className="btn ghost" disabled={!selectedProfile || importing} onClick={() => attempt(() => { useThemes.getState().deleteProfile(selectedProfile); setSelectedProfile(""); }, "Theme removed from your library.")}>Remove</button></div>
       <label className="set-hint" htmlFor="theme-name">Save a new theme or duplicate the selected theme</label>
-      <div className="theme-library-row"><input id="theme-name" value={name} maxLength={80} placeholder="My theme" onChange={(e) => setName(e.target.value)} /><button className="btn" disabled={!name.trim()} onClick={() => attempt(() => useThemes.getState().saveProfile(name, config), "Theme saved to your library. Apply to keep it active.")}>Save theme</button></div>
-      <div className="theme-library-actions"><button className="btn" onClick={() => file.current?.click()}>Import theme…</button><button className="btn" disabled={exporting} onClick={() => void exportTheme()}>{exporting ? "Exporting…" : "Export theme…"}</button><button className="btn ghost" onClick={() => onChange(emptyTheme())}>Reset all custom colors</button></div>
-      <input ref={file} type="file" accept=".json,application/json" hidden onChange={async (e) => { const chosen = e.target.files?.[0]; e.target.value = ""; if (!chosen) return; try { if (chosen.size > 128 * 1024) throw new Error("Choose a theme file smaller than 128 KB."); const imported = parseThemeFile(await chosen.text()); useThemes.getState().saveProfile(imported.name, imported.config); onChange(imported.config); setName(imported.name); setMessage("Theme imported. Review the preview, then Apply."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not read this theme file."); } }} />
+      <div className="theme-library-row"><input id="theme-name" value={name} maxLength={80} placeholder="My theme" onChange={(e) => setName(e.target.value)} /><button className="btn" disabled={!name.trim() || importing} onClick={() => attempt(() => { const id = useThemes.getState().saveProfile(name, config); setSelectedProfile(id); setName(""); }, "Theme saved to your library. Apply to keep it active.")}>Save theme</button></div>
+      <div className="theme-library-actions"><button className="btn" disabled={importing} onClick={() => file.current?.click()}>{importing ? "Importing…" : "Import theme…"}</button><button className="btn" disabled={exporting || importing} onClick={() => void exportTheme()}>{exporting ? "Exporting…" : "Export theme…"}</button><button className="btn ghost" onClick={() => { setSelectedProfile(""); onChange(emptyTheme()); }}>Reset all custom colors</button></div>
+      <input ref={file} type="file" accept=".json,application/json" hidden onChange={(e) => { const chosen = e.target.files?.[0]; e.target.value = ""; if (chosen) void importTheme(chosen); }} />
       {message && <p className="set-hint" role="status">{message}</p>}
     </section>
   </>;

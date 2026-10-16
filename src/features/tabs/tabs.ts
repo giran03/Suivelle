@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { useWorkspace } from "../../stores/workspace";
 import { ipc } from "../../lib/ipc";
 import { usePeek } from "../peek/store";
+import { useSplit } from "../split/store";
 
 /**
  * Page tabs: a short list of pages kept side by side, like browser tabs. The open page is always
@@ -73,7 +74,7 @@ const closed: { workspaceId: string; pageId: string }[] = [];
 const MAX_CLOSED = 20;
 
 export async function closeTab(id: string): Promise<void> {
-  if (usePeek.getState().pageId === id) usePeek.getState().hide();
+  useSplit.getState().removePage(id);
   const ids = useTabs.getState().ids;
   const i = ids.indexOf(id);
   if (i < 0) return;
@@ -103,7 +104,7 @@ export async function reopenClosedTab(): Promise<boolean> {
 
 /** Removes a tab whose page no longer exists, without moving anywhere. */
 export function dropTab(id: string): void {
-  if (usePeek.getState().pageId === id) usePeek.getState().hide();
+  useSplit.getState().removePage(id);
   const ids = useTabs.getState().ids;
   if (ids.includes(id) && useWorkspace.getState().selectedPageId !== id) commit(ids.filter((x) => x !== id));
 }

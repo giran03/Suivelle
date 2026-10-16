@@ -1,5 +1,8 @@
 .tabbar { flex: none; display: flex; align-items: flex-end; gap: 2px; height: var(--tabbar-h); padding: 0 12px; background: var(--toolbar-background); border-bottom: 1px solid var(--border-subtle); overflow-x: auto; scrollbar-width: none; }
 .tabbar::-webkit-scrollbar { display: none; }
+/* Dragging or double-clicking a tab must never paint a text selection over the strip. */
+.tabbar, .tabbar * { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.tabbar ::selection, .tabbar::selection { background: transparent; }
 .tab { position: relative; display: flex; align-items: center; flex: 0 1 190px; min-width: 96px; height: calc(var(--tabbar-h) - 8px); border-radius: var(--r-md) var(--r-md) 0 0; color: var(--text-muted); transition: background var(--t-fast) ease-out, color var(--t-fast) ease-out; }
 .tab:hover { background: var(--surface-hover); color: var(--text-secondary); }
 .tab.on { background: var(--surface-1); color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent-ui); }
@@ -7,15 +10,20 @@
 .tab-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-main .app-icon { color: var(--text-muted); }
 .tab.on .tab-main .app-icon { color: var(--accent-ui); }
-.tab.dragging { opacity: 0.7; background: var(--surface-active); }
+/* The tab being dragged leaves a quiet gap in the strip; its ghost follows the pointer. */
+.tab.dragging { opacity: 0.35; background: var(--surface-active); }
+.tab.dragging > * { visibility: hidden; }
+.tab-ghost { position: fixed; z-index: 90; left: 0; top: 0; margin: 0; pointer-events: none; display: flex; align-items: center; color: var(--fg); background: var(--surface-2); border: 1px solid var(--border-strong, var(--border)); border-radius: var(--r-md); box-shadow: var(--menu-shadow); transform-origin: 20% 50%; transition: opacity var(--t-fast) ease-out, box-shadow var(--t-fast) ease-out; will-change: transform; }
+.tab-ghost.docking { opacity: 0.82; }
+.tab-ghost .tab-close { display: none; }
+body.tab-moving, body.tab-moving * { cursor: grabbing !important; }
+.tab { transition: background var(--t-fast) ease-out, color var(--t-fast) ease-out; }
 .tab-main { touch-action: none; }
 .tab-close { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: var(--r-xs); color: var(--text-muted); opacity: 0; transition: opacity var(--t-fast) ease-out, background var(--t-fast) ease-out; }
 .tab:hover .tab-close, .tab.on .tab-close, .tab-close:focus-visible { opacity: 1; }
 .tab-close:hover { background: var(--surface-active); color: var(--fg); }
 
 /* The strip a page is dropped on to open it in a new tab; only exists while dragging a page. */
-.tabbar-drop { display: none; align-items: center; justify-content: center; color: var(--text-muted); font-size: 0.8125rem; border-bottom: 1px dashed color-mix(in srgb, var(--accent-ui) 45%, transparent); background: color-mix(in srgb, var(--accent-ui) 5%, transparent); }
+.tabbar-drop { display: none; align-items: center; justify-content: center; color: var(--accent-ui); border-bottom: 1px dashed color-mix(in srgb, var(--accent-ui) 45%, transparent); background: color-mix(in srgb, var(--accent-ui) 5%, transparent); }
 body.page-drag .tabbar-drop { display: flex; }
 body.page-drag .tabbar:not(.tabbar-drop) { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-ui) 50%, transparent); }
-
-main[data-split-drop]::after { content: 'Open beside'; position: absolute; inset: 110px 8px 16px auto; width: 110px; display: grid; place-content: center; border: 2px solid var(--accent); background: var(--surface-1); color: var(--fg); z-index: 30; pointer-events: none; }

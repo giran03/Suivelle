@@ -4,12 +4,12 @@
 //! on their own: requeueing tasks whose lease ran out and expiring memories past their date.
 
 use super::content::norm;
-use super::hub;
 use super::ops::{apply_as, Actor, Op};
 use super::tasks;
+use super::{commands, hub, memory};
 use crate::databases::service::{load_properties, load_rows};
 use crate::errors::AppResult;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -42,6 +42,14 @@ pub const CHECKS: &[(&str, &str)] = &[
     (
         "memory",
         "Memories past their expiry date, or superseded but still active",
+    ),
+    (
+        "memory_duplicates",
+        "Active memories in one scope that seem to say the same thing",
+    ),
+    (
+        "protocol",
+        "An \"Agent protocol\" page older than the built-in one",
     ),
     (
         "tasks",
@@ -99,6 +107,25 @@ fn levenshtein(a: &str, b: &str) -> usize {
         prev = cur;
     }
     prev[b.len()]
+}
+
+/// The workspace's oldest live page titled "Agent protocol" and its text.
+fn protocol_page(conn: &Connection, workspace_id: &str) -> AppResult<Option<(String, String)>> {
+    let id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM page WHERE workspace_id = ?1 AND deleted_at IS NULL
+               AND title = ?2 COLLATE NOCASE ORDER BY created_at LIMIT 1",
+            params![workspace_id, super::ops::PROTOCOL_TITLE],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match id {
+        Some(id) => {
+            let body = super::content::body_markdown(conn, &id)?;
+            Ok(Some((id, body)))
+        }
+        None => Ok(None),
+    }
 }
 
 /// Runs `checks` (all of them when empty) over one workspace. At most `limit` findings per check.
@@ -369,6 +396,119 @@ pub fn report(
                         }),
                     ));
                 }
+            }
+        }
+    }
+
+    // Not part of "memory": upkeep applies that check's fixes without review, and which of two
+    // similar memories is right is the user's call.
+    if want("memory_duplicates") {
+        if let Some(h) = hub::get(conn, workspace_id)? {
+            let props = load_properties(conn, &h.memory_database_id)?;
+            let mut stmt = conn.prepare(
+                "SELECT r.id FROM db_record r JOIN page p ON p.id = r.page_id
+                 WHERE r.database_id = ?1 AND p.deleted_at IS NULL
+                 ORDER BY p.created_at DESC LIMIT 2000",
+            )?;
+            let ids: Vec<String> = stmt
+                .query_map([&h.memory_database_id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
+            // Active memories by scope, newest first: (page id, title, normalized title).
+            let mut by_scope: HashMap<String, Vec<(String, String, String)>> = HashMap::new();
+            for row in load_rows(conn, &ids)? {
+                let v = hub::readable_without_relations(conn, &props, &row.values);
+                if v.get("Status").and_then(Value::as_str) != Some("Active") {
+                    continue;
+                }
+                let scope =
+                    memory::clean_scope(v.get("Scope").and_then(Value::as_str).unwrap_or_default())
+                        .to_lowercase();
+                let n = norm(&row.title);
+                by_scope
+                    .entry(scope)
+                    .or_default()
+                    .push((row.page_id, row.title, n));
+            }
+            let mut scopes: Vec<_> = by_scope.into_iter().collect();
+            scopes.sort_by(|a, b| a.0.cmp(&b.0));
+            let mut flagged = std::collections::HashSet::new();
+            'scopes: for (_, list) in scopes {
+                for (i, newer) in list.iter().enumerate() {
+                    for older in &list[i + 1..] {
+                        if flagged.contains(&older.0) {
+                            continue;
+                        }
+                        let close = memory::overlap(&newer.1, &older.1) >= 0.6
+                            || (newer.2.chars().count() > 12
+                                && levenshtein(&newer.2, &older.2) <= 3);
+                        if !close {
+                            continue;
+                        }
+                        flagged.insert(older.0.clone());
+                        let mut values = Map::new();
+                        values.insert("Status".into(), json!("Superseded"));
+                        out.push(finding(
+                            "memory_duplicates",
+                            "info",
+                            format!("“{}” and “{}” may say the same thing", newer.1, older.1),
+                            format!(
+                                "Both are active in the same scope. The fix marks the older one superseded, keeping “{}”; if the older one is right, forget the newer one instead.",
+                                newer.1
+                            ),
+                            Some(older.0.clone()),
+                            Some(Op::SetValues {
+                                page_id: older.0.clone(),
+                                values,
+                            }),
+                        ));
+                        if out
+                            .iter()
+                            .filter(|f| f.check == "memory_duplicates")
+                            .count() as i64
+                            >= limit
+                        {
+                            break 'scopes;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if want("protocol") {
+        if let Some((id, body)) = protocol_page(conn, workspace_id)? {
+            let canon = |s: &str| {
+                s.replace('\\', "")
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .to_lowercase()
+            };
+            let have = canon(&body);
+            if have != canon(commands::PROTOCOL) {
+                let shipped = commands::PAST_PROTOCOLS.iter().any(|p| canon(p) == have);
+                let hash = super::content::content_hash(conn, &id)?;
+                out.push(finding(
+                    "protocol",
+                    if shipped { "warning" } else { "info" },
+                    if shipped {
+                        "“Agent protocol” is an older built-in version".into()
+                    } else {
+                        "“Agent protocol” differs from the built-in one".into()
+                    },
+                    if shipped {
+                        "Nobody edited it, and Suivelle's protocol has changed since. The fix replaces it with the current text, which agents read in every whoami.".into()
+                    } else {
+                        "It was edited or written by hand, so it may miss newer steps (such as starting a session with context_pack(project=…)). The fix replaces it with the built-in text; your version stays in the page history.".into()
+                    },
+                    Some(id.clone()),
+                    Some(Op::UpdateContent {
+                        page_id: id,
+                        markdown: commands::PROTOCOL.into(),
+                        append: false,
+                        base_hash: Some(hash),
+                    }),
+                ));
             }
         }
     }

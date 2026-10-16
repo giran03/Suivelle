@@ -1,24 +1,12 @@
 import { useShortcutScope } from "../shortcuts/runtime";
 import { useShortcut } from "../shortcuts/useShortcut";
 import { useEffect, useRef, useState } from "react";
-import { create } from "zustand";
+import { useQuickCapture } from "./store";
 import { Icon } from "../../components/Icon";
 import { useWorkspace } from "../../stores/workspace";
 import { capture } from "./capture";
 import { syncDialog } from "../../lib/dialog";
 import "./capture.css";
-
-interface CaptureState {
-  open: boolean;
-  show: () => void;
-  hide: () => void;
-}
-
-export const useQuickCapture = create<CaptureState>((set) => ({
-  open: false,
-  show: () => set({ open: true }),
-  hide: () => set({ open: false }),
-}));
 
 export interface CaptureOptions { todo: boolean; target: "inbox" | "page" }
 

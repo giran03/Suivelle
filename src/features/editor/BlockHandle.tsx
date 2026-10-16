@@ -4,7 +4,9 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { useEffect, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { Icon } from "../../components/Icon";
-import { TURN_INTO } from "./blockKinds";
+import { TURN_INTO, canTurnInto } from "./blockKinds";
+import { BlockRangeSelection } from "./blockSelection";
+import { selectedBlockItems } from "./blockSelectionActions";
 import { deleteBlockAt, duplicateBlock, enclosingColumns, moveBlock, selectBlockAt } from "./commands";
 import { canSync, syncBlock } from "./synced";
 import { editorDom } from "./editorDom";
@@ -46,9 +48,9 @@ export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
       { label: "Turn into synced block", separated: true, disabled: !canSync(editor, at.node), onSelect: () => void syncBlock(editor, at.pos, at.node) },
       ...TURN_INTO.map((k, i) => ({
         label: `Turn into ${k.title}`,
-        shortcut: ({ paragraph: "paragraph", heading_1: "heading-1", heading_2: "heading-2", heading_3: "heading-3", bullet_list: "bullet-list", numbered_list: "ordered-list", todo: "task-list", code: "code-block" } as Record<string, string>)[k.id],
+        shortcut: k.shortcut,
         separated: i === 0,
-        disabled: !at.node.isTextblock && !["details", "listItem", "taskItem"].includes(at.node.type.name),
+        disabled: !canTurnInto(at.node),
         onSelect: on(() => void k.apply(editor)),
       })),
       { label: "Delete", danger: true, separated: true, onSelect: () => void deleteBlockAt(editor, at.pos) },
@@ -105,6 +107,12 @@ export function BlockHandle({ editor }: { editor: Editor }) {
   };
 
 
+  const inRange =
+    menu &&
+    editor.state.selection instanceof BlockRangeSelection &&
+    menu.at.pos >= editor.state.selection.from &&
+    menu.at.pos + menu.at.node.nodeSize <= editor.state.selection.to;
+
   return (
     <>
       <div className="block-handle" ref={handle}>
@@ -135,7 +143,14 @@ export function BlockHandle({ editor }: { editor: Editor }) {
           </button>
         </div>
       </div>
-      {menu && <ContextMenu x={menu.x} y={menu.y} items={blockItems(editor, menu.at)} onClose={() => setMenu(null)} />}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={inRange ? selectedBlockItems(editor) : blockItems(editor, menu.at)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </>
   );
 }

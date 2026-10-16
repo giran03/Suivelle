@@ -191,6 +191,8 @@ const CHECKS: Record<string, string> = {
   isolated_pages: "Isolated pages",
   tag_variants: "Tag spellings",
   memory: "Agent memory",
+  memory_duplicates: "Similar memories",
+  protocol: "Agent protocol",
   tasks: "Agent tasks",
   proposals: "Waiting proposals",
 };

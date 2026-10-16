@@ -115,6 +115,11 @@ export function Editor({ pageId, peek = false }: { pageId: string; peek?: boolea
           <span>This page could not be loaded, so it is read-only to protect your content. {loadError}</span>
         </div>
       )}
+      {!ready && !loadError && (
+        <div className="editor-loading" role="status" aria-label="Loading page">
+          {[72, 94, 86, 58].map((w, i) => <span key={i} className="skeleton editor-loading-line" style={{ width: `${w}%` }} />)}
+        </div>
+      )}
       <EditorContent editor={editor} />
       {ready && editor && !loadError && !READ_ONLY && <EmptyPagePrompts key={pageId} editor={editor} pageId={pageId} />}
       {ready && <Backlinks pageId={pageId} />}

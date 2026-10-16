@@ -68,7 +68,25 @@
 .theme-palette-presets button:hover { background: var(--surface-hover); color: var(--text-primary); }
 .theme-palette-presets button[aria-checked="true"] { background: var(--accent-soft); color: var(--text-primary); border-color: var(--accent-ui); }
 .theme-preset-colors { display: flex; gap: 2px; }
-.theme-preset-colors i { width: 12px; height: 20px; border: 1px solid var(--border-strong); border-radius: var(--r-xs); forced-color-adjust: none; }
+.theme-preset-colors i { width: 12px; height: 12px; flex: none; border: 1px solid var(--border-strong); border-radius: 50%; forced-color-adjust: none; }
+@media (hover: hover) {
+  .theme-preset-colors {
+    width: 0;
+    flex: none;
+    overflow: hidden;
+    margin-inline-end: -8px;
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--distance-micro)));
+    transition: width var(--resize-dur) var(--ease-smooth-out), margin-inline-end var(--resize-dur) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out), transform var(--duration-quick) var(--ease-smooth-out);
+  }
+  .theme-palette-presets button:is(:hover, :focus-visible) .theme-preset-colors {
+    width: 40px;
+    margin-inline-end: 0;
+    opacity: 1;
+    transform: translateX(0);
+    transition-duration: var(--resize-dur), var(--resize-dur), var(--duration-fast), var(--duration-fast);
+  }
+}
 .theme-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 12px; }
 .theme-toolbar h3 { font-size: 0.9375rem; color: var(--text-primary); margin: 0; letter-spacing: normal; }
 .theme-toolbar .seg button { display: flex; align-items: center; gap: 6px; }

@@ -2,6 +2,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import { registerScope } from "../../shortcuts/runtime";
 import { duplicateBlock, insertRowOrBlockAbove, insertTableAfter, moveBlock } from "../commands";
+import { turnSelectedBlocksInto } from "../blockKinds";
 import { BlockRangeSelection } from "../blockSelection";
 import { duplicateSelectedBlocks, moveSelectedBlocks } from "../blockSelectionActions";
 import { copyPlainText, pastePlainText } from "../plainText";
@@ -24,12 +25,14 @@ export const RebindableShortcuts = Extension.create({
         "duplicate-block": run(() => editor.state.selection instanceof BlockRangeSelection ? duplicateSelectedBlocks(editor) : duplicateBlock(editor)),
         "move-block-up": run(() => editor.state.selection instanceof BlockRangeSelection ? moveSelectedBlocks(editor, -1) : moveBlock(editor, -1)),
         "move-block-down": run(() => editor.state.selection instanceof BlockRangeSelection ? moveSelectedBlocks(editor, 1) : moveBlock(editor, 1)),
-        "heading-1": run(() => editor.commands.toggleHeading({ level: 1 })),
-        "heading-2": run(() => editor.commands.toggleHeading({ level: 2 })),
-        "heading-3": run(() => editor.commands.toggleHeading({ level: 3 })),
-        "task-list": run(() => editor.commands.toggleTaskList()), "code-block": run(() => editor.commands.toggleCodeBlock()),
-        paragraph: run(() => editor.commands.setParagraph()),
-        "bullet-list": run(() => editor.commands.toggleBulletList()), "ordered-list": run(() => editor.commands.toggleOrderedList()),
+        "heading-1": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "heading_1") : editor.commands.toggleHeading({ level: 1 })),
+        "heading-2": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "heading_2") : editor.commands.toggleHeading({ level: 2 })),
+        "heading-3": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "heading_3") : editor.commands.toggleHeading({ level: 3 })),
+        "task-list": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "todo") : editor.commands.toggleTaskList()),
+        "code-block": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "code") : editor.commands.toggleCodeBlock()),
+        paragraph: run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "paragraph") : editor.commands.setParagraph()),
+        "bullet-list": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "bullet_list") : editor.commands.toggleBulletList()),
+        "ordered-list": run(() => editor.state.selection instanceof BlockRangeSelection ? turnSelectedBlocksInto(editor, "numbered_list") : editor.commands.toggleOrderedList()),
       });
       return { destroy: stop };
     } })];

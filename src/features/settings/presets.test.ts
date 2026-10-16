@@ -6,9 +6,10 @@ import { sanitize } from "../../stores/preferences";
 const choices = sanitize({});
 describe("full color presets", () => {
   for (const mode of ["light", "dark"] as const) {
-    it(`provides three distinct, complete ${mode} palettes`, () => {
-      expect(PALETTE_PRESETS[mode]).toHaveLength(3);
-      expect(new Set(PALETTE_PRESETS[mode].map((p) => p.colors.background)).size).toBe(3);
+    it(`provides five distinct, complete ${mode} palettes`, () => {
+      expect(PALETTE_PRESETS[mode]).toHaveLength(5);
+      expect(new Set(PALETTE_PRESETS[mode].map((p) => p.colors.background)).size).toBe(5);
+      expect(new Set(PALETTE_PRESETS[mode].map((p) => p.id)).size).toBe(5);
       for (const preset of PALETTE_PRESETS[mode]) expect(Object.keys(preset.colors).sort()).toEqual(COLOR_ROLES.map(([key]) => key).sort());
     });
     for (const preset of PALETTE_PRESETS[mode]) it(`${preset.name}: text, buttons, focus and code remain readable`, () => {

@@ -4,6 +4,7 @@ import { hidePreview, showPreview } from "./store";
 const OPEN_DELAY_MS = 350;
 const CLOSE_DELAY_MS = 160;
 const TARGET = ".ProseMirror .mention:not(.is-gone)[data-page-id], .ProseMirror a[href]";
+const inPreview = (target: EventTarget | null) => target instanceof Element && !!target.closest("[data-page-preview]");
 
 function targetOf(el: EventTarget | null): { id: string; el: Element } | null {
   if (!(el instanceof Element)) return null;
@@ -35,8 +36,8 @@ export function installPagePreview(): () => void {
   };
   const over = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
-    if ((e.target as Element | null)?.closest?.("[data-page-preview]")) {
-      window.clearTimeout(closeTimer);
+    if (inPreview(e.target)) {
+      clear();
       return;
     }
     const t = targetOf(e.target);
@@ -57,18 +58,26 @@ export function installPagePreview(): () => void {
     current = null;
     hidePreview();
   };
+  const out = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse" || (!inPreview(e.target) && !targetOf(e.target))) return;
+    if (inPreview(e.relatedTarget) || targetOf(e.relatedTarget)?.el === current) return;
+    scheduleClose();
+  };
+  const outside = (e: Event) => { if (!inPreview(e.target)) dismiss(); };
   const key = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
   document.addEventListener("pointerover", over);
-  document.addEventListener("pointerdown", dismiss, true);
+  document.addEventListener("pointerout", out);
+  document.addEventListener("pointerdown", outside, true);
   document.addEventListener("keydown", key, true);
-  document.addEventListener("scroll", dismiss, true);
+  document.addEventListener("scroll", outside, true);
   window.addEventListener("blur", dismiss);
   return () => {
     clear();
     document.removeEventListener("pointerover", over);
-    document.removeEventListener("pointerdown", dismiss, true);
+    document.removeEventListener("pointerout", out);
+    document.removeEventListener("pointerdown", outside, true);
     document.removeEventListener("keydown", key, true);
-    document.removeEventListener("scroll", dismiss, true);
+    document.removeEventListener("scroll", outside, true);
     window.removeEventListener("blur", dismiss);
   };
 }

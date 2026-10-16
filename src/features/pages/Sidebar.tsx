@@ -4,6 +4,7 @@ import { useAgents } from "../agents/store";
 import { dropPagesOnBoard } from "../canvas/store";
 import { key } from "../shortcuts/bindings";
 import { usePeek } from "../peek/store";
+import { dropOnSplit } from "../split/dropOnSplit";
 import {
   DndContext,
   DragOverlay,
@@ -32,7 +33,7 @@ import { ipc } from "../../lib/ipc";
 import { useSettingsDialog } from "../settings/store";
 import { sidebarRail, useLayout } from "../../stores/layout";
 import { useWorkspace } from "../../stores/workspace";
-import { dropPagesOnEditor } from "../editor/pageDropBridge";
+import { dropPagesOnEditor, lastPointer } from "../editor/pageDropBridge";
 import { PageGlyph } from "./PageGlyph";
 import { Tree, TreeItem } from "./TreeItem";
 import { openFromAuxClick, openInNewTab } from "../tabs/tabs";
@@ -249,37 +250,57 @@ export function Sidebar() {
     return { id: String(over.id), zone: dropZone(y, over.rect.top, over.rect.height) };
   };
 
+  /** Where the drag ended: the live pointer, falling back to the start plus the distance travelled. */
+  const endPoint = (e: DragEndEvent) => {
+    const live = lastPointer();
+    if (live) return live;
+    const start = e.activatorEvent as PointerEvent;
+    return start && typeof start.clientX === "number" ? { x: start.clientX + e.delta.x, y: start.clientY + e.delta.y } : null;
+  };
+
   /** Whether the pointer ended over the tab strip (or its drop strip), where a page opens in a new tab. */
   const overTabs = (e: DragEndEvent) => {
-    const start = e.activatorEvent as PointerEvent;
-    if (!start || typeof start.clientX !== "number") return false;
-    return document.elementsFromPoint(start.clientX + e.delta.x, start.clientY + e.delta.y).some((el) => el.closest(".tabbar"));
+    const end = endPoint(e);
+    if (!end) return false;
+    return document.elementsFromPoint(end.x, end.y).some((el) => el.closest(".tabbar"));
   };
 
   const onDragEnd = (e: DragEndEvent) => {
     // Test where the pointer is while the drop strip still exists; removing the class hides it.
     const onTabs = overTabs(e);
-    document.body.classList.remove("page-drag");
+    const end0 = endPoint(e);
+    const onSplit = !!end0 && dropOnSplit(String(e.active.id), end0.x, end0.y);
+    if (onSplit) {
+      document.body.classList.remove("page-drag");
+      setDropTarget(null);
+      setDragging(null);
+      return;
+    }
     if (onTabs) {
+      document.body.classList.remove("page-drag");
       setDropTarget(null);
       setDragging(null);
       void openInNewTab(String(e.active.id));
       return;
     }
     // Dropped on a page's text: link to it (every picked page, when the dragged one is among them).
-    const start = e.activatorEvent as PointerEvent;
-    if (start && typeof start.clientX === "number") {
+    // The drag class stays until the drop is placed: it shows the tab drop strip, and hiding that
+    // first would shift the page upward and land the link on whatever slid under the pointer.
+    const end = endPoint(e);
+    if (end) {
       const dragged = String(e.active.id);
       const picked = usePageSelection.getState().ids;
       const ids = picked.includes(dragged) ? picked : [dragged];
-      const x = start.clientX + e.delta.x;
-      const y = start.clientY + e.delta.y;
-      if (dropPagesOnEditor(ids, x, y) || dropPagesOnBoard(ids, x, y)) {
+      const { x, y } = end;
+      const taken = dropPagesOnEditor(ids, x, y) || dropPagesOnBoard(ids, x, y);
+      document.body.classList.remove("page-drag");
+      if (taken) {
         setDropTarget(null);
         setDragging(null);
         return;
       }
     }
+    document.body.classList.remove("page-drag");
     const drop = target(e);
     setDropTarget(null);
     setDragging(null);

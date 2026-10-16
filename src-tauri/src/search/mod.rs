@@ -489,6 +489,79 @@ pub fn search(conn: &Connection, input: &SearchInput) -> AppResult<Vec<SearchHit
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// A record page found by [`records_matching`].
+#[derive(Debug, Clone)]
+pub struct RecordHit {
+    pub record_id: String,
+    pub page_id: String,
+    /// How many of the query's words the record contains, anywhere in it.
+    pub coverage: usize,
+    /// Sum of each word's best BM25 rank (lower is better).
+    pub score: f64,
+}
+
+/// Records of one database that match `query`, best first. Each word is matched on its own
+/// across the record's title, text blocks and text properties (separate index documents), so a
+/// record with one word in its title and the others in its body is still found. Records
+/// containing more of the words come first, then by rank.
+pub fn records_matching(
+    conn: &Connection,
+    workspace_id: &str,
+    database_id: &str,
+    query: &str,
+    limit: usize,
+) -> AppResult<Vec<RecordHit>> {
+    let query: String = query.chars().take(MAX_QUERY_CHARS).collect();
+    let terms = text::fts_terms(&query);
+    // FTS5 ranks cannot be aggregated in SQL, so each word's documents come back ranked and a
+    // record keeps its best document per word.
+    let mut stmt = conn.prepare_cached(
+        "SELECT r.id, d.page_id, bm25(search_fts, 10.0, 1.0)
+         FROM search_fts
+         JOIN search_doc d ON d.id = search_fts.rowid
+         JOIN db_record r ON r.page_id = d.page_id AND r.database_id = ?3
+         JOIN page p ON p.id = d.page_id AND p.deleted_at IS NULL
+         WHERE search_fts MATCH ?1 AND d.workspace_id = ?2
+         ORDER BY 3
+         LIMIT 2000",
+    )?;
+    let mut hits: std::collections::HashMap<String, RecordHit> = Default::default();
+    for term in &terms {
+        let rows = stmt.query_map(params![term, workspace_id, database_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, f64>(2)?,
+            ))
+        })?;
+        let mut seen = std::collections::HashSet::new();
+        for row in rows {
+            let (record_id, page_id, rank) = row?;
+            // Rows are best first, so the first one per record is its rank for this word.
+            if !seen.insert(page_id.clone()) {
+                continue;
+            }
+            let hit = hits.entry(page_id.clone()).or_insert(RecordHit {
+                record_id,
+                page_id,
+                coverage: 0,
+                score: 0.0,
+            });
+            hit.coverage += 1;
+            hit.score += rank;
+        }
+    }
+    let mut out: Vec<RecordHit> = hits.into_values().collect();
+    out.sort_by(|a, b| {
+        b.coverage
+            .cmp(&a.coverage)
+            .then(a.score.total_cmp(&b.score))
+            .then(a.page_id.cmp(&b.page_id))
+    });
+    out.truncate(limit);
+    Ok(out)
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(test, derive(ts_rs::TS), ts(export))]

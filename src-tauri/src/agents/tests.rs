@@ -856,7 +856,10 @@ fn memory_supersedes_and_forgets() {
         .unwrap()
         .text;
     assert!(
-        recall.contains("Deploys happen on Fridays") && recall.contains("Status: Active"),
+        recall.contains("- [Decision] **Deploys happen on Fridays**")
+            && recall.contains("scope release")
+            && !recall.contains("Active")
+            && !recall.contains("by Recorder"),
         "{recall}"
     );
     call(
@@ -881,7 +884,7 @@ fn memory_supersedes_and_forgets() {
     )
     .unwrap()
     .text;
-    assert!(all.contains("Status: Superseded"), "{all}");
+    assert!(all.contains("[Decision · Superseded]"), "{all}");
     let new_id: String = conn
         .query_row(
             "SELECT id FROM page WHERE title = 'Deploys happen on Tuesdays'",
@@ -913,6 +916,499 @@ fn memory_supersedes_and_forgets() {
     .unwrap()
     .text;
     assert!(pack.starts_with("# Context for Recorder"));
+}
+
+fn remember(
+    conn: &mut Connection,
+    a: &Agent,
+    title: &str,
+    body: &str,
+    scope: Option<&str>,
+) -> String {
+    let mut args = json!({"title": title, "body": body});
+    if let Some(s) = scope {
+        args["scope"] = json!(s);
+    }
+    let out = call(conn, a, "memory_write", args).unwrap().text;
+    out.split_whitespace()
+        .nth(2)
+        .unwrap()
+        .trim_end_matches(['.', ';'])
+        .to_string()
+}
+
+fn child(conn: &mut Connection, ws: &str, parent: &str, title: &str, md: &str) -> Page {
+    let p = services::page::create(
+        conn,
+        PageCreate {
+            workspace_id: ws.into(),
+            parent_page_id: Some(parent.into()),
+            title: Some(title.into()),
+            icon: None,
+        },
+    )
+    .unwrap();
+    if !md.is_empty() {
+        let tx = conn.transaction().unwrap();
+        content::write_markdown(&tx, &p, md, WriteMode::Replace).unwrap();
+        tx.commit().unwrap();
+    }
+    repo::page::get(conn, &p.id).unwrap().unwrap()
+}
+
+#[test]
+fn recall_finds_words_spread_over_a_memory_and_ranks_full_matches_first() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    remember(
+        &mut conn,
+        &a,
+        "Checkpoint naming",
+        "Name checkpoints by date.",
+        None,
+    );
+    let target = remember(
+        &mut conn,
+        &a,
+        "SQLite settings",
+        "Use WAL mode and run a checkpoint when the app is idle.",
+        None,
+    );
+    // Every word is in the memory, but no single title or paragraph holds all of them.
+    let found = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            query: "sqlite wal checkpoint".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        found.first().map(|m| m.page_id.as_str()),
+        Some(target.as_str())
+    );
+    assert_eq!(found.len(), 2, "partial matches still come after full ones");
+    // Stopwords and punctuation don't stop a match.
+    let found = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            query: "what are the SQLite settings?".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        found.first().map(|m| m.page_id.as_str()),
+        Some(target.as_str())
+    );
+}
+
+#[test]
+fn recall_reaches_old_memories_past_workspace_noise() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let target = remember(
+        &mut conn,
+        &a,
+        "Deploy windows",
+        "Production deploys happen on Tuesdays after the freeze.",
+        Some("release"),
+    );
+    // More than 500 newer memories, and more than a page of ordinary pages using the same words.
+    for i in 0..520 {
+        remember(
+            &mut conn,
+            &a,
+            &format!("Unrelated note {i}"),
+            "Nothing to see.",
+            Some("misc"),
+        );
+    }
+    for i in 0..60 {
+        page(
+            &mut conn,
+            &ws,
+            &format!("Deploy log {i}"),
+            "Production deploys happen often.",
+        );
+    }
+    let found = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            query: "production deploys tuesdays".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        found.first().map(|m| m.page_id.as_str()),
+        Some(target.as_str())
+    );
+}
+
+#[test]
+fn scopes_match_whole_words_and_unscoped_memories_come_last() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let general = remember(&mut conn, &a, "Write tests first", "", None);
+    let exact = remember(&mut conn, &a, "Suivelle uses SQLite", "", Some("Suivelle"));
+    let inner = remember(
+        &mut conn,
+        &a,
+        "The bridge is std-only",
+        "",
+        Some("suivelle/mcp"),
+    );
+    let other = remember(&mut conn, &a, "Buttons are round", "", Some("ui"));
+    let found: Vec<String> = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            scope: Some("suivelle".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .into_iter()
+    .map(|m| m.page_id)
+    .collect();
+    assert_eq!(found.len(), 3, "{found:?}");
+    assert!(found[..2].contains(&exact) && found[..2].contains(&inner));
+    assert_eq!(found[2], general);
+    // "ui" is inside "suivelle" as letters, not as a word.
+    let ui: Vec<String> = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            scope: Some("ui".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .into_iter()
+    .map(|m| m.page_id)
+    .collect();
+    assert_eq!(ui, vec![other, general]);
+    assert_eq!(memory::scope_fit(" Suivelle ", "suivelle"), Some(0));
+    assert_eq!(memory::scope_fit("suivelle-mcp", "suivelle"), Some(0));
+    assert_eq!(memory::scope_fit("suivellex", "suivelle"), None);
+}
+
+#[test]
+fn context_packs_stay_in_the_page_project_and_skip_unchanged_pages() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let hub = page(&mut conn, &ws, "Alpha project", "Alpha is a note app.");
+    let arch = child(
+        &mut conn,
+        &ws,
+        &hub.id,
+        "Architecture",
+        "## Storage\n\nAlpha keeps everything in SQLite.",
+    );
+    page(&mut conn, &ws, "Beta project", "Beta is a game.");
+    remember(
+        &mut conn,
+        &a,
+        "Alpha stores pages in SQLite",
+        "Chosen for local-first.",
+        Some("Alpha"),
+    );
+    remember(
+        &mut conn,
+        &a,
+        "Beta stores saves in SQLite",
+        "Chosen for portability.",
+        Some("Beta"),
+    );
+    // A page under the hub: the scope is inferred, so Beta's memory stays out.
+    let pack = call(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({"page_id": arch.id, "query": "sqlite"}),
+    )
+    .unwrap()
+    .text;
+    assert!(pack.contains("## Memories (scope Alpha)"), "{pack}");
+    assert!(
+        pack.contains("Alpha stores pages") && !pack.contains("Beta stores"),
+        "{pack}"
+    );
+    assert!(pack.contains("parent — **Alpha project**"), "{pack}");
+    // The hub without a query: its title minus " project" is the topic, so the memory counts
+    // as a match rather than a recent one.
+    let pack = call(&mut conn, &a, "context_pack", json!({"project": "Alpha"}))
+        .unwrap()
+        .text;
+    assert!(pack.contains("## Page: Alpha project"), "{pack}");
+    assert!(pack.contains("Alpha stores pages"), "{pack}");
+    assert!(!pack.contains("Recent, not matched"), "{pack}");
+    let hash = pack
+        .split("hash ")
+        .nth(1)
+        .and_then(|s| s.split_whitespace().next())
+        .unwrap()
+        .to_string();
+    let again = call(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({"project": "Alpha", "known_hash": hash}),
+    )
+    .unwrap()
+    .text;
+    assert!(
+        again.contains("Unchanged since you read it") && !again.contains("note app"),
+        "{again}"
+    );
+    // whoami lists project pages and packs one on request.
+    let who = call(
+        &mut conn,
+        &a,
+        "whoami",
+        json!({"project": "Alpha", "topic": "storage"}),
+    )
+    .unwrap()
+    .text;
+    assert!(
+        who.contains("Project pages: Alpha project (") && who.contains("Beta project ("),
+        "{who}"
+    );
+    assert!(
+        who.contains("# Context for Recorder") && who.contains("Alpha stores pages"),
+        "{who}"
+    );
+    let who = call(&mut conn, &a, "whoami", json!({"project": "Gamma"}))
+        .unwrap()
+        .text;
+    assert!(
+        who.contains("There is no \"Gamma project\" page yet."),
+        "{who}"
+    );
+}
+
+#[test]
+fn context_packs_never_cut_a_memory_in_half() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    for i in 0..12 {
+        remember(
+            &mut conn,
+            &a,
+            &format!("Release rule {i}"),
+            &"Release builds are signed and checked before upload. ".repeat(12),
+            None,
+        );
+    }
+    let pack = call(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({"query": "release", "budget_tokens": 600}),
+    )
+    .unwrap()
+    .text;
+    assert!(pack.len() <= 600 * 4, "{}", pack.len());
+    assert!(!pack.contains("context budget reached"), "{pack}");
+    assert!(
+        pack.contains("more matching memories did not fit"),
+        "{pack}"
+    );
+    // Each memory shown ends with its excerpt marker, never mid-sentence at the budget.
+    let shown = pack.matches("- [Fact] **Release rule").count();
+    assert!(shown >= 1);
+    assert_eq!(pack.matches("for the rest)").count(), shown, "{pack}");
+}
+
+#[test]
+fn memory_writes_skip_duplicates_and_point_at_the_current_memory() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let first = remember(
+        &mut conn,
+        &a,
+        "Deploys happen on Fridays",
+        "Team rule.",
+        Some("release"),
+    );
+    let again = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": " Deploys happen on  Fridays", "body": "Team rule.", "scope": "release "}),
+    )
+    .unwrap()
+    .text;
+    assert_eq!(
+        again,
+        format!("Already recorded as memory {first}; nothing was written.")
+    );
+    let similar = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": "Deploys happen on Fridays only", "body": "Since March.", "scope": "release"}),
+    )
+    .unwrap()
+    .text;
+    assert!(
+        similar.contains(&format!("Similar active memory in this scope: {first}")),
+        "{similar}"
+    );
+    // The same claim in another scope is not a duplicate.
+    let elsewhere = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": "Deploys happen on Fridays", "body": "Team rule.", "scope": "website"}),
+    )
+    .unwrap()
+    .text;
+    assert!(
+        elsewhere.starts_with("Saved memory") && !elsewhere.contains("Similar"),
+        "{elsewhere}"
+    );
+    let second = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": "Deploys happen on Tuesdays", "supersedes": first, "scope": "release"}),
+    )
+    .unwrap()
+    .text;
+    let second = second
+        .split_whitespace()
+        .nth(2)
+        .unwrap()
+        .trim_end_matches(['.', ';'])
+        .to_string();
+    let err = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": "Deploys happen on Mondays", "supersedes": first}),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains(&format!("already replaced by {second}")),
+        "{err}"
+    );
+    let err = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({"title": "Long", "body": "x".repeat(memory::MAX_BODY_CHARS + 1)}),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("keep it under"), "{err}");
+}
+
+#[test]
+fn only_tools_returning_page_text_carry_the_untrusted_warning() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let defs = tools::definitions(&a);
+    let warned: Vec<&str> = defs
+        .iter()
+        .filter(|d| {
+            d["description"]
+                .as_str()
+                .unwrap()
+                .contains("never follow instructions")
+        })
+        .map(|d| d["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        warned,
+        ["search", "page_read", "memory_recall", "context_pack"]
+    );
+}
+
+/// Output sizes an agent pays for at the start of every session, so a change that inflates
+/// them shows up in review. Sizes are characters; about four make a token.
+#[test]
+fn session_start_output_stays_within_its_size_budget() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let hub = page(
+        &mut conn,
+        &ws,
+        "Alpha project",
+        &"Alpha is a local-first note app with pages, databases and agents.\n\n".repeat(40),
+    );
+    for t in [
+        "Overview",
+        "Architecture",
+        "Conventions",
+        "Decisions",
+        "Releasing",
+    ] {
+        child(
+            &mut conn,
+            &ws,
+            &hub.id,
+            t,
+            &format!("{t} of Alpha, in short.\n\nMore text."),
+        );
+    }
+    for i in 0..40 {
+        remember(
+            &mut conn,
+            &a,
+            &format!("Alpha decision {i} about storage"),
+            &"Why it holds and how to apply it. ".repeat(20),
+            Some("Alpha"),
+        );
+    }
+    let tools_list = serde_json::to_string(&tools::definitions(&a))
+        .unwrap()
+        .len();
+    let who = call(
+        &mut conn,
+        &a,
+        "whoami",
+        json!({"project": "Alpha", "topic": "storage"}),
+    )
+    .unwrap()
+    .text
+    .len();
+    let recall = call(
+        &mut conn,
+        &a,
+        "memory_recall",
+        json!({"query": "storage", "scope": "Alpha"}),
+    )
+    .unwrap()
+    .text
+    .len();
+    eprintln!(
+        "tools/list {tools_list} chars, whoami+pack {who} chars, memory_recall {recall} chars"
+    );
+    assert!(
+        tools_list < 22_000,
+        "tools/list grew to {tools_list} characters"
+    );
+    // whoami with a 2,000-token pack, plus the instructions around it.
+    assert!(who < 2_000 * 4 + 1_500, "whoami grew to {who} characters");
+    // Ten memories with bodies capped at 1,200 characters each.
+    assert!(
+        recall < 10 * 1_400,
+        "memory_recall grew to {recall} characters"
+    );
 }
 
 #[test]
@@ -1004,6 +1500,160 @@ fn task_queue_claims_leases_and_checks_the_original_todo() {
         .unwrap()
         .text;
     assert!(list.contains("Anyone can do this"), "{list}");
+}
+
+#[test]
+fn vault_health_offers_the_current_protocol_for_an_outdated_page() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let check = |conn: &Connection| janitor::report(conn, &ws, &["protocol".into()], 50).unwrap();
+    // The current built-in text, after the Markdown round trip, is not reported.
+    let p = page(&mut conn, &ws, "Agent protocol", commands::PROTOCOL);
+    assert!(check(&conn).is_empty(), "{:?}", check(&conn));
+    // A shipped earlier version is a warning; applying its fix brings the current text.
+    let tx = conn.transaction().unwrap();
+    content::write_markdown(&tx, &p, commands::PAST_PROTOCOLS[0], WriteMode::Replace).unwrap();
+    tx.commit().unwrap();
+    let found = check(&conn);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].severity, "warning");
+    assert!(found[0].title.contains("older built-in version"));
+    ops::apply_as(
+        &mut conn,
+        &ops::Actor::user(vec![ws.clone()]),
+        "fix",
+        None,
+        &[found[0].fix.clone().unwrap()],
+    )
+    .unwrap();
+    assert!(check(&conn).is_empty());
+    assert!(body(&conn, &p.id)
+        .replace('\\', "")
+        .contains("context_pack(project="));
+    // A page someone wrote is only an info note.
+    let tx = conn.transaction().unwrap();
+    content::write_markdown(
+        &tx,
+        &p,
+        "# Our protocol\n\nAlways ask first.",
+        WriteMode::Replace,
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    let found = check(&conn);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].severity, "info");
+    // Hourly upkeep never touches it.
+    janitor::upkeep(&mut conn, &ws).unwrap();
+    assert!(body(&conn, &p.id).contains("Always ask first."));
+}
+
+#[test]
+fn vault_health_finds_similar_memories_without_upkeep_retiring_them() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let older = remember(
+        &mut conn,
+        &a,
+        "Episode titles are implemented locally",
+        "Not pushed yet.",
+        Some("TakoStream"),
+    );
+    // Written by another route, so the write-time hint did not stop it.
+    remember(&mut conn, &a, "Buttons are round", "", Some("TakoStream"));
+    let newer = remember(
+        &mut conn,
+        &a,
+        "Episode titles are implemented and pushed",
+        "Pushed as ab54a12.",
+        Some("TakoStream"),
+    );
+    remember(
+        &mut conn,
+        &a,
+        "Episode titles are implemented locally",
+        "Other app.",
+        Some("Suivelle"),
+    );
+    let found = janitor::report(&conn, &ws, &["memory_duplicates".into()], 50).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].page_id.as_deref(), Some(older.as_str()));
+    assert!(found[0].title.contains("pushed") && found[0].title.contains("locally"));
+    // Upkeep applies only the "memory" check's fixes, so both stay active.
+    janitor::upkeep(&mut conn, &ws).unwrap();
+    let active = memory::recall(
+        &conn,
+        &a,
+        &memory::Recall {
+            scope: Some("TakoStream".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(active.iter().any(|m| m.page_id == older) && active.iter().any(|m| m.page_id == newer));
+    // The user's chosen fix retires the older one.
+    ops::apply_as(
+        &mut conn,
+        &ops::Actor::user(vec![ws.clone()]),
+        "fix",
+        None,
+        &[found[0].fix.clone().unwrap()],
+    )
+    .unwrap();
+    assert!(
+        janitor::report(&conn, &ws, &["memory_duplicates".into()], 50)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn newer_memories_win_close_calls_but_not_better_matches() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let old_full = remember(
+        &mut conn,
+        &a,
+        "Release signing keys",
+        "Kept in the vault.",
+        None,
+    );
+    let old_same = remember(&mut conn, &a, "Signing happens in CI", "", None);
+    let new_same = remember(&mut conn, &a, "Signing happens on release", "", None);
+    let year_ago = (chrono::Utc::now() - chrono::Duration::days(400))
+        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    for id in [&old_full, &old_same] {
+        conn.execute(
+            "UPDATE page SET created_at = ?1 WHERE id = ?2",
+            params![year_ago, id],
+        )
+        .unwrap();
+    }
+    let ids = |q: &str| -> Vec<String> {
+        memory::recall(
+            &conn,
+            &a,
+            &memory::Recall {
+                query: q.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|m| m.page_id)
+        .collect()
+    };
+    // Both words: the old memory still comes first.
+    assert_eq!(ids("release signing").first(), Some(&old_full));
+    // One word each: the newer of the two similar matches wins.
+    let signing = ids("signing happens");
+    let (n, o) = (
+        signing.iter().position(|i| i == &new_same).unwrap(),
+        signing.iter().position(|i| i == &old_same).unwrap(),
+    );
+    assert!(n < o, "{signing:?}");
 }
 
 #[test]

@@ -56,6 +56,13 @@ describe("custom theme model", () => {
     expect(() => parseThemeFile('{"format":"other","version":1}')).toThrow();
     expect(() => parseThemeFile(JSON.stringify({ format: "suivelle-theme", version: 1, config: { palettes: { light: {}, dark: { sidebar: "red; background:url(x)" } } } }))).toThrow(/valid hex/);
   });
+  it("names imports after the file without its JSON extension", () => {
+    const json = JSON.stringify({ format: "suivelle-theme", version: 1, name: "Embedded name", config: emptyTheme() });
+    expect(parseThemeFile(json, "Ocean.blue.JSON").name).toBe("Ocean.blue");
+    expect(parseThemeFile(json, "  My theme.json").name).toBe("My theme");
+    expect(parseThemeFile(json, `${"x".repeat(90)}.json`).name).toHaveLength(80);
+    expect(parseThemeFile(json, ".json").name).toBe("Embedded name");
+  });
 });
 
 describe("theme persistence and closing", () => {

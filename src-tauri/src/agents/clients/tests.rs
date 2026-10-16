@@ -861,6 +861,118 @@ fn connect_adds_start_lines_and_commands_and_disconnect_takes_them_out() {
 }
 
 #[test]
+fn init_adds_start_lines_without_touching_existing_instructions() {
+    let env = fake_env("init");
+    let (mut conn, ws) = db();
+    let claude_md = env.home.join(".claude").join("CLAUDE.md");
+    std::fs::create_dir_all(claude_md.parent().unwrap()).unwrap();
+    // The user's own instructions: CRLF, no newline at the end.
+    let original = "# My rules\r\n- Answer briefly.\r\n- Use British spelling.\r\n\r\n# Git\r\nNever force-push.";
+    std::fs::write(&claude_md, original).unwrap();
+    let out = connect(
+        &mut conn,
+        &env,
+        "claude-code",
+        ConnectInput {
+            instructions: false,
+            commands: false,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    let agent_id = out.client.agent_id.clone().unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&claude_md).unwrap(),
+        original,
+        "unticked: untouched"
+    );
+
+    // /suivelle_init adds the block after everything that was there.
+    assert!(matches!(
+        install_start_lines(&conn, &env, &agent_id).unwrap(),
+        StartLines::Added(_)
+    ));
+    let text = std::fs::read_to_string(&claude_md).unwrap();
+    assert!(text.starts_with(original), "{text}");
+    assert_eq!(text.matches("call suivelle whoami").count(), 1);
+    assert!(
+        text.contains("\r\n<!-- suivelle:start -->\r\n"),
+        "keeps the file's line endings"
+    );
+    assert_eq!(
+        std::fs::read_to_string(claude_md.with_file_name("CLAUDE.md.suivelle-backup")).unwrap(),
+        original
+    );
+    // Again: nothing changes.
+    assert!(matches!(
+        install_start_lines(&conn, &env, &agent_id).unwrap(),
+        StartLines::Present(_)
+    ));
+    assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), text);
+    // Recorded, so the card shows it and Disconnect takes it out, leaving the user's text.
+    let status = scan(&conn, &env)
+        .unwrap()
+        .clients
+        .into_iter()
+        .find(|c| c.id == "claude-code")
+        .unwrap();
+    assert!(status.instructions_added, "{status:?}");
+    disconnect(&mut conn, &env, "claude-code").unwrap();
+    let after = std::fs::read_to_string(&claude_md).unwrap();
+    assert!(
+        after.starts_with(original) && !after.contains("suivelle"),
+        "{after:?}"
+    );
+
+    // Lines the user added by hand are left exactly as they are.
+    let by_hand = format!("# Mine\n\n{}\n", crate::agents::commands::START_LINES);
+    std::fs::write(&claude_md, &by_hand).unwrap();
+    let again = connect(
+        &mut conn,
+        &env,
+        "claude-code",
+        ConnectInput {
+            instructions: false,
+            commands: false,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        install_start_lines(&conn, &env, again.client.agent_id.as_deref().unwrap()).unwrap(),
+        StartLines::Present(_)
+    ));
+    assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), by_hand);
+
+    // Apps that keep instructions in their settings get the place to paste them.
+    let cursor = connect(
+        &mut conn,
+        &env,
+        "cursor",
+        ConnectInput {
+            instructions: false,
+            commands: false,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    assert!(
+        matches!(install_start_lines(&conn, &env, cursor.client.agent_id.as_deref().unwrap()).unwrap(), StartLines::Paste(p) if p.contains("User Rules"))
+    );
+    // Agents set up by hand have no known file.
+    let manual = crate::agents::create(
+        &mut conn,
+        AgentInput {
+            name: "Manual".into(),
+            workspace_ids: vec![ws],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(install_start_lines(&conn, &env, &manual.id).is_err());
+}
+
+#[test]
 fn shared_instructions_and_opting_out() {
     let env = fake_env("shared");
     let (mut conn, ws) = db();

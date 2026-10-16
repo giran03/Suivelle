@@ -45,7 +45,7 @@ export function PagePreviewCard() {
             <span>{data.title || "Untitled"}</span>
           </div>
           {data.imageHash && <img className="pp-image" src={thumbUrl(data.imageHash, 320)} alt="" loading="lazy" />}
-          {data.lines.length > 0 ? (
+          {data.lines.length > 0 && (
             <div className="pp-body">
               {data.lines.map((l, i) => (
                 <p key={i} className={l.kind.startsWith("heading") ? "pp-heading" : undefined}>
@@ -53,8 +53,6 @@ export function PagePreviewCard() {
                 </p>
               ))}
             </div>
-          ) : (
-            !data.imageHash && <p className="pp-muted">Empty page</p>
           )}
           <div className="pp-actions">
             <button type="button" onClick={() => open(false)}>Open</button>

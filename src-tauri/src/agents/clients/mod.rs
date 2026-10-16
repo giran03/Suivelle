@@ -1157,6 +1157,61 @@ fn connect_agent(
     })
 }
 
+/// What `/suivelle_init` did about the session-start lines.
+pub enum StartLines {
+    /// Added to this file now (it had no Suivelle lines).
+    Added(PathBuf),
+    /// Already there, marked or added by hand; the file was not changed.
+    Present(PathBuf),
+    /// The app keeps instructions in its settings: paste the lines there.
+    Paste(String),
+}
+
+/// Adds the session-start lines to the user-level instructions file of the app this agent is
+/// connected through, for `/suivelle_init`. Only Suivelle's block is added: everything already in
+/// the file stays byte for byte, lines added by hand are left as they are, the previous file is
+/// kept as a backup, and the result is read back. Recorded on the connection, so Disconnect takes
+/// the lines out again.
+pub fn install_start_lines(conn: &Connection, env: &Env, agent_id: &str) -> AppResult<StartLines> {
+    let client_id = client_of(conn, agent_id)?
+        .ok_or_else(|| AppError::Validation("This agent was not connected through Settings > Agents > Connect apps, so Suivelle does not know its app's instructions file.".into()))?;
+    let c = client(&client_id)?;
+    let path = match extras::instructions_of(env, c) {
+        Some(Instructions::File(p)) => p,
+        Some(Instructions::Place(place)) => return Ok(StartLines::Paste(place)),
+        None => {
+            return Err(AppError::Validation(format!(
+                "{} has no user-level instructions Suivelle knows of.",
+                c.name
+            )))
+        }
+    };
+    let old = read_file(&path)?;
+    let present = !matches!(extras::block_state(&old.text), extras::BlockState::Missing);
+    if !present {
+        let text = extras::add_block(&old.text);
+        write_file(&path, &old, &text)?;
+        let back = read_file(&path)?.text;
+        // Appended only: everything that was there is still there, unchanged and first.
+        if extras::block_state(&back) != extras::BlockState::Current || !back.starts_with(&old.text)
+        {
+            return Err(AppError::Internal(format!(
+                "{} did not read back as written. Its backup is beside it.",
+                path.display()
+            )));
+        }
+    }
+    conn.execute(
+        "UPDATE agent_client SET want_instructions = 1, instructions_path = ?2 WHERE client_id = ?1",
+        params![client_id, path.display().to_string()],
+    )?;
+    Ok(if present {
+        StartLines::Present(path)
+    } else {
+        StartLines::Added(path)
+    })
+}
+
 /// Rewrites a connection that is out of date or was edited: fresh token, current connector.
 pub fn repair(conn: &mut Connection, env: &Env, client_id: &str) -> AppResult<ConnectResult> {
     let rec = record(conn, client_id)?.ok_or_else(|| AppError::NotFound("connection".into()))?;

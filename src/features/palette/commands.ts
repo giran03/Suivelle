@@ -14,7 +14,7 @@ import { useAppearanceUi } from "../pages/pageAppearance";
 import { useShortcutSheet } from "../shortcuts/ShortcutSheet";
 import { useSettingsDialog } from "../settings/store";
 import { useFilesDialog } from "../files/store";
-import { useQuickCapture } from "../capture/QuickCapture";
+import { useQuickCapture } from "../capture/store";
 import { duplicatePage, saveAsTemplate, templatesContainer } from "../templates/pageTemplates";
 import { useFindBar } from "../find/store";
 import { useActiveEditor } from "../../stores/activeEditor";
@@ -26,6 +26,11 @@ import { useExplore } from "../explore/store";
 import { useNodeMap } from "../node-map/store";
 import { createSavedBackup } from "../backup/create";
 import { usePalette } from "./store";
+import { useSplit } from "../split/store";
+import { PALETTE_PRESETS } from "../settings/presets";
+import { useThemes } from "../settings/themes";
+import { usePreferences } from "../../stores/preferences";
+
 
 export interface PaletteCommand {
   id: string;
@@ -50,6 +55,12 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "export-workspace", title: "Export workspace…", keywords: "archive zip portable save transfer computer", run: () => useTransferDialog.getState().show("export", "workspace") },
   { id: "workspace-settings", title: "Workspace settings…", keywords: "rename icon color description spacing delete", run: () => useWorkspaceDialog.getState().show("manage") },
   { id: "switch-workspace", title: "Switch workspace…", keywords: "open space work personal", run: () => useWorkspaceDialog.getState().show("manage") },
+  { id: "split-single", title: "Split view: single page", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().closeAll(); } },
+  { id: "split-columns", title: "Split view: side by side", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().setLayout("columns"); } },
+  { id: "split-rows", title: "Split view: stacked", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().setLayout("rows"); } },
+  { id: "split-quad", title: "Split view: four corners", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().setLayout("quad"); } },
+  { id: "split-master-detail", title: "Split view: master and detail", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().setLayout("master-detail"); } },
+  { id: "split-tiled", title: "Split view: tiles", keywords: "split screen panes side by side tile quad columns rows master detail layout", run: () => { useSplit.getState().setLayout("tiled"); } },
   { id: "new-page", title: "New page", keywords: "create add page", shortcut: `${modKey}+N`, run: () => st().createPage(null) },
   { id: "daily-note", title: "Open today's note", keywords: "journal daily diary today date log", run: () => openDailyNote() },
   { id: "remind", title: "Remind me about this page…", keywords: "reminder alarm notify later due schedule", when: hasPage, run: () => useExplore.getState().show("remind") },
@@ -148,6 +159,18 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "theme-light", title: "Switch to light theme", keywords: "appearance color mode", run: () => st().setTheme("light") },
   { id: "theme-dark", title: "Switch to dark theme", keywords: "appearance color mode night", run: () => st().setTheme("dark") },
   { id: "theme-system", title: "Use system theme", keywords: "appearance color mode auto", run: () => st().setTheme("system") },
+  ...(["light", "dark"] as const).flatMap(mode => PALETTE_PRESETS[mode].map(preset => ({
+    id: `theme-preset-${preset.id}`,
+    title: `Switch to ${preset.name} theme (${mode})`,
+    keywords: `appearance colors palette presets ${mode} ${preset.description}`,
+    run: () => {
+      try {
+        const { config, apply } = useThemes.getState();
+        apply({ ...config, palettes: { ...config.palettes, [mode]: { ...preset.colors } } });
+        usePreferences.getState().setTheme(mode);
+      } catch (error) { st().setError(error instanceof Error ? error.message : toAppError(error).message); }
+    },
+  }))),
   {
     id: "rebuild-index",
     title: "Rebuild search index",
@@ -173,7 +196,23 @@ for (const command of COMMANDS) {
 /** Commands that apply right now and match the query (empty query lists them all). */
 export function matchCommands(query: string): PaletteCommand[] {
   const q = query.trim().toLowerCase();
-  const available = COMMANDS.map(c => ({ ...c, shortcut: label(c.id, useShortcuts.getState().overrides) || undefined })).filter((c) => (!READ_ONLY || READ_ONLY_COMMANDS.has(c.id)) && (!c.when || c.when()));
+  // Library entries are local appearance choices, available even in read-only workspaces.
+  // Build them on demand so saved/imported themes never need static registration.
+  const profiles: PaletteCommand[] = useThemes.getState().profiles.map(profile => ({
+    id: `theme-profile-${profile.id}`,
+    title: `Switch to ${profile.name} theme (saved)`,
+    keywords: "appearance colors palette presets custom saved imported library",
+    run: () => {
+      const current = useThemes.getState().profiles.find(p => p.id === profile.id);
+      if (!current) return;
+      try { useThemes.getState().apply(current.config); }
+      catch (error) { st().setError(error instanceof Error ? error.message : toAppError(error).message); }
+    },
+  }));
+  const available: PaletteCommand[] = [
+    ...COMMANDS.map(c => ({ ...c, shortcut: label(c.id, useShortcuts.getState().overrides) || undefined })).filter((c) => (!READ_ONLY || READ_ONLY_COMMANDS.has(c.id)) && (!c.when || c.when())),
+    ...profiles,
+  ];
   if (!q) return available;
   const words = q.split(/\s+/);
   return available.filter((c) => {

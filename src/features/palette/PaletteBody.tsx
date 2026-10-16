@@ -10,6 +10,7 @@ import { matchCommands } from "./commands";
 import { Marked } from "./marked";
 import { usePalette } from "./store";
 import { SearchField } from "../../components/SearchField";
+import { useThemes } from "../settings/themes";
 
 type Section = "Saved searches" | "Recent" | "Pages" | "In pages" | "Commands";
 
@@ -40,6 +41,7 @@ const label = (t: string) => t || "Untitled";
 
 export function PaletteBody() {
   const shortcutOverrides = useShortcuts(s => s.overrides);
+  const themeProfiles = useThemes(s => s.profiles);
   const ws = useWorkspace((s) => s.workspace);
   const currentId = useWorkspace((s) => s.selectedPageId);
   const [query, setQuery] = useState("");
@@ -125,7 +127,7 @@ export function PaletteBody() {
       out.push({ key: "create", section: "Commands", kind: "create", title: `Create page “${q}”`, run: () => useWorkspace.getState().createPage(null, q) });
     }
     return out;
-  }, [shortcutOverrides, q, hits, recents, currentId, saved]);
+  }, [shortcutOverrides, themeProfiles, q, hits, recents, currentId, saved]);
 
   useEffect(() => setActive((a) => Math.min(a, Math.max(0, rows.length - 1))), [rows.length]);
   useEffect(() => {

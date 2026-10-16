@@ -1,9 +1,12 @@
 import type { Editor, JSONContent } from "@tiptap/core";
+import { closeHistory } from "@tiptap/pm/history";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { ipc, toAppError } from "../../lib/ipc";
 import { specialPage } from "../../lib/specialPages";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
+import { blocksAsContainerNodes, mergeAdjacentLists, partitionSelectedBlocks } from "./blockKinds";
+import { BlockRangeSelection } from "./blockSelection";
 import { blocksToDoc, docToBlocks, rowFromBlock } from "./convert";
 
 /**
@@ -58,6 +61,15 @@ export function canSync(editor: Editor, node: PMNode): boolean {
   return !!editor.schema.nodes.syncedBlock && !SYNCABLE_NOT.has(node.type.name) && !contains(node, "syncedBlock");
 }
 
+export function canSyncSelection(editor: Editor): boolean {
+  const { selection, doc, schema } = editor.state;
+  if (!schema.nodes.syncedBlock || !(selection instanceof BlockRangeSelection)) return false;
+  const part = partitionSelectedBlocks(doc, selection.from, selection.to);
+  if (!part) return false;
+  const nodes = blocksAsContainerNodes(part.entries, schema);
+  return nodes.length > 0 && nodes.every((n) => canSync(editor, n));
+}
+
 const titleFor = (node: PMNode) => node.textContent.trim().slice(0, 40) || "Synced block";
 
 /** Moves a block's content into its own synced page and leaves a synced block in its place. */
@@ -74,6 +86,43 @@ export async function syncBlock(editor: Editor, pos: number, node: PMNode): Prom
     });
     const from = at >= 0 ? at : pos;
     editor.chain().focus().insertContentAt({ from, to: from + node.nodeSize }, { type: "syncedBlock", attrs: { pageId: page.id } }).run();
+  } catch (e) {
+    useWorkspace.getState().setError(toAppError(e).message);
+  }
+}
+
+/** Moves all blocks in the active `BlockRangeSelection` into one synced page and replaces them with a single synced block. */
+export async function syncSelectedBlocks(editor: Editor): Promise<void> {
+  if (!canSyncSelection(editor)) return;
+  const { selection, doc, schema } = editor.state;
+  const part = partitionSelectedBlocks(doc, selection.from, selection.to);
+  if (!part) return;
+  const bookmark = selection.getBookmark();
+  const containerNodes = blocksAsContainerNodes(part.entries, schema);
+  const title = containerNodes.map(titleFor).find((t) => t !== "Synced block") ?? "Synced block";
+  try {
+    const page = await createSyncedPage(title, containerNodes.map((n) => withoutIds(n.toJSON())));
+    if (editor.isDestroyed || !editor.state.schema.nodes.syncedBlock) return;
+    const resolved = bookmark.resolve(editor.state.doc);
+    const nextPart = partitionSelectedBlocks(editor.state.doc, resolved.from, resolved.to);
+    if (!nextPart) return;
+    const syncedNode = editor.state.schema.nodes.syncedBlock.create({ pageId: page.id });
+    const finalNodes = mergeAdjacentLists([...nextPart.prefixNodes, syncedNode, ...nextPart.suffixNodes]);
+    const totalSize = finalNodes.reduce((sum, n) => sum + n.nodeSize, 0);
+    const tr = closeHistory(editor.state.tr).replaceWith(nextPart.replaceFrom, nextPart.replaceTo, finalNodes);
+    let syncedPos = -1;
+    tr.doc.nodesBetween(nextPart.replaceFrom, nextPart.replaceFrom + totalSize, (node, pos) => {
+      if (node === syncedNode) {
+        syncedPos = pos;
+        return false;
+      }
+      return true;
+    });
+    if (syncedPos >= 0) {
+      tr.setSelection(BlockRangeSelection.create(tr.doc, syncedPos, syncedPos + syncedNode.nodeSize));
+    }
+    editor.view.dispatch(tr.scrollIntoView());
+    editor.view.focus();
   } catch (e) {
     useWorkspace.getState().setError(toAppError(e).message);
   }

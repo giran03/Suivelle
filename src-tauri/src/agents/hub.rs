@@ -202,9 +202,31 @@ pub fn readable(
     props: &[Property],
     values: &Map<String, Value>,
 ) -> Map<String, Value> {
+    readable_with(conn, props, values, true)
+}
+
+/// Like [`readable`], leaving out relation properties (one query per related record), for
+/// callers that only filter or show the other values.
+pub fn readable_without_relations(
+    conn: &Connection,
+    props: &[Property],
+    values: &Map<String, Value>,
+) -> Map<String, Value> {
+    readable_with(conn, props, values, false)
+}
+
+fn readable_with(
+    conn: &Connection,
+    props: &[Property],
+    values: &Map<String, Value>,
+    relations: bool,
+) -> Map<String, Value> {
     let mut out = Map::new();
     for p in props {
         let Some(v) = values.get(&p.id) else { continue };
+        if !relations && p.property_type == "relation" {
+            continue;
+        }
         let shown = match p.property_type.as_str() {
             "select" | "status" => v.as_str().and_then(|id| option_name(p, id)).map(Value::from).unwrap_or(Value::Null),
             "multi_select" => Value::from(
