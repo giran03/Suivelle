@@ -1,6 +1,6 @@
 [package]
 name = "suivelle-mcp"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 description = "Connects an MCP client (Claude Code, Codex, …) to the agent API of a running Suivelle."
 publish = false
