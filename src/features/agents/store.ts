@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { ipc } from "../../lib/ipc";
 
-export type ReviewTab = "review" | "activity" | "health";
+export type ReviewTab = "review" | "activity" | "usage" | "health";
 
 interface AgentsState {
   /** Proposals waiting for review, for the sidebar badge. */

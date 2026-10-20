@@ -47,6 +47,14 @@
 .settings .set-body { min-width: 0; padding: 24px 28px 32px; scroll-padding-block: 24px; }
 .set-panel { min-width: 0; overflow-wrap: anywhere; }
 .set-panel[hidden] { display: none; }
+/* Settings copy needs room both within a paragraph and between separate messages.
+   Document previews keep the user's chosen document rhythm. */
+.settings .set-panel :is(p, .set-hint, .picker-muted, .field-error, .agx-meta):not(.doc-sample *) { line-height: 1.65; }
+.settings .set-panel p:not(.doc-sample *) { margin-block: 8px; }
+.settings .set-panel .set-title + .set-hint { margin-top: 6px; }
+.settings .set-text > :is(p, .set-hint, details) + :is(p, .set-hint, details) { margin-top: 12px; }
+.settings .set-panel details > summary { line-height: 1.6; }
+.settings .set-panel details > summary + * { margin-top: 8px; }
 .set-body .set-panel > h3, .set-panel > section > h3, .set-panel .updates-section > h3 { margin: 0 0 18px; font-size: 1.125rem; letter-spacing: normal; color: var(--text-primary); }
 .set-body .theme-group h3, .set-body .theme-library h3 { margin: 24px 0 8px; font-size: 0.9375rem; letter-spacing: normal; color: var(--text-primary); }
 .set-panel .set-row { align-items: flex-start; padding-block: 12px; }

@@ -4,6 +4,7 @@ import { ipc, toAppError } from "../../lib/ipc";
 import { syncDialog } from "../../lib/dialog";
 import { READ_ONLY } from "../../lib/access";
 import { useWorkspace } from "../../stores/workspace";
+import { AgentUsageView } from "./AgentUsageView";
 import { lineDiff, withContext } from "./diff";
 import { useAgents, type ReviewTab } from "./store";
 import type { Changeset, Finding, Proposal } from "./types";
@@ -257,7 +258,7 @@ function HealthTab() {
   );
 }
 
-const TABS: [ReviewTab, string][] = [["review", "Review"], ["activity", "Activity"], ["health", "Vault health"]];
+const TABS: [ReviewTab, string][] = [["review", "Review"], ["activity", "Activity"], ["usage", "Usage"], ["health", "Vault health"]];
 
 export function ReviewDialog() {
   const open = useAgents((s) => s.open);
@@ -283,6 +284,7 @@ export function ReviewDialog() {
           <div role="tabpanel" className="agx-body">
             {tab === "review" && <ReviewTabView />}
             {tab === "activity" && <ActivityTab />}
+            {tab === "usage" && <AgentUsageView mode="full" />}
             {tab === "health" && <HealthTab />}
           </div>
         </div>

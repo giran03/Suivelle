@@ -15,6 +15,11 @@ export function requestImageAction(
   )?.dispatchEvent(new CustomEvent("image-action", { detail: action }));
 }
 
+/** Reuse the displayed-image copy action, including crops and animated still frames. */
+export function imageCopyItem(editor: Editor, pos: number, node: Node): MenuItem | undefined {
+  return imageItems(editor, pos, node).find(item => item.label === "Copy image" || item.label === "Copy still frame (animated image)");
+}
+
 /** Image commands shared by right-click and the image's More toolbar button. */
 export function imageItems(
   editor: Editor,
@@ -24,8 +29,8 @@ export function imageItems(
   if (node.type.name !== "image" || !node.attrs.attachmentId) return [];
   const p = imagePresentation(node.attrs.presentation);
   const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
-  const animated =
-    dom?.querySelector<HTMLElement>(".image-block")?.dataset.animated;
+  const image = dom?.matches(".image-block") ? dom : dom?.querySelector<HTMLElement>(".image-block");
+  const animated = image?.dataset.animated;
   const action = (label: string, key: string): MenuItem => ({
     label,
     onSelect: () => requestImageAction(editor, pos, key),

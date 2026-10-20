@@ -69,7 +69,6 @@ pub const COMMANDS: &[Command] = &[
 
 /// The default "Agent protocol" page, which `/suivelle_init` creates when there is none.
 pub const PROTOCOL: &str = "# Suivelle MCP Protocol\n\n\
-This page is included in whoami; there is no need to page_read it.\n\n\
 ## 1. Session start (in a code repository only)\n\n\
 Skip this section for questions that don't need project context. Run it before the first task that does.\n\n\
 1. **Resolve [Project]:** package manifest name (package.json, Cargo.toml, pyproject.toml, …) → git remote repo name → folder name.\n\
@@ -87,6 +86,21 @@ Skip this section for questions that don't need project context. Run it before t
 /// nobody edited from one written by hand. Add the outgoing text here whenever `PROTOCOL`
 /// changes.
 pub const PAST_PROTOCOLS: &[&str] = &[
+    // 0.1.6
+    "# Suivelle MCP Protocol\n\n\
+This page is included in whoami; there is no need to page_read it.\n\n\
+## 1. Session start (in a code repository only)\n\n\
+Skip this section for questions that don't need project context. Run it before the first task that does.\n\n\
+1. **Resolve [Project]:** package manifest name (package.json, Cargo.toml, pyproject.toml, …) → git remote repo name → folder name.\n\
+2. **Hub found** (whoami lists \"[Project] project\" under Project pages): context_pack(project=\"[Project]\", query=\"<task topic>\", budget_tokens=2000) before reading repo files. It holds the hub, its subpages and the matching memories in scope [Project]; call memory_recall(scope=\"[Project]\") only for a fact the pack did not cover. Pass known_hash from an earlier pack to skip an unchanged hub. (Knowing [Project] before the first call, whoami(project=\"[Project]\", topic=\"<task topic>\") does both at once.)\n\
+3. **Hub not found:** if proposal_status shows a pending proposal creating it, say it awaits review and continue. Otherwise ask the user once whether to set up [Project]; if yes, follow /suivelle_setup (command(name=\"setup\")).\n\n\
+## 2. During the session\n\n\
+- **Record:** new lasting facts or decisions via memory_write(scope=\"[Project]\").\n\
+- **Correct:** to change a memory, write a new one with supersedes; never duplicate.\n\
+- **Sync pages:** when architecture or conventions change, page_read the subpage, then page_update with base_hash.\n\
+- **Isolation:** scope every query and write to [Project].\n\
+- **Pending changes:** when a change waits for review and the task depends on it, call proposal_wait(proposal_id); if the wait runs out, finish what you can and stop: a \"Continue: …\" task brings the decision to your next session.\n\
+- **End:** before the user leaves, offer /suivelle_wrap-up when decisions were made.",
     // 0.1.5
     "# Suivelle MCP Protocol\n\n\
 This page is included in whoami; there is no need to page_read it.\n\n\

@@ -247,15 +247,23 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
         }
         "tools/call" if params["name"] == "proposal_wait" => {
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
+            let input_str = serde_json::to_string(&args).unwrap_or_default();
+            super::analytics::begin_call();
             let started = Instant::now();
             let result = wait(host, agent, &args);
+            let out_str = match &result {
+                Ok(t) => t.clone(),
+                Err(e) => e.to_string(),
+            };
+            let metrics = super::analytics::finish_call(&input_str, &out_str);
             let _ = host.with_db(|conn| {
-                super::audit(
+                super::audit_with_metrics(
                     conn,
                     &agent.id,
                     "proposal_wait",
                     result.is_ok(),
                     started.elapsed().as_millis() as u64,
+                    metrics,
                 );
                 Ok(())
             });
@@ -271,16 +279,24 @@ pub fn handle<H: Host>(host: &H, agent: &Agent, msg: &Value) -> Option<Value> {
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or_default().to_string();
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
+            let input_str = serde_json::to_string(&args).unwrap_or_default();
             let started = Instant::now();
             let ro = host.read_only();
             let result = host.with_db(|conn| {
+                super::analytics::begin_call();
                 let out = tools::call(conn, agent, &name, &args, ro);
-                super::audit(
+                let out_str = match &out {
+                    Ok(o) => o.text.as_str(),
+                    Err(e) => &e.to_string(),
+                };
+                let metrics = super::analytics::finish_call(&input_str, out_str);
+                super::audit_with_metrics(
                     conn,
                     &agent.id,
                     &name,
                     out.is_ok(),
                     started.elapsed().as_millis() as u64,
+                    metrics,
                 );
                 if let Ok(o) = &out {
                     if !o.events.is_empty() {

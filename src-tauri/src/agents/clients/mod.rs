@@ -14,6 +14,7 @@
 pub mod bridge;
 pub mod extras;
 pub mod jsonc;
+pub mod rea_workflow;
 pub mod secret;
 pub mod subagents;
 mod toml;
@@ -752,6 +753,13 @@ pub struct ClientStatus {
     pub start_lines: String,
     /// Connected before Suivelle offered start lines and commands; Repair adds them.
     pub extras_pending: bool,
+    /// MCP entry, connector and token match, independently of optional setup files.
+    pub connection_configured: bool,
+    pub instructions_requested: Option<bool>,
+    pub commands_requested: Option<bool>,
+    pub command_paths: Vec<String>,
+    /// Latest retained successful whoami call made after this connection was configured.
+    pub whoami_at: Option<String>,
 }
 
 fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus> {
@@ -783,6 +791,7 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
     let entry = files
         .iter()
         .find_map(|(_, e)| e.as_ref().ok().cloned().flatten());
+    let mut connection_configured = false;
     let (status, detail) = match (&rec, &agent, &entry) {
         _ if unreadable.is_some() => ("unreadable", unreadable),
         (None, _, None) => ("not_connected", None),
@@ -802,17 +811,20 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
                 ("out_of_date", Some("The connector it points at is missing.".to_string()))
             } else if !token.is_some_and(|t| super::token_matches(conn, &a.id, &t)) {
                 ("out_of_date", Some("Its token was replaced or revoked.".to_string()))
-            } else if let Some(p) = {
-                let (i, cmds) = r.extras();
-                extras::problem(i.as_deref(), &cmds)
-            } {
-                ("edited", Some(p))
-            } else if a.status == "paused" {
-                ("paused", Some("Its agent is paused.".to_string()))
-            } else if a.last_seen_at.as_deref().is_none_or(|seen| seen < r.connected_at.as_str()) {
-                ("waiting", Some(c.restart.clone()))
             } else {
-                ("connected", None)
+                connection_configured = true;
+                if let Some(p) = {
+                    let (i, cmds) = r.extras();
+                    extras::problem(i.as_deref(), &cmds)
+                } {
+                    ("edited", Some(p))
+                } else if a.status == "paused" {
+                    ("paused", Some("Its agent is paused.".to_string()))
+                } else if a.last_seen_at.as_deref().is_none_or(|seen| seen < r.connected_at.as_str()) {
+                    ("waiting", Some(c.restart.clone()))
+                } else {
+                    ("connected", None)
+                }
             }
         }
     };
@@ -840,6 +852,13 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
             )
         })
     });
+    let whoami_at = match rec.as_ref() {
+        Some(r) => conn.query_row(
+            "SELECT MAX(created_at) FROM agent_audit WHERE agent_id = ?1 AND tool = 'whoami' AND ok = 1 AND created_at >= ?2",
+            params![r.agent_id, r.connected_at], |row| row.get::<_, Option<String>>(0),
+        )?,
+        None => None,
+    };
     Ok(ClientStatus {
         id: c.id.clone(),
         name: c.name.clone(),
@@ -860,13 +879,21 @@ fn status_of(conn: &Connection, env: &Env, c: &Client) -> AppResult<ClientStatus
         instructions_added,
         commands: extras::typed_names(c),
         commands_added: rec.as_ref().is_some_and(|r| {
-            !r.commands.is_empty() && extras::problem(None, &r.extras().1).is_none()
+            r.commands.len() == super::commands::COMMANDS.len() && extras::commands_current(env, c)
         }),
         start_lines: extras::block("\n"),
         extras_pending: rec
             .as_ref()
             .is_some_and(|r| r.want_instructions.is_none() && r.method != "manual")
             && (c.instructions.is_some() || c.commands.is_some()),
+        connection_configured,
+        instructions_requested: rec.as_ref().and_then(|r| r.want_instructions),
+        commands_requested: rec.as_ref().and_then(|r| r.want_commands),
+        command_paths: extras::command_paths(env, c)
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect(),
+        whoami_at,
     })
 }
 
@@ -1209,6 +1236,49 @@ pub fn install_start_lines(conn: &Connection, env: &Env, agent_id: &str) -> AppR
         StartLines::Present(path)
     } else {
         StartLines::Added(path)
+    })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetupResult {
+    pub client: ClientStatus,
+    pub backups: Vec<String>,
+    pub notes: Vec<String>,
+}
+
+/// Installs only requested setup files. Does not rewrite MCP config or rotate its token.
+pub fn setup_files(
+    conn: &Connection,
+    env: &Env,
+    client_id: &str,
+    instructions: bool,
+    commands: bool,
+) -> AppResult<SetupResult> {
+    let mut rec =
+        record(conn, client_id)?.ok_or_else(|| AppError::NotFound("connection".into()))?;
+    let c = client(client_id)?;
+    let added = extras::add(env, c, instructions, commands);
+    if instructions {
+        rec.want_instructions = Some(true);
+        if let Some(path) = &added.instructions {
+            rec.instructions_path = Some(path.display().to_string());
+        }
+    }
+    if commands {
+        rec.want_commands = Some(true);
+        for path in &added.commands {
+            let path = path.display().to_string();
+            if !rec.commands.contains(&path) {
+                rec.commands.push(path);
+            }
+        }
+    }
+    save_record(conn, &rec)?;
+    Ok(SetupResult {
+        client: status_of(conn, env, c)?,
+        backups: added.backups,
+        notes: added.notes,
     })
 }
 

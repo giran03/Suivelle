@@ -54,6 +54,39 @@ it("supports Home, End, wraparound and character navigation while skipping disab
   await act(async () => document.activeElement!.dispatchEvent(space));
   expect(space.defaultPrevented).toBe(false); // Preserve the button's native Space activation.
 });
+
+it("opens nested actions with the keyboard, toggles an option without closing, and returns focus", async () => {
+  const close = vi.fn(), toggle = vi.fn(), merge = vi.fn();
+  const host = await mount(<ContextMenu x={300} y={100} onClose={close} items={[
+    { label: "Copy", onSelect: () => {} },
+    { label: "Merge all into…", onSelect: () => {}, children: [
+      { label: "Keep line breaks", checked: true, keepOpen: true, onSelect: toggle },
+      { label: "Merge into one quote", onSelect: merge },
+    ] },
+  ]} />);
+  const keydown = async (key: string) => act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+  await keydown("ArrowDown");
+  expect(document.activeElement?.getAttribute("aria-haspopup")).toBe("menu");
+  await keydown("ArrowRight");
+  expect(host.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe("Merge all into…");
+  expect(document.activeElement?.textContent).toBe("Back");
+  await keydown("ArrowDown");
+  await act(async () => (document.activeElement as HTMLButtonElement).click());
+  expect(document.activeElement?.getAttribute("aria-checked")).toBe("false");
+  expect(toggle).toHaveBeenCalledTimes(1);
+  expect(close).not.toHaveBeenCalled();
+  await keydown("ArrowLeft");
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("Merge all into…");
+  await keydown("ArrowRight");
+  expect(host.querySelector('[role="menuitemcheckbox"]')?.getAttribute("aria-checked")).toBe("false");
+  await keydown("Escape");
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("Merge all into…");
+  await keydown("ArrowRight");
+  await keydown("End");
+  await act(async () => (document.activeElement as HTMLButtonElement).click());
+  expect(merge).toHaveBeenCalledTimes(1);
+  expect(close).toHaveBeenCalledTimes(1);
+});
 it("opening another menu closes the previous owner", async () => {
   function Pair() { const [first, setFirst] = useState(true); const [second, setSecond] = useState(false); return <>{first && <ContextMenu x={0} y={0} items={[{ label: "First", onSelect: () => {} }]} onClose={() => setFirst(false)} />}<button id="second" onClick={() => setSecond(true)}>Second</button>{second && <ContextMenu x={10} y={10} items={[{ label: "Second action", onSelect: () => {} }]} onClose={() => setSecond(false)} />}</>; }
   const host = await mount(<Pair />); await act(async () => host.querySelector<HTMLButtonElement>("#second")!.click());

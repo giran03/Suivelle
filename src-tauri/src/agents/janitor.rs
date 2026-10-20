@@ -49,7 +49,7 @@ pub const CHECKS: &[(&str, &str)] = &[
     ),
     (
         "protocol",
-        "An \"Agent protocol\" page older than the built-in one",
+        "An \"Agent protocol\" page older than the built-in one, or instructions that read it again",
     ),
     (
         "tasks",
@@ -126,6 +126,16 @@ fn protocol_page(conn: &Connection, workspace_id: &str) -> AppResult<Option<(Str
         }
         None => Ok(None),
     }
+}
+
+/// A list item telling the agent to page_read "Agent protocol", which older setups wrote into
+/// agents' instructions pages.
+fn reads_protocol(line: &str) -> bool {
+    let l = line.replace('\\', "").to_lowercase();
+    let l = l.trim_start();
+    (l.starts_with("- ") || l.starts_with("* "))
+        && l.contains("agent protocol")
+        && l.contains("page_read")
 }
 
 /// Runs `checks` (all of them when empty) over one workspace. At most `limit` findings per check.
@@ -431,8 +441,9 @@ pub fn report(
             }
             let mut scopes: Vec<_> = by_scope.into_iter().collect();
             scopes.sort_by(|a, b| a.0.cmp(&b.0));
+            let jev_cfg = super::jev::active(conn);
             let mut flagged = std::collections::HashSet::new();
-            'scopes: for (_, list) in scopes {
+            'scopes: for (scope_name, list) in scopes {
                 for (i, newer) in list.iter().enumerate() {
                     for older in &list[i + 1..] {
                         if flagged.contains(&older.0) {
@@ -451,6 +462,44 @@ pub fn report(
                             "memory_duplicates",
                             "info",
                             format!("“{}” and “{}” may say the same thing", newer.1, older.1),
+                            format!(
+                                "Both are active in the same scope. The fix marks the older one superseded, keeping “{}”; if the older one is right, forget the newer one instead.",
+                                newer.1
+                            ),
+                            Some(older.0.clone()),
+                            Some(Op::SetValues {
+                                page_id: older.0.clone(),
+                                values,
+                            }),
+                        ));
+                        if out
+                            .iter()
+                            .filter(|f| f.check == "memory_duplicates")
+                            .count() as i64
+                            >= limit
+                        {
+                            break 'scopes;
+                        }
+                    }
+                }
+                if let Some(cfg) = &jev_cfg {
+                    for (i, j, is_conflict) in
+                        super::jev::find_scope_duplicates(conn, cfg, &scope_name, &list, &flagged)
+                    {
+                        let (newer, older) = (&list[i], &list[j]);
+                        if !flagged.insert(older.0.clone()) {
+                            continue;
+                        }
+                        let mut values = Map::new();
+                        values.insert("Status".into(), json!("Superseded"));
+                        out.push(finding(
+                            "memory_duplicates",
+                            if is_conflict { "warning" } else { "info" },
+                            if is_conflict {
+                                format!("“{}” and “{}” contradict each other", newer.1, older.1)
+                            } else {
+                                format!("“{}” and “{}” may say the same thing", newer.1, older.1)
+                            },
                             format!(
                                 "Both are active in the same scope. The fix marks the older one superseded, keeping “{}”; if the older one is right, forget the newer one instead.",
                                 newer.1
@@ -510,6 +559,36 @@ pub fn report(
                     }),
                 ));
             }
+        }
+        // whoami carries the protocol, so an instructions page telling the agent to page_read it
+        // only costs a second copy every session.
+        let mut stmt = conn.prepare(
+            "SELECT p.id, p.title FROM agent a JOIN page p ON p.id = a.instructions_page_id
+             WHERE p.workspace_id = ?1 AND p.deleted_at IS NULL",
+        )?;
+        let pages: Vec<(String, String)> = stmt
+            .query_map([workspace_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<_, _>>()?;
+        for (id, title) in pages {
+            let body = super::content::body_markdown(conn, &id)?;
+            let kept: Vec<&str> = body.lines().filter(|l| !reads_protocol(l)).collect();
+            if kept.len() == body.lines().count() {
+                continue;
+            }
+            let hash = super::content::content_hash(conn, &id)?;
+            out.push(finding(
+                "protocol",
+                "info",
+                format!("“{title}” asks the agent to read “Agent protocol” separately"),
+                "whoami already includes the protocol, so reading it again spends a call and its tokens every session. The fix removes that line.".into(),
+                Some(id.clone()),
+                Some(Op::UpdateContent {
+                    page_id: id,
+                    markdown: kept.join("\n"),
+                    append: false,
+                    base_hash: Some(hash),
+                }),
+            ));
         }
     }
 

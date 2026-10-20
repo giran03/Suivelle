@@ -1399,11 +1399,11 @@ fn session_start_output_stays_within_its_size_budget() {
         "tools/list {tools_list} chars, whoami+pack {who} chars, memory_recall {recall} chars"
     );
     assert!(
-        tools_list < 22_000,
+        tools_list < 12_500,
         "tools/list grew to {tools_list} characters"
     );
     // whoami with a 2,000-token pack, plus the instructions around it.
-    assert!(who < 2_000 * 4 + 1_500, "whoami grew to {who} characters");
+    assert!(who < 2_000 * 4 + 700, "whoami grew to {who} characters");
     // Ten memories with bodies capped at 1,200 characters each.
     assert!(
         recall < 10 * 1_400,
@@ -1546,6 +1546,73 @@ fn vault_health_offers_the_current_protocol_for_an_outdated_page() {
     // Hourly upkeep never touches it.
     janitor::upkeep(&mut conn, &ws).unwrap();
     assert!(body(&conn, &p.id).contains("Always ask first."));
+}
+
+#[test]
+fn whoami_resends_the_protocol_only_when_it_changed() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let p = page(&mut conn, &ws, "Agent protocol", "Read first.");
+    let first = call(&mut conn, &a, "whoami", json!({})).unwrap().text;
+    assert!(first.contains("Read first."), "{first}");
+    let hash = first
+        .split("hash ")
+        .nth(1)
+        .and_then(|s| s.split(';').next())
+        .unwrap()
+        .to_string();
+    let again = call(&mut conn, &a, "whoami", json!({"protocol_hash": hash}))
+        .unwrap()
+        .text;
+    assert!(
+        !again.contains("Read first.") && again.contains("unchanged"),
+        "{again}"
+    );
+    // A changed protocol comes in full, whatever hash the agent holds.
+    let tx = conn.transaction().unwrap();
+    content::write_markdown(&tx, &p, "Read second.", WriteMode::Replace).unwrap();
+    tx.commit().unwrap();
+    let changed = call(&mut conn, &a, "whoami", json!({"protocol_hash": hash}))
+        .unwrap()
+        .text;
+    assert!(changed.contains("Read second."), "{changed}");
+}
+
+#[test]
+fn vault_health_removes_instructions_that_reread_the_protocol() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Recorder", &ws, "write");
+    let id = a.instructions_page_id.clone().unwrap();
+    let p = repo::page::get(&conn, &id).unwrap().unwrap();
+    let tx = conn.transaction().unwrap();
+    content::write_markdown(
+        &tx,
+        &p,
+        "# How to work\n\n- Record lasting facts.\n- Read the Suivelle page \"Agent protocol\" with page_read and follow it.",
+        WriteMode::Replace,
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    let check = |conn: &Connection| janitor::report(conn, &ws, &["protocol".into()], 50).unwrap();
+    let found = check(&conn);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].page_id.as_deref(), Some(id.as_str()));
+    ops::apply_as(
+        &mut conn,
+        &ops::Actor::user(vec![ws.clone()]),
+        "fix",
+        None,
+        &[found[0].fix.clone().unwrap()],
+    )
+    .unwrap();
+    let text = body(&conn, &id);
+    assert!(
+        text.contains("Record lasting facts.") && !text.contains("page"),
+        "{text}"
+    );
+    assert!(check(&conn).is_empty());
 }
 
 #[test]
@@ -1940,6 +2007,9 @@ fn mcp_sessions_over_loopback() {
                 api_enabled: true,
                 default_mode: "propose".into(),
                 mirror_edits: "propose".into(),
+                jev_enabled: false,
+                jev_key_hint: None,
+                jev_api_key: None,
             },
         )
     })
@@ -2101,4 +2171,431 @@ fn mcp_sessions_over_loopback() {
         0,
         "connection closed: {line}"
     );
+}
+
+#[test]
+fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Work");
+    let a = agent(&mut conn, "Claude", &ws, "write");
+
+    // 1. Saving a Jev API key stores its 4-character hint and enables the filter; clearing removes it.
+    let saved = save_settings(
+        &conn,
+        &AgentSettings {
+            api_enabled: true,
+            default_mode: "propose".into(),
+            mirror_edits: "propose".into(),
+            jev_enabled: true,
+            jev_key_hint: None,
+            jev_api_key: Some("ts_live_secret_9a4f".into()),
+        },
+    )
+    .unwrap();
+    assert!(saved.jev_enabled);
+    assert_eq!(saved.jev_key_hint.as_deref(), Some("9a4f"));
+    assert!(jev::active(&conn).is_some());
+
+    // Spin up a local mock System One HTTP server that inspects the state and questions.
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let fail_mode = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let fail_flag = fail_mode.clone();
+
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let mut stream = stream;
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            let mut buf = vec![0u8; 65536];
+            let mut total = 0;
+            loop {
+                match stream.read(&mut buf[total..]) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        total += n;
+                        let s = String::from_utf8_lossy(&buf[..total]);
+                        if let Some(pos) = s.find("\r\n\r\n") {
+                            let headers = &s[..pos];
+                            let content_len = headers
+                                .lines()
+                                .find_map(|l| {
+                                    let (k, v) = l.split_once(':')?;
+                                    k.trim()
+                                        .eq_ignore_ascii_case("content-length")
+                                        .then(|| v.trim().parse::<usize>().ok())
+                                        .flatten()
+                                })
+                                .unwrap_or(0);
+                            if total >= pos + 4 + content_len {
+                                break;
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+            if fail_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                let _ = stream.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                continue;
+            }
+            let req_text = String::from_utf8_lossy(&buf[..total]);
+            let body_str = req_text.split_once("\r\n\r\n").map(|x| x.1).unwrap_or("{}");
+            let req_json: Value = serde_json::from_str(body_str).unwrap_or_else(|_| json!({}));
+            let state = req_json["state"].as_str().unwrap_or_default();
+            let questions = req_json["questions"].as_object().cloned().unwrap_or_default();
+
+            let mut answers = Map::new();
+            for (qid, q) in questions {
+                let qtype = q["type"].as_str().unwrap_or_default();
+                let instr = q["instructions"].as_str().unwrap_or_default();
+                if qtype == "noul" {
+                    // High relevance for Credential Manager, medium for Release schedule, low for Lunch menu.
+                    let noul = if instr.contains("Credentials live in Windows Credential Manager")
+                        || instr.contains("Auth architecture")
+                    {
+                        0.92
+                    } else if instr.contains("Releases ship on Tuesdays") {
+                        0.55
+                    } else if instr.contains("Office lunch menu") || instr.contains("Social events") {
+                        0.10
+                    } else {
+                        0.50
+                    };
+                    answers.insert(qid, json!({ "type": "noul", "noul": noul }));
+                } else if qtype == "choice" {
+                    if instr.starts_with("Compare [m")
+                        && instr.contains("Keep tokens in plain text files")
+                        && instr.contains("Credentials live in Windows Credential Manager")
+                    {
+                        answers.insert(
+                            qid,
+                            json!({
+                                "type": "choice",
+                                "choice": "contradicts",
+                                "probabilities": { "same_claim": 0.05, "contradicts": 0.90, "distinct": 0.05 },
+                                "confidence": 0.89
+                            }),
+                        );
+                    } else if state.contains("Store tokens in Windows Credential Manager")
+                        && instr.contains("Credentials live in Windows Credential Manager")
+                    {
+                        answers.insert(
+                            qid,
+                            json!({
+                                "type": "choice",
+                                "choice": "exact_duplicate",
+                                "probabilities": { "exact_duplicate": 0.95, "updates_or_contradicts": 0.03, "distinct": 0.02 },
+                                "confidence": 0.94
+                            }),
+                        );
+                    } else if state.contains("Keep tokens in plain text files")
+                        && instr.contains("Credentials live in Windows Credential Manager")
+                    {
+                        answers.insert(
+                            qid,
+                            json!({
+                                "type": "choice",
+                                "choice": "updates_or_contradicts",
+                                "probabilities": { "exact_duplicate": 0.02, "updates_or_contradicts": 0.88, "distinct": 0.10 },
+                                "confidence": 0.86
+                            }),
+                        );
+                    } else {
+                        answers.insert(
+                            qid,
+                            json!({
+                                "type": "choice",
+                                "choice": "distinct",
+                                "probabilities": { "exact_duplicate": 0.05, "updates_or_contradicts": 0.05, "same_claim": 0.05, "contradicts": 0.05, "distinct": 0.90 },
+                                "confidence": 0.90
+                            }),
+                        );
+                    }
+                }
+            }
+            let reply = json!({ "model": "jev-1.13.0", "answers": answers }).to_string();
+            let http = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                reply.len(),
+                reply
+            );
+            let _ = stream.write_all(http.as_bytes());
+        }
+    });
+
+    jev::set_test_endpoint(&conn, &format!("http://127.0.0.1:{port}/v1/systemone"));
+
+    // Seed three memories in scope "suivelle" with distinct words.
+    let m1 = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Credentials live in Windows Credential Manager",
+            "body": "Agent tokens and API keys are stored via advapi32 CredWriteW so secrets never sit in plain config files.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+    assert!(m1.text.starts_with("Saved memory "));
+    call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Releases ship on Tuesdays",
+            "body": "Bump Cargo.toml and package.json together before tagging.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+    call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Office lunch menu",
+            "body": "Friday is ramen day.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+
+    // 2. Semantic duplicate gate: zero-overlap paraphrase is caught (>= 0.90) and skipped without writing.
+    let dup = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Store tokens in Windows Credential Manager",
+            "body": "Keep secrets in the OS vault instead of config files.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+    assert!(
+        dup.text.contains("Already recorded as memory"),
+        "expected semantic duplicate to be skipped: {}",
+        dup.text
+    );
+
+    // 3. Zero-keyword rescue + pruning in memory_recall: querying "oauth secret storage" shares zero
+    // words with "Credentials live in Windows Credential Manager", yet Jev rescues it and drops "Office lunch menu".
+    let recalled = call(
+        &mut conn,
+        &a,
+        "memory_recall",
+        json!({ "query": "oauth secret storage", "scope": "suivelle" }),
+    )
+    .unwrap();
+    assert!(
+        recalled
+            .text
+            .contains("Credentials live in Windows Credential Manager"),
+        "{}",
+        recalled.text
+    );
+    assert!(
+        !recalled.text.contains("Office lunch menu"),
+        "irrelevant memory should be pruned: {}",
+        recalled.text
+    );
+
+    // 4. Context pack adaptive body tiering & link filtering:
+    let _hub_page = page(
+        &mut conn,
+        &ws,
+        "suivelle project",
+        "See [[Auth architecture]] and [[Social events]].",
+    );
+    page(&mut conn, &ws, "Auth architecture", "Token verification flow.");
+    page(&mut conn, &ws, "Social events", "Team picnics.");
+
+    let packed = call(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({ "project": "suivelle", "query": "oauth secret storage" }),
+    )
+    .unwrap();
+    // High-relevance memory (0.92) keeps its body; medium-relevance memory (0.55) is compressed to title-only;
+    // low-relevance memory (0.10) and low-relevance connected page ("Social events") are pruned.
+    assert!(
+        packed.text.contains("Credentials live in Windows Credential Manager")
+            && packed.text.contains("advapi32 CredWriteW"),
+        "high-relevance memory keeps body: {}",
+        packed.text
+    );
+    assert!(
+        packed.text.contains("Releases ship on Tuesdays")
+            && !packed.text.contains("Bump Cargo.toml"),
+        "medium-relevance memory is compressed to title-only in context_pack: {}",
+        packed.text
+    );
+    assert!(
+        !packed.text.contains("Office lunch menu")
+            && !packed.text.contains("**Social events**"),
+        "low-relevance memory and connected page are pruned: {}",
+        packed.text
+    );
+
+    // 5. Contradiction gate on memory_write + janitor_report semantic conflict detection:
+    let conflict = call(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Keep tokens in plain text files",
+            "body": "Write tokens straight into JSON configs.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+    assert!(
+        conflict.text.contains("Conflict with active memory in this scope"),
+        "expected contradiction warning: {}",
+        conflict.text
+    );
+
+    let findings = janitor::report(&conn, &ws, &["memory_duplicates".into()], 20).unwrap();
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.title.contains("contradict each other")),
+        "janitor should surface semantic contradiction: {findings:?}"
+    );
+
+    // 6. Fail-open when Jev returns HTTP 500: operations succeed using local BM25 fallback.
+    fail_mode.store(true, std::sync::atomic::Ordering::SeqCst);
+    let fallback = call(
+        &mut conn,
+        &a,
+        "memory_recall",
+        json!({ "query": "Windows Credential Manager", "scope": "suivelle" }),
+    )
+    .unwrap();
+    assert!(
+        fallback
+            .text
+            .contains("Credentials live in Windows Credential Manager"),
+        "local BM25 fallback must still work when Jev errors: {}",
+        fallback.text
+    );
+
+    // 7. Token usage & Jev analytics report:
+    fail_mode.store(false, std::sync::atomic::Ordering::SeqCst);
+    let invoke_audited = |conn: &mut Connection, a: &Agent, tool: &str, args: Value| {
+        analytics::begin_call();
+        let input_str = serde_json::to_string(&args).unwrap();
+        let res = call(conn, a, tool, args);
+        let out_str = match &res {
+            Ok(o) => o.text.clone(),
+            Err(e) => e.to_string(),
+        };
+        let m = analytics::finish_call(&input_str, &out_str);
+        audit_with_metrics(conn, &a.id, tool, res.is_ok(), 24, m);
+        res
+    };
+
+    // Call context_pack (triggers Jev rank_memories + filter_connected_pages + body tiering)
+    invoke_audited(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({ "project": "suivelle", "query": "oauth secret storage" }),
+    )
+    .unwrap();
+    // Call context_pack again with identical query (hits Jev 5-minute cache)
+    invoke_audited(
+        &mut conn,
+        &a,
+        "context_pack",
+        json!({ "project": "suivelle", "query": "oauth secret storage" }),
+    )
+    .unwrap();
+    // Call memory_write with a semantic duplicate (triggers Jev ExactDuplicate skip)
+    invoke_audited(
+        &mut conn,
+        &a,
+        "memory_write",
+        json!({
+            "title": "Store secrets in Win32 CredWrite",
+            "body": "Tokens are kept in Windows Credential Manager.",
+            "scope": "suivelle"
+        }),
+    )
+    .unwrap();
+
+    let rep = analytics::report(&conn, Some("7d"), None).unwrap();
+    assert_eq!(rep.totals.calls, 3);
+    assert!(rep.totals.input_tokens > 0);
+    assert!(rep.totals.output_tokens > 0);
+    assert!(
+        rep.totals.saved_tokens > 0,
+        "expected saved_tokens > 0 from Jev pruning/tiering/dedup, got {:?}",
+        rep.totals
+    );
+    assert!(
+        rep.totals.jev_calls > 0 || rep.totals.jev_cache_hits > 0,
+        "expected Jev calls or cache hits in totals: {:?}",
+        rep.totals
+    );
+    assert!(
+        rep.totals.jev_pruned > 0,
+        "expected jev_pruned > 0: {:?}",
+        rep.totals
+    );
+    let agent_row = rep
+        .agents
+        .iter()
+        .find(|r| r.agent_id == a.id)
+        .expect("agent row in usage report");
+    assert_eq!(agent_row.calls, 3);
+    assert_eq!(agent_row.total_tokens, rep.totals.total_tokens);
+    assert!(agent_row.top_tools.contains(&"context_pack".to_string()));
+    assert!(rep.tools.iter().any(|t| t.tool == "context_pack" && t.calls == 2));
+
+    analytics::clear(&conn, Some(&a.id)).unwrap();
+    let cleared = analytics::report(&conn, Some("all"), None).unwrap();
+    assert_eq!(cleared.totals.calls, 0);
+
+    // 8. Live Jev health check verifies healthy endpoint, HTTP error, and unreachable fallback message.
+    let healthy = jev::health_check(&conn, None).unwrap();
+    assert!(healthy.ok, "expected healthy Jev check: {:?}", healthy);
+    assert_eq!(healthy.status, Some(200));
+    assert!(healthy.message.contains("Healthy"));
+
+    fail_mode.store(true, std::sync::atomic::Ordering::SeqCst);
+    let server_err = jev::health_check(&conn, None).unwrap();
+    assert!(!server_err.ok);
+    assert_eq!(server_err.status, Some(500));
+
+    jev::set_test_endpoint(&conn, "http://127.0.0.1:9/v1/systemone");
+    let offline = jev::health_check(&conn, Some("ts_test_candidate_key")).unwrap();
+    assert!(!offline.ok);
+    assert!(offline.message.contains("Could not reach TypeSafe AI"));
+}
+
+
+#[test]
+fn hourly_usage_groups_recent_calls_and_respects_agent_filter() {
+    let mut conn = open_in_memory().unwrap();
+    let ws = workspace(&mut conn, "Hourly usage");
+    let a = agent(&mut conn, "First", &ws, "write");
+    let other = agent(&mut conn, "Other", &ws, "write");
+    let metrics = analytics::CallMetrics { input_tokens: 13044, output_tokens: 2202, ..Default::default() };
+    audit_with_metrics(&conn, &a.id, "old", true, 1, metrics);
+    conn.execute("UPDATE agent_audit SET created_at = ?1 WHERE tool = 'old'", [(chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)]).unwrap();
+    audit_with_metrics(&conn, &a.id, "recent", true, 1, metrics);
+    audit_with_metrics(&conn, &other.id, "recent", true, 1, metrics);
+    let report = analytics::report(&conn, Some("7d"), Some(&a.id)).unwrap();
+    assert_eq!(report.totals.calls, 2);
+    assert_eq!(report.hourly_series.len(), 24);
+    assert_eq!(report.hourly_series.iter().map(|b| b.calls).sum::<i64>(), 1);
+    assert_eq!(report.hourly_series.iter().map(|b| b.input_tokens).sum::<i64>(), 13044);
+    assert_eq!(report.hourly_series.iter().map(|b| b.output_tokens).sum::<i64>(), 2202);
+    assert_eq!(report.hourly_series.iter().filter(|b| b.calls == 0).count(), 23);
 }

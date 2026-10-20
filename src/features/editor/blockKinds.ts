@@ -271,6 +271,114 @@ function convertToListItem(node: PMNode, listType: NodeType, itemType: NodeType,
   return itemType.create(attrs, [paragraph, ...extra]);
 }
 
+/** Read all nested text in order, retaining inline marks and explicit empty lines. */
+function mergeInlineContent(nodes: PMNode[], schema: Schema, keepLineBreaks: boolean): Fragment {
+  const lines: Fragment[] = [];
+  const textLine = (text: string) => Fragment.fromArray(text.split(/\r?\n/).flatMap((line, i) => [
+    ...(i ? [keepLineBreaks ? schema.nodes.hardBreak.create() : schema.text(" ")] : []),
+    ...(line ? [schema.text(line)] : []),
+  ]));
+  const visit = (node: PMNode) => {
+    if (node.isTextblock) {
+      let content = node.type.name === "codeBlock" ? textLine(node.textContent) : node.content;
+      if (!keepLineBreaks) {
+        const inline: PMNode[] = [];
+        content.forEach(child => inline.push(child.type.name === "hardBreak" ? schema.text(" ") : child));
+        content = Fragment.fromArray(inline);
+      }
+      lines.push(content);
+    } else if (node.isLeaf) {
+      if (node.attrs.pageId && schema.nodes.pageMention) {
+        lines.push(Fragment.from(schema.nodes.pageMention.create({ pageId: node.attrs.pageId })));
+        return;
+      }
+      const values = [node.attrs.name, node.attrs.url, node.attrs.latex, node.attrs.presentation?.caption, node.attrs.presentation?.note]
+        .filter((value): value is string => typeof value === "string" && value.length > 0);
+      // Text-only targets use readable representations; structural targets retain the nodes.
+      lines.push(textLine(values.length ? values.join("\n") : `[${node.type.name}]`));
+    } else if (node.type.name === "details") {
+      if (node.firstChild) visit(node.firstChild);
+      nonEmptyDetailsBody(node).forEach(visit);
+    } else {
+      node.forEach(visit);
+    }
+  };
+  nodes.forEach(visit);
+  const content: PMNode[] = [];
+  lines.forEach((line, i) => {
+    if (i) content.push(keepLineBreaks ? schema.nodes.hardBreak.create() : schema.text(" "));
+    line.forEach(node => content.push(node));
+  });
+  return Fragment.fromArray(content);
+}
+
+/** Combines any whole-block range into one target, without touching unselected list rows. */
+export function mergeSelectedBlocksInto(editor: Editor, kindId: string, keepLineBreaks = true): boolean {
+  const { selection, doc, schema } = editor.state;
+  if (!editor.isEditable || !(selection instanceof BlockRangeSelection) || !TURN_INTO.some(k => k.id === kindId)) return false;
+  if (blockRange(doc, selection.from, selection.to).length < 2) return false;
+  const part = partitionSelectedBlocks(doc, selection.from, selection.to);
+  if (!part) return false;
+  const source = part.entries.map(e => e.node);
+  const first = source[0];
+  const blockId = first.attrs.blockId ?? null;
+  let merged: PMNode;
+  if (kindId === "tabs") {
+    merged = schema.nodes.tabs.create(null, [
+      schema.nodes.tabPanel.create({ label: "Tab 1" }, blocksAsContainerNodes(part.entries, schema)),
+      schema.nodes.tabPanel.create({ label: "Tab 2" }, [schema.nodes.paragraph.create()]),
+    ]);
+  } else if (["bullet_list", "numbered_list", "todo"].includes(kindId)) {
+    const listType = schema.nodes[kindId === "todo" ? "taskList" : kindId === "numbered_list" ? "orderedList" : "bulletList"];
+    const itemType = schema.nodes[kindId === "todo" ? "taskItem" : "listItem"];
+    merged = listType.create(null, source.map(node => {
+      if (node.type.name === "codeBlock") return itemType.create({ blockId: node.attrs.blockId }, [
+        schema.nodes.paragraph.create(null, mergeInlineContent([node], schema, keepLineBreaks)),
+      ]);
+      if (canTurnInto(node)) return convertToListItem(node, listType, itemType, schema);
+      return itemType.create(null, [schema.nodes.paragraph.create(), node]);
+    }));
+  } else if (kindId === "toggle" || kindId.startsWith("toggle_heading_")) {
+    const firstInline = first.isTextblock ? mergeInlineContent([first], schema, keepLineBreaks) : inlineContentOf(first, schema);
+    const summary = schema.nodes.detailsSummary.create({ level: kindId === "toggle" ? 0 : Number(kindId.slice(-1)) }, firstInline);
+    const body: PMNode[] = [];
+    if (first.type.name === "details") body.push(...nonEmptyDetailsBody(first));
+    else if (LIST_ITEMS.has(first.type.name)) first.forEach((child, _offset, index) => { if (index) body.push(child); });
+    else if (!first.isTextblock) body.push(...blocksAsContainerNodes([part.entries[0]], schema));
+    body.push(...blocksAsContainerNodes(part.entries.slice(1), schema));
+    merged = schema.nodes.details.create({ blockId, open: true }, [summary,
+      schema.nodes.detailsContent.create(null, body.length ? body : [schema.nodes.paragraph.create()]),
+    ]);
+  } else {
+    const content = mergeInlineContent(source, schema, keepLineBreaks);
+    if (kindId === "code") {
+      const language = source.find(n => n.type.name === "codeBlock")?.attrs.language ?? null;
+      let text = "";
+      content.forEach(node => {
+        const file = node.marks.find(mark => mark.type.name === "smartReference" && mark.attrs.kind === "file");
+        text += file?.attrs.value ?? node.text ?? (node.type.name === "hardBreak" ? "\n" : node.type.name === "pageMention" ? `suivelle://page/${node.attrs.pageId}` : node.type.spec.leafText?.(node) ?? "");
+      });
+      merged = schema.nodes.codeBlock.create({ blockId, language }, text ? schema.text(text) : undefined);
+    } else {
+      const type = kindId.startsWith("heading_") ? schema.nodes.heading : schema.nodes[kindId];
+      const attrs = { blockId, ...(kindId.startsWith("heading_") ? { level: Number(kindId.slice(-1)) } : {}),
+        ...(kindId === "callout" ? { tone: source.find(n => n.type.name === "callout")?.attrs.tone ?? "note" } : {}),
+      };
+      merged = type.create(attrs, content);
+    }
+  }
+  const finalNodes = [...part.prefixNodes, merged, ...part.suffixNodes];
+  const $from = doc.resolve(part.replaceFrom), $to = doc.resolve(part.replaceTo);
+  if (!$from.sameParent($to) || !$from.parent.canReplace($from.index(), $to.index(), Fragment.fromArray(finalNodes))) return false;
+  const from = part.replaceFrom + part.prefixNodes.reduce((size, node) => size + node.nodeSize, 0);
+  const tr = closeHistory(editor.state.tr).replaceWith(part.replaceFrom, part.replaceTo, finalNodes);
+  tr.setSelection(BlockRangeSelection.create(tr.doc, from, from + merged.nodeSize));
+  editor.view.dispatch(tr.scrollIntoView());
+  // Keep subsequent typing in its own undo step as well.
+  editor.view.dispatch(closeHistory(editor.state.tr));
+  return true;
+}
+
 /** Converts all blocks in the active `BlockRangeSelection` to `kindId` in a single undoable step. */
 export function turnSelectedBlocksInto(editor: Editor, kindId: string): boolean {
   const { selection, doc, schema } = editor.state;

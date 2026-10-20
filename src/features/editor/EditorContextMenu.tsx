@@ -8,7 +8,8 @@ import { editorDom } from "./editorDom";
 import { MEDIA_KINDS } from "./extensions/media";
 import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
-import { copyPlainText, pastePlainText } from "./plainText";
+import { selectedPlainText, pastePlainText } from "./plainText";
+import { referenceText } from "./smartPaste";
 import { imageItems } from "./imageActions";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
 import { selectedBlockItems } from "./blockSelectionActions";
@@ -59,7 +60,8 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
       const cut = items.find((item) => item.label === "Cut");
       if (cut) { cut.disabled = !selectedText; cut.onSelect = () => { restore(); if (!document.execCommand("cut")) useWorkspace.getState().setError("Could not cut to the clipboard. Use Ctrl+X (or Command+X)."); }; }
       const copyAt = items.findIndex((item) => item.label === "Copy");
-      if (copyAt >= 0) items.splice(copyAt + 1, 0, { label: "Copy as plain text", shortcut: "copy-plain", disabled: !selectedText, onSelect: () => { restore(); copyPlainText(editor); } });
+      const plainText = selectedPlainText(editor) || (block ? referenceText([block.node.toJSON()]) : "");
+      if (copyAt >= 0) items.splice(copyAt + 1, 0, { label: "Copy text", shortcut: "copy-plain", disabled: !plainText, onSelect: () => void copyText(plainText) });
       const pasteAt = items.findIndex((item) => item.label === "Paste text");
       if (pasteAt >= 0) items.splice(pasteAt + 1, 0, { label: "Paste as plain text", shortcut: "paste-plain", onSelect: () => { restore(); pastePlainText(editor); } });
       if (editor.isEditable) {
@@ -96,10 +98,10 @@ export function EditorContextMenu({ editor }: { editor: Editor }) {
         items.push({ label: "Save a copy…", separated: block.node.type.name === "file", onSelect: () => void ipc.attachmentSaveAs(block.node.attrs.attachmentId as string).catch((error) => useWorkspace.getState().setError(toAppError(error).message)) });
       }
       if (block && editor.isEditable) {
-        const actions = blockItems(editor, block); actions[0].separated = true;
+        const actions = blockItems(editor, block).filter(action => !items.some(item => item.label === action.label)); actions[0].separated = true;
         items.push(...actions);
       }
-      items.push(...imageActions);
+      items.push(...imageActions.filter(action => !items.some(item => item.label === action.label)));
       setMenu({ x: event.clientX, y: event.clientY, items });
     };
     // TipTap throws when the view is read before it mounts; attach once it exists.

@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { READ_ONLY } from "../../lib/access";
 import { useWorkspace } from "../../stores/workspace";
+import { AgentUsageView, formatAgentUsageLine } from "./AgentUsageView";
 import { ConnectApps } from "./ConnectApps";
+import { ReaWorkflowSettings } from "./ReaWorkflowSettings";
 import { Copy, ModePicker, ToolChecks, WorkspaceChecks } from "./parts";
 import { useAgents } from "./store";
 import { SubagentImport } from "./SubagentImport";
-import { MODE_LABELS, TOOL_GROUP_LABELS, type Agent, type AgentClient, type AgentInput, type AgentMode, type AgentsOverview, type ClientScan, type MirrorConfig } from "./types";
+import { MODE_LABELS, TOOL_GROUP_LABELS, type Agent, type AgentClient, type AgentInput, type AgentMode, type AgentUsage, type AgentsOverview, type ClientScan, type MirrorConfig, type UsageReport } from "./types";
 import "./agents.css";
 
 function ago(iso: string | null): string {
@@ -68,7 +70,7 @@ function connectCommand(bridge: string | null, token: string) {
   return `claude mcp add suivelle --scope user --env SUIVELLE_AGENT_TOKEN=${token} -- "${bridge ?? "suivelle-mcp"}"`;
 }
 
-function AgentCard({ agent, overview, client, onChanged }: { agent: Agent; overview: AgentsOverview; client: AgentClient | undefined; onChanged: () => void }) {
+function AgentCard({ agent, overview, client, usage, onChanged }: { agent: Agent; overview: AgentsOverview; client: AgentClient | undefined; usage: AgentUsage | undefined; onChanged: () => void }) {
   const workspaces = useWorkspace((s) => s.workspaces);
   const [editing, setEditing] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -81,6 +83,7 @@ function AgentCard({ agent, overview, client, onChanged }: { agent: Agent; overv
   };
   if (editing) return <li><AgentForm initial={agent} defaultMode={overview.settings.defaultMode} onSaved={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} /></li>;
   const names = agent.workspaceIds.map((id) => workspaces.find((w) => w.id === id)?.name).filter(Boolean);
+  const usageLine = formatAgentUsageLine(usage);
   const exportSubagent = (force: boolean) => run(async () => {
     const r = await ipc.agentExportSubagent(agent.id, force);
     if (!r) return;
@@ -99,6 +102,7 @@ function AgentCard({ agent, overview, client, onChanged }: { agent: Agent; overv
       {agent.role && <p className="agx-meta">{agent.role}</p>}
       {client && <p className="agx-meta">Connected through {client.name} · its token is managed in Connect apps above</p>}
       <p className="agx-meta">{names.length ? names.join(", ") : "No workspaces"} · {agent.tools.map((t) => TOOL_GROUP_LABELS[t]).join(", ") || "No tools"}{agent.tokenHint ? ` · token …${agent.tokenHint}` : " · no token"}</p>
+      {usageLine && <p className="agx-meta agx-usage-line">{usageLine}</p>}
       {token && (
         <div className="agx-token" role="status">
           <strong>Copy this token now. It is shown only once.</strong>
@@ -196,10 +200,98 @@ function AgentsMdExport() {
   );
 }
 
+function JevRow({ settings: s, onSave }: { settings: AgentsOverview["settings"]; onSave: (next: AgentsOverview["settings"]) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(null);
+  const hasKey = Boolean(s.jevKeyHint);
+  const showInput = !hasKey || editing;
+  const submitKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setHealth(null);
+    try {
+      await onSave({ ...s, jevEnabled: true, jevApiKey: trimmed });
+      setKey("");
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const checkHealth = async () => {
+    setChecking(true);
+    setHealth(null);
+    try {
+      const candidate = showInput && key.trim() ? key.trim() : null;
+      const res = await ipc.agentsJevHealth(candidate);
+      setHealth({ ok: res.ok, message: res.message });
+    } catch (e) {
+      setHealth({ ok: false, message: toAppError(e).message });
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <div className="set-row">
+      <div className="set-text">
+        <div className="set-title">Jev memory filter (optional)</div>
+        <div className="set-hint">
+          Uses TypeSafe AI’s Jev decision model (api.typesafe.ai) to rank memories by meaning, leave irrelevant ones out of context packs so agents spend fewer tokens, and catch duplicate or conflicting memories. When off or unreachable, Suivelle uses local search.
+          {hasKey && ` (${s.jevEnabled ? "On" : "Off"} · key …${s.jevKeyHint})`}
+        </div>
+        {!READ_ONLY && showInput && (
+          <form className="agx-key-row" onSubmit={(e) => void submitKey(e)}>
+            <input
+              type="password"
+              className="agx-key-input"
+              aria-label="Jev API key"
+              placeholder="TypeSafe AI key (ts_…)"
+              autoComplete="off"
+              maxLength={256}
+              value={key}
+              onChange={(e) => { setKey(e.target.value); if (health) setHealth(null); }}
+            />
+            <button type="submit" className="btn primary" disabled={busy || checking || !key.trim()}>{busy ? "Saving…" : "Save key"}</button>
+            {!hasKey && (
+              <button type="button" className="btn" disabled={busy || checking || !key.trim()} onClick={() => void checkHealth()}>
+                {checking ? "Checking…" : "Health check"}
+              </button>
+            )}
+            {hasKey && <button type="button" className="btn ghost" onClick={() => { setEditing(false); setKey(""); setHealth(null); }}>Cancel</button>}
+          </form>
+        )}
+        {health && (
+          health.ok
+            ? <p className="picker-muted" role="status">{health.message}</p>
+            : <p className="field-error" role="alert">{health.message}</p>
+        )}
+      </div>
+      {!READ_ONLY && hasKey && (
+        <div className="set-control agx-actions agx-jev-actions">
+          <button type="button" className="btn" disabled={busy || checking} onClick={() => void checkHealth()}>
+            {checking ? "Checking…" : "Health check"}
+          </button>
+          {!editing && <button type="button" className="btn" onClick={() => { setEditing(true); setHealth(null); }}>Replace key…</button>}
+          <button type="button" className="btn ghost" onClick={() => { setEditing(false); setKey(""); setHealth(null); void onSave({ ...s, jevEnabled: false, jevApiKey: "" }); }}>Remove key</button>
+          <label className="switch">
+            <input type="checkbox" checked={Boolean(s.jevEnabled)} aria-label="Use Jev memory filter" onChange={(e) => void onSave({ ...s, jevEnabled: e.target.checked })} />
+            <span className="switch-track" aria-hidden="true" />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Settings > Agents: the agent API switch, agents and their tokens, the mirror and exports. */
 export function AgentsSettings({ active }: { active: boolean }) {
   const [overview, setOverview] = useState<AgentsOverview | null>(null);
   const [clients, setClients] = useState<ClientScan | null>(null);
+  const [usage, setUsage] = useState<UsageReport | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -214,6 +306,11 @@ export function AgentsSettings({ active }: { active: boolean }) {
     try { setClients(await ipc.clientsScan()); } catch (e) { setError(toAppError(e).message); }
   }, []);
   useEffect(() => { if (active) { void load(); void scan(); } }, [active, load, scan]);
+  const usageByAgent = useMemo(() => {
+    const map: Record<string, AgentUsage> = {};
+    for (const a of usage?.agents ?? []) map[a.agentId] = a;
+    return map;
+  }, [usage]);
   if (!overview) return error ? <p className="field-error" role="alert">{error}</p> : null;
   const s = overview.settings;
   const save = async (next: typeof s) => {
@@ -248,6 +345,8 @@ export function AgentsSettings({ active }: { active: boolean }) {
           </div>
         </div>
       </div>
+      <JevRow settings={s} onSave={save} />
+      <ReaWorkflowSettings jevAvailable={Boolean(s.jevEnabled && s.jevKeyHint)} />
       <div className="set-row">
         <div className="set-text">
           <div className="set-title">Review inbox</div>
@@ -257,12 +356,15 @@ export function AgentsSettings({ active }: { active: boolean }) {
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
 
+      <h4>Token usage</h4>
+      <AgentUsageView mode="compact" jevConfigured={Boolean(s.jevKeyHint && s.jevEnabled)} onChanged={setUsage} />
+
       <h4>Connect apps</h4>
-      <ConnectApps scan={clients} agents={overview.agents} settings={s} onScan={scan} onChanged={() => { void load(); void scan(); }} />
+      <ConnectApps scan={clients} agents={overview.agents} settings={s} usageByAgent={usageByAgent} onScan={scan} onChanged={() => { void load(); void scan(); }} />
 
       <h4>Agents</h4>
       <ul className="agx-cards">
-        {overview.agents.map((a) => <AgentCard key={a.id} agent={a} overview={overview} client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)} onChanged={() => { void load(); void scan(); }} />)}
+        {overview.agents.map((a) => <AgentCard key={a.id} agent={a} overview={overview} client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)} usage={usageByAgent[a.id]} onChanged={() => { void load(); void scan(); }} />)}
       </ul>
       {overview.agents.length === 0 && !adding && <p className="picker-muted">No agents yet.</p>}
       {adding

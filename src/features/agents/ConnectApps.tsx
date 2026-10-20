@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { READ_ONLY } from "../../lib/access";
 import { useWorkspace } from "../../stores/workspace";
+import { formatAgentUsageLine } from "./AgentUsageView";
+import { AgentSetupChecklist } from "./AgentSetupChecklist";
 import { Copy, ModePicker, ToolChecks, WorkspaceChecks } from "./parts";
-import { MODE_LABELS, type Agent, type AgentClient, type AgentMode, type AgentSettings, type ClientScan, type ClientState, type ConnectResult, type ToolGroup } from "./types";
+import { MODE_LABELS, type Agent, type AgentClient, type AgentMode, type AgentSettings, type AgentUsage, type ClientScan, type ClientState, type ConnectResult, type ToolGroup } from "./types";
 
 const STATE: Record<ClientState, { label: string; tone: "on" | "warn" | "off" }> = {
   not_connected: { label: "Not connected", tone: "off" },
@@ -199,10 +201,11 @@ function ConnectSheet({ clients, agents, linked, settings, onDone, onCancel }: {
 }
 
 /** Settings > Agents > Connect apps: finds agent apps on this computer and connects them in one step. */
-export function ConnectApps({ scan, agents, settings, onScan, onChanged }: {
+export function ConnectApps({ scan, agents, settings, usageByAgent, onScan, onChanged }: {
   scan: ClientScan | null;
   agents: Agent[];
   settings: AgentSettings;
+  usageByAgent?: Record<string, AgentUsage>;
   onScan: () => Promise<void>;
   onChanged: () => void;
 }) {
@@ -222,6 +225,23 @@ export function ConnectApps({ scan, agents, settings, onScan, onChanged }: {
         ? describe(await ipc.clientRepair(c.id))
         : await ipc.clientDisconnect(c.id).then((r) => ({ ok: true, text: [`Disconnected ${c.name}.`, ...r.notes].join(" ") }));
       setOutcomes((o) => ({ ...o, [c.id]: text }));
+    } catch (e) {
+      setOutcomes((o) => ({ ...o, [c.id]: { ok: false, text: toAppError(e).message } }));
+    } finally {
+      setBusy(null);
+      onChanged();
+    }
+  };
+  const setup = async (c: AgentClient, instructions: boolean, commands: boolean) => {
+    setBusy(c.id);
+    try {
+      const r = await ipc.clientSetupFiles(c.id, instructions, commands);
+      const incomplete = (instructions && Boolean(r.client.instructionsPath) && !r.client.instructionsAdded)
+        || (commands && r.client.commands.length > 0 && !r.client.commandsAdded);
+      setOutcomes((o) => ({ ...o, [c.id]: {
+        ok: !incomplete,
+        text: [incomplete ? "Setup is still incomplete." : "Setup files checked. Reload the agent app to pick up changes.", ...r.notes].join(" "),
+      } }));
     } catch (e) {
       setOutcomes((o) => ({ ...o, [c.id]: { ok: false, text: toAppError(e).message } }));
     } finally {
@@ -251,6 +271,7 @@ export function ConnectApps({ scan, agents, settings, onScan, onChanged }: {
         {scan.clients.map((c) => {
           const s = STATE[c.status];
           const linked = c.connectedAt !== null;
+          const usageLine = linked && c.agentId ? formatAgentUsageLine(usageByAgent?.[c.agentId]) : null;
           return (
             <li key={c.id} className="agx-card">
               <div className="agx-card-head">
@@ -264,7 +285,9 @@ export function ConnectApps({ scan, agents, settings, onScan, onChanged }: {
                 {c.method === "cli" && !linked ? " · uses its own command" : ""}
               </p>
               {linked && extrasLine(c) && <p className="agx-meta">{extrasLine(c)}</p>}
+              {usageLine && <p className="agx-meta agx-usage-line">{usageLine}</p>}
               {c.detail && <p className="agx-meta">{c.detail}</p>}
+              {linked && <AgentSetupChecklist client={c} busy={busy === c.id || scanning} writable={!READ_ONLY} apiEnabled={settings.apiEnabled} onSetup={(instructions, commands) => void setup(c, instructions, commands)} onCheck={() => void rescan()} />}
               {outcomes[c.id] && (
                 <div role="status" className={outcomes[c.id].ok ? "agx-note" : "field-error"}>
                   <p>{outcomes[c.id].text}</p>
@@ -274,10 +297,7 @@ export function ConnectApps({ scan, agents, settings, onScan, onChanged }: {
               {!READ_ONLY && scan.bundled && (
                 <div className="agx-actions">
                   {(c.status === "not_connected" || c.status === "foreign") && <button type="button" className="btn" onClick={() => setSheet([c.id])}>{c.status === "foreign" ? "Replace…" : "Connect…"}</button>}
-                  {linked && ["out_of_date", "edited", "removed"].includes(c.status) && <button type="button" className="btn" disabled={busy === c.id} onClick={() => void act(c, "repair")}>Repair</button>}
-                  {linked && c.extrasPending && !["out_of_date", "edited", "removed"].includes(c.status) && (
-                    <button type="button" className="btn" disabled={busy === c.id} title={`Adds the session-start lines and the /suivelle_… commands, and gives ${c.name} a fresh token (restart it afterwards)`} onClick={() => void act(c, "repair")}>Add commands</button>
-                  )}
+                  {linked && !c.connectionConfigured && ["out_of_date", "edited", "removed"].includes(c.status) && <button type="button" className="btn" disabled={busy === c.id} onClick={() => void act(c, "repair")}>Repair connection</button>}
                   {linked && <button type="button" className="btn ghost" disabled={busy === c.id} onClick={() => void act(c, "disconnect")}>Disconnect</button>}
                 </div>
               )}

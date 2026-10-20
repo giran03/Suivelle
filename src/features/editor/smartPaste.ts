@@ -78,6 +78,10 @@ export function convertSmartReference(editor: Editor, position: number): boolean
 export function referenceText(nodes: JSONContent[]): string {
   return nodes.map(node => {
     const mark = node.marks?.find(m => m.type === "smartReference" && m.attrs?.kind === "file");
+    if (node.type === "pageMention") return node.attrs?.pageId ? `suivelle://page/${node.attrs.pageId}` : "@page";
+    if (node.type === "equation") return node.attrs?.latex ?? "";
+    if (node.type === "embed") return node.attrs?.url ?? "";
+    if (node.type === "image") return node.attrs?.presentation?.caption ?? "";
     return mark?.attrs?.value ?? node.text ?? (node.type === "hardBreak" ? "\n" : referenceText(node.content ?? []));
   }).join(nodes.some(n => !["text", "hardBreak", "pageMention"].includes(n.type ?? "")) ? "\n" : "");
 }

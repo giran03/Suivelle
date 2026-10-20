@@ -49,6 +49,9 @@ export interface AgentSettings {
   apiEnabled: boolean;
   defaultMode: AgentMode;
   mirrorEdits: "propose" | "apply";
+  jevEnabled?: boolean;
+  jevKeyHint?: string | null;
+  jevApiKey?: string | null;
 }
 
 export interface AgentsOverview {
@@ -59,7 +62,111 @@ export interface AgentsOverview {
   pending: number;
 }
 
-export interface AuditEntry { agentId: string; tool: string; ok: boolean; durationMs: number; createdAt: string }
+export interface JevHealth {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  model: string;
+  message: string;
+}
+
+export type UsageRange = "24h" | "7d" | "30d" | "all";
+
+export interface AuditEntry {
+  agentId: string;
+  agentName?: string | null;
+  tool: string;
+  ok: boolean;
+  durationMs: number;
+  createdAt: string;
+  inputTokens: number;
+  outputTokens: number;
+  savedTokens: number;
+  jevCalls: number;
+  jevCacheHits: number;
+  jevErrors: number;
+  jevTokens: number;
+  jevQuestions: number;
+  jevMs: number;
+  jevPruned: number;
+}
+
+export interface UsageTotals {
+  calls: number;
+  errors: number;
+  avgDurationMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  savedTokens: number;
+  savingsPct: number;
+  jevCalls: number;
+  jevCacheHits: number;
+  jevErrors: number;
+  jevTokens: number;
+  jevQuestions: number;
+  jevAvgMs: number;
+  jevPruned: number;
+}
+
+export interface AgentUsage {
+  agentId: string;
+  agentName: string;
+  role: string;
+  model: string;
+  status: string;
+  lastSeenAt: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  calls: number;
+  errors: number;
+  avgDurationMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  savedTokens: number;
+  savingsPct: number;
+  jevCalls: number;
+  jevCacheHits: number;
+  jevTokens: number;
+  jevPruned: number;
+  topTools: string[];
+}
+
+export interface ToolUsage {
+  tool: string;
+  calls: number;
+  errors: number;
+  avgDurationMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  savedTokens: number;
+  jevCalls: number;
+  jevCacheHits: number;
+  jevTokens: number;
+  jevPruned: number;
+}
+
+export interface UsageBucket {
+  key: string;
+  label: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  savedTokens: number;
+  jevTokens: number;
+}
+
+export interface UsageReport {
+  range: UsageRange;
+  totals: UsageTotals;
+  agents: AgentUsage[];
+  tools: ToolUsage[];
+  series: UsageBucket[];
+  hourlySeries?: UsageBucket[];
+  recent: AuditEntry[];
+}
 
 /** One change inside a proposal, as the backend stores it. */
 export type Op = { op: string } & Record<string, unknown>;
@@ -171,6 +278,12 @@ export interface AgentClient {
   startLines: string;
   /** Connected before start lines and commands existed; Repair adds them. */
   extrasPending: boolean;
+  connectionConfigured: boolean;
+  instructionsRequested: boolean | null;
+  commandsRequested: boolean | null;
+  commandPaths: string[];
+  /** Latest retained successful whoami since this connection was configured. */
+  whoamiAt: string | null;
 }
 
 export interface ClientScan {
@@ -202,7 +315,16 @@ export interface ConnectResult {
 }
 
 export interface DisconnectResult { client: AgentClient; notes: string[] }
+export type SetupResult = Pick<ConnectResult, "client" | "backups" | "notes">;
 
 export interface Subagent { path: string; name: string; description: string; model: string; fromSuivelle: boolean; exists: boolean }
 export interface SubagentScan { folder: string; items: Subagent[] }
 export interface ImportedSubagent { path: string; name: string; agentId: string | null; error: string | null }
+export interface ReaWorkflowStatus {
+  bundledVersion: string;
+  installedVersion: string | null;
+  installed: boolean;
+  current: boolean;
+  path: string;
+  backups: string[];
+}

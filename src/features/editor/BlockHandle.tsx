@@ -13,6 +13,9 @@ import { editorDom } from "./editorDom";
 import { blockDragKey, blockDragPlugin, type BlockHit } from "./blockDrag";
 import { useCalendarComposer } from "../calendar/store";
 import { useWorkspace } from "../../stores/workspace";
+import { copyText } from "../../components/editingMenu";
+import { referenceText } from "./smartPaste";
+import { imageCopyItem } from "./imageActions";
 
 interface Hovered {
   node: PMNode;
@@ -39,7 +42,11 @@ export function blockItems(editor: Editor, at: Hovered): MenuItem[] {
     };
     // A block inside a column also offers removing the whole columns block.
     const columns = at.node.type.name === "columns" ? null : enclosingColumns(editor, at.pos);
+    const text = referenceText([at.node.toJSON()]);
+    const copyImage = imageCopyItem(editor, at.pos, at.node);
     return [
+      { label: "Copy text", shortcut: "copy-plain", disabled: !text, onSelect: () => void copyText(text) },
+      ...(copyImage ? [copyImage] : []),
       { label: "Schedule this block…", disabled: !editor.isEditable || !at.node.attrs.blockId || ["calendar","calendarEvent"].includes(at.node.type.name), onSelect: () => { const page=useWorkspace.getState().selectedPage; const pageId=editor.view.dom.dataset.contextPage??page?.id; if(pageId)useCalendarComposer.getState().show({link:{pageId,blockId:at.node.attrs.blockId,label:at.node.textContent.slice(0,200)||(page?.id===pageId?page.title:"Block")}}); } },
       ...(at.node.type.name === "taskItem" && at.node.attrs.blockId && !at.node.attrs.checked ? [{ label: "Queue for an agent", disabled: !editor.isEditable, onSelect: () => void queueForAgent(String(at.node.attrs.blockId)) }] : []),
       { label: "Duplicate", shortcut: "duplicate-block", onSelect: on(() => duplicateBlock(editor)) },

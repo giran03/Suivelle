@@ -103,6 +103,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "proposal_resume",
         include_str!("../../migrations/0020_proposal_resume.sql"),
     ),
+    (
+        21,
+        "agent_token_analytics",
+        include_str!("../../migrations/0021_agent_token_analytics.sql"),
+    ),
 ];
 
 /// The schema version a fully migrated database has.
@@ -297,6 +302,18 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
             20 => &[
                 ("proposal", "resume", "INTEGER NOT NULL DEFAULT 0"),
                 ("proposal", "waiting_until", "TEXT"),
+            ],
+            21 => &[
+                ("agent_audit", "input_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "output_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "saved_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_calls", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_cache_hits", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_errors", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_questions", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_ms", "INTEGER NOT NULL DEFAULT 0"),
+                ("agent_audit", "jev_pruned", "INTEGER NOT NULL DEFAULT 0"),
             ],
             _ => &[],
         };

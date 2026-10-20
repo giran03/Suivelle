@@ -303,12 +303,17 @@ export const ipc = {
   // Local AI agents (Settings > Agents, the Review inbox and Activity).
   agentsOverview: () => call<import("../features/agents/types").AgentsOverview>("agents_overview"),
   agentsSaveSettings: (settings: import("../features/agents/types").AgentSettings) => call<import("../features/agents/types").AgentSettings>("agents_save_settings", { settings }),
+  agentsJevHealth: (apiKey?: string | null) =>
+    call<import("../features/agents/types").JevHealth>("agents_jev_health", { apiKey: apiKey ?? null }),
   agentCreate: (input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_create", { input }),
   agentUpdate: (id: string, input: import("../features/agents/types").AgentInput) => call<import("../features/agents/types").Agent>("agent_update", { id, input }),
   agentDelete: (id: string) => call<void>("agent_delete", { id }),
   agentTokenRotate: (id: string) => call<string>("agent_token_rotate", { id }),
   agentTokenRevoke: (id: string) => call<void>("agent_token_revoke", { id }),
   agentAudit: (agentId: string | null) => call<import("../features/agents/types").AuditEntry[]>("agent_audit", { agentId }),
+  agentsUsage: (range?: import("../features/agents/types").UsageRange, agentId?: string | null) =>
+    call<import("../features/agents/types").UsageReport>("agents_usage", { range: range ?? null, agentId: agentId ?? null }),
+  agentsUsageClear: (agentId?: string | null) => call<void>("agents_usage_clear", { agentId: agentId ?? null }),
   proposalList: (status: "pending" | "applied" | "rejected" | "failed" | "all") => call<import("../features/agents/types").Proposal[]>("proposal_list", { status }),
   proposalDetail: (id: string) => call<import("../features/agents/types").Proposal>("proposal_detail", { id }),
   proposalApprove: (id: string, only: number[] | null, note: string | null) => call<string[]>("proposal_approve", { id, only, note }),
@@ -326,6 +331,9 @@ export const ipc = {
   clientsScan: () => call<import("../features/agents/types").ClientScan>("clients_scan"),
   clientConnect: (clientId: string, input: import("../features/agents/types").ConnectInput) => call<import("../features/agents/types").ConnectResult>("client_connect", { clientId, input }),
   clientRepair: (clientId: string) => call<import("../features/agents/types").ConnectResult>("client_repair", { clientId }),
+  clientSetupFiles: (clientId: string, instructions: boolean, commands: boolean) => call<import("../features/agents/types").SetupResult>("client_setup_files", { clientId, instructions, commands }),
+  reaWorkflowStatus: () => call<import("../features/agents/types").ReaWorkflowStatus>("rea_workflow_status"),
+  reaWorkflowInstall: () => call<import("../features/agents/types").ReaWorkflowStatus>("rea_workflow_install"),
   clientDisconnect: (clientId: string) => call<import("../features/agents/types").DisconnectResult>("client_disconnect", { clientId }),
   subagentsScan: (project: boolean) => call<import("../features/agents/types").SubagentScan | null>("subagents_scan", { project }),
   subagentsImport: (paths: string[], workspaceIds: string[], mode: import("../features/agents/types").AgentMode | null) => call<import("../features/agents/types").ImportedSubagent[]>("subagents_import", { paths, workspaceIds, mode }),

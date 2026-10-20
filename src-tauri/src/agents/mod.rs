@@ -6,6 +6,7 @@
 //! changeset that can be reverted. Agent permissions, scopes and tokens change only through the
 //! app's own interface.
 
+pub mod analytics;
 pub mod changeset;
 pub mod clients;
 pub mod commands;
@@ -13,6 +14,7 @@ pub mod content;
 pub mod context;
 pub mod hub;
 pub mod janitor;
+pub mod jev;
 pub mod memory;
 pub mod mirror;
 pub mod ops;
@@ -476,15 +478,28 @@ pub struct AgentSettings {
     pub default_mode: String,
     /// How edits made to mirror files outside the app are taken in: "propose" or "apply".
     pub mirror_edits: String,
+    /// Whether the optional TypeSafe AI Jev memory filter is active when a key is saved.
+    #[serde(default)]
+    pub jev_enabled: bool,
+    /// Last 4 characters of the saved Jev API key, so the user can tell one is stored.
+    #[serde(default)]
+    pub jev_key_hint: Option<String>,
+    /// Sent only when saving a new key (`Some("ts_...")`) or clearing it (`Some("")`).
+    #[serde(default, skip_serializing)]
+    pub jev_api_key: Option<String>,
 }
 
 pub fn settings(conn: &Connection) -> AppResult<AgentSettings> {
+    let hint = jev::hint(conn);
     Ok(AgentSettings {
         api_enabled: setting(conn, "agents.apiEnabled")?.as_deref() == Some("true"),
         default_mode: default_mode(conn),
         mirror_edits: setting(conn, "agents.mirrorEdits")?
             .filter(|m| m == "apply")
             .unwrap_or_else(|| "propose".into()),
+        jev_enabled: hint.is_some() && jev::is_enabled(conn),
+        jev_key_hint: hint,
+        jev_api_key: None,
     })
 }
 
@@ -502,30 +517,94 @@ pub fn save_settings(conn: &Connection, s: &AgentSettings) -> AppResult<AgentSet
     )?;
     set_setting(conn, "agents.defaultMode", &s.default_mode)?;
     set_setting(conn, "agents.mirrorEdits", &s.mirror_edits)?;
+    if let Some(raw_key) = &s.jev_api_key {
+        jev::save_key(conn, raw_key)?;
+    }
+    let has_key = jev::hint(conn).is_some();
+    set_setting(
+        conn,
+        "agents.jevEnabled",
+        if s.jev_enabled && has_key {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
     settings(conn)
 }
 
 /// Records one agent API call (never its arguments or the content it returned).
 pub fn audit(conn: &Connection, agent_id: &str, tool: &str, ok: bool, ms: u64) {
-    let _ = conn.execute(
-        "INSERT INTO agent_audit (agent_id, tool, ok, duration_ms, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![agent_id, tool, ok, ms as i64, now()],
+    audit_with_metrics(
+        conn,
+        agent_id,
+        tool,
+        ok,
+        ms,
+        analytics::CallMetrics::default(),
     );
-    // Keep the newest 5,000 calls.
+}
+
+/// Records one agent API call with its token and Jev telemetry.
+pub fn audit_with_metrics(
+    conn: &Connection,
+    agent_id: &str,
+    tool: &str,
+    ok: bool,
+    ms: u64,
+    m: analytics::CallMetrics,
+) {
     let _ = conn.execute(
-        "DELETE FROM agent_audit WHERE id <= (SELECT id FROM agent_audit ORDER BY id DESC LIMIT 1 OFFSET 5000)",
+        "INSERT INTO agent_audit (
+            agent_id, tool, ok, duration_ms, created_at,
+            input_tokens, output_tokens, saved_tokens,
+            jev_calls, jev_cache_hits, jev_errors, jev_tokens, jev_questions, jev_ms, jev_pruned
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        params![
+            agent_id,
+            tool,
+            ok,
+            ms as i64,
+            now(),
+            m.input_tokens,
+            m.output_tokens,
+            m.saved_tokens,
+            m.jev_calls,
+            m.jev_cache_hits,
+            m.jev_errors,
+            m.jev_tokens,
+            m.jev_questions,
+            m.jev_ms,
+            m.jev_pruned
+        ],
+    );
+    // Keep the newest 25,000 calls.
+    let _ = conn.execute(
+        "DELETE FROM agent_audit WHERE id <= (SELECT id FROM agent_audit ORDER BY id DESC LIMIT 1 OFFSET 25000)",
         [],
     );
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditEntry {
     pub agent_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_name: Option<String>,
     pub tool: String,
     pub ok: bool,
     pub duration_ms: i64,
     pub created_at: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub saved_tokens: i64,
+    pub jev_calls: i64,
+    pub jev_cache_hits: i64,
+    pub jev_errors: i64,
+    pub jev_tokens: i64,
+    pub jev_questions: i64,
+    pub jev_ms: i64,
+    pub jev_pruned: i64,
 }
 
 pub fn audit_list(
@@ -534,16 +613,31 @@ pub fn audit_list(
     limit: i64,
 ) -> AppResult<Vec<AuditEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT agent_id, tool, ok, duration_ms, created_at FROM agent_audit
-         WHERE ?1 IS NULL OR agent_id = ?1 ORDER BY id DESC LIMIT ?2",
+        "SELECT a.agent_id, g.name, a.tool, a.ok, a.duration_ms, a.created_at,
+                a.input_tokens, a.output_tokens, a.saved_tokens,
+                a.jev_calls, a.jev_cache_hits, a.jev_errors, a.jev_tokens, a.jev_questions, a.jev_ms, a.jev_pruned
+         FROM agent_audit a
+         LEFT JOIN agent g ON g.id = a.agent_id
+         WHERE ?1 IS NULL OR a.agent_id = ?1 ORDER BY a.id DESC LIMIT ?2",
     )?;
     let rows = stmt.query_map(params![agent_id, limit.clamp(1, 500)], |r| {
         Ok(AuditEntry {
             agent_id: r.get(0)?,
-            tool: r.get(1)?,
-            ok: r.get(2)?,
-            duration_ms: r.get(3)?,
-            created_at: r.get(4)?,
+            agent_name: r.get(1)?,
+            tool: r.get(2)?,
+            ok: r.get(3)?,
+            duration_ms: r.get(4)?,
+            created_at: r.get(5)?,
+            input_tokens: r.get(6)?,
+            output_tokens: r.get(7)?,
+            saved_tokens: r.get(8)?,
+            jev_calls: r.get(9)?,
+            jev_cache_hits: r.get(10)?,
+            jev_errors: r.get(11)?,
+            jev_tokens: r.get(12)?,
+            jev_questions: r.get(13)?,
+            jev_ms: r.get(14)?,
+            jev_pruned: r.get(15)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)

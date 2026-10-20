@@ -65,6 +65,131 @@ fn strs(v: &[&str]) -> Vec<String> {
     v.iter().map(|s| s.to_string()).collect()
 }
 
+#[test]
+fn checklist_requires_successful_whoami_for_this_connection() {
+    let (mut conn, ws) = db();
+    let env = fake_env("checklist-session");
+    let out = connect(&mut conn, &env, "codex", input(&ws)).unwrap();
+    let agent = out.client.agent_id.unwrap();
+    conn.execute(
+        "UPDATE agent_client SET connected_at = '2026-01-02T00:00:00Z'",
+        [],
+    )
+    .unwrap();
+    assert!(
+        status_of(&conn, &env, client("codex").unwrap())
+            .unwrap()
+            .connection_configured
+    );
+    crate::agents::audit(&conn, &agent, "whoami", true, 1);
+    conn.execute(
+        "UPDATE agent_audit SET created_at = '2026-01-01T00:00:00Z'",
+        [],
+    )
+    .unwrap();
+    crate::agents::audit(&conn, &agent, "whoami", false, 1);
+    crate::agents::audit(&conn, &agent, "page_read", true, 1);
+    assert!(status_of(&conn, &env, client("codex").unwrap())
+        .unwrap()
+        .whoami_at
+        .is_none());
+    crate::agents::audit(&conn, &agent, "whoami", true, 1);
+    assert!(status_of(&conn, &env, client("codex").unwrap())
+        .unwrap()
+        .whoami_at
+        .is_some());
+    conn.execute("DELETE FROM agent_audit", []).unwrap();
+    assert!(status_of(&conn, &env, client("codex").unwrap())
+        .unwrap()
+        .whoami_at
+        .is_none());
+    std::fs::remove_dir_all(env.home.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn setup_files_preserves_connection_token_choices_and_custom_text() {
+    let (mut conn, ws) = db();
+    let env = fake_env("checklist-files");
+    let mut args = input(&ws);
+    args.instructions = false;
+    args.commands = false;
+    let out = connect(&mut conn, &env, "codex", args).unwrap();
+    let before = record(&conn, "codex").unwrap().unwrap();
+    let config = std::fs::read(&before.config_paths[0]).unwrap();
+    let hint = super::super::get(&conn, &before.agent_id)
+        .unwrap()
+        .token_hint;
+    let path = PathBuf::from(out.client.instructions_path.unwrap());
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "# My rules\r\nPreserve these exactly.").unwrap();
+    let result = setup_files(&conn, &env, "codex", true, false).unwrap();
+    assert!(result.client.instructions_added);
+    assert_eq!(result.client.commands_requested, Some(false));
+    assert!(std::fs::read_to_string(&path)
+        .unwrap()
+        .starts_with("# My rules\r\nPreserve these exactly."));
+    let after = record(&conn, "codex").unwrap().unwrap();
+    assert_eq!(before.connected_at, after.connected_at);
+    assert_eq!(before.fingerprint, after.fingerprint);
+    assert_eq!(
+        hint,
+        super::super::get(&conn, &before.agent_id)
+            .unwrap()
+            .token_hint
+    );
+    assert_eq!(config, std::fs::read(&before.config_paths[0]).unwrap());
+    let result = setup_files(&conn, &env, "codex", false, true).unwrap();
+    assert!(result.client.commands_added);
+    assert!(result.client.instructions_added);
+    let result = setup_files(&conn, &env, "codex", true, true).unwrap();
+    assert!(
+        result.backups.is_empty(),
+        "repeated setup should be idempotent"
+    );
+    std::fs::remove_dir_all(env.home.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn checklist_reports_partial_commands_and_preserves_unowned_files() {
+    let (mut conn, ws) = db();
+    let env = fake_env("checklist-partial");
+    connect(
+        &mut conn,
+        &env,
+        "codex",
+        ConnectInput {
+            commands: true,
+            ..input(&ws)
+        },
+    )
+    .unwrap();
+    let paths = extras::command_paths(&env, client("codex").unwrap());
+    std::fs::write(&paths[0], "My custom init command").unwrap();
+    let out = setup_files(&conn, &env, "codex", false, true).unwrap();
+    assert!(!out.client.commands_added);
+    assert!(out.client.connection_configured);
+    assert!(out.notes.iter().any(|note| note.contains("Left")));
+    assert_eq!(
+        std::fs::read_to_string(&paths[0]).unwrap(),
+        "My custom init command"
+    );
+    std::fs::remove_file(&paths[0]).unwrap();
+    assert!(
+        setup_files(&conn, &env, "codex", false, true)
+            .unwrap()
+            .client
+            .commands_added
+    );
+    let text = std::fs::read_to_string(&paths[0]).unwrap();
+    std::fs::write(&paths[0], format!("{text}\nmodified body")).unwrap();
+    assert!(
+        !status_of(&conn, &env, client("codex").unwrap())
+            .unwrap()
+            .commands_added
+    );
+    std::fs::remove_dir_all(env.home.parent().unwrap()).unwrap();
+}
+
 fn entry() -> Entry {
     Entry {
         command: r"C:\Users\me\AppData\Local\Suivelle\bin\suivelle-mcp.exe".into(),
@@ -817,7 +942,7 @@ fn connect_adds_start_lines_and_commands_and_disconnect_takes_them_out() {
     );
     let s = &out.client;
     assert!(
-        s.instructions_added && s.commands_added && !s.extras_pending,
+        s.instructions_added && !s.commands_added && !s.extras_pending,
         "{s:?}"
     );
     assert_eq!(s.commands[0], "/suivelle_init");

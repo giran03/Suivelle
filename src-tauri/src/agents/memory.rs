@@ -24,6 +24,8 @@ pub struct Memory {
     pub body: String,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip)]
+    pub(crate) relevance: Option<f64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -107,6 +109,7 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
     let limit = q.limit.unwrap_or(10).clamp(1, 50);
     let scope = q.scope.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let query = q.query.trim();
+    let jev_cfg = (!query.is_empty()).then(|| super::jev::active(conn)).flatten();
     // (words matched, scope fit, rank, memory), sorted once across workspaces.
     let mut found: Vec<(usize, u8, f64, Memory)> = Vec::new();
     for (ws, hub) in hubs(conn, agent, q.workspace_id.as_deref())? {
@@ -123,10 +126,33 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
             })?;
             rows.collect::<Result<_, _>>()?
         } else {
-            search::records_matching(conn, &ws, &hub.memory_database_id, query, 200)?
-                .into_iter()
-                .map(|h| (h.record_id, h.page_id, h.coverage, h.score))
-                .collect()
+            let mut hits: Vec<(String, String, usize, f64)> =
+                search::records_matching(conn, &ws, &hub.memory_database_id, query, 200)?
+                    .into_iter()
+                    .map(|h| (h.record_id, h.page_id, h.coverage, h.score))
+                    .collect();
+            // When Jev is active, include recent memories in this database so memories that share
+            // zero exact words with `query` can still be rescued semantically.
+            if jev_cfg.is_some() && hits.len() < 24 {
+                let seen: HashSet<String> = hits.iter().map(|h| h.0.clone()).collect();
+                let mut stmt = conn.prepare_cached(
+                    "SELECT r.id, p.id FROM db_record r JOIN page p ON p.id = r.page_id
+                     WHERE r.database_id = ?1 AND p.deleted_at IS NULL
+                     ORDER BY p.created_at DESC, p.id DESC LIMIT 40",
+                )?;
+                let recent: Vec<(String, String)> = stmt
+                    .query_map([&hub.memory_database_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                    .collect::<Result<_, _>>()?;
+                for (rid, pid) in recent {
+                    if !seen.contains(&rid) {
+                        hits.push((rid, pid, 0, 0.0));
+                        if hits.len() >= 32 {
+                            break;
+                        }
+                    }
+                }
+            }
+            hits
         };
         // Without a query, candidates arrive newest first, so the scan stops once enough memories
         // fit the scope (memories with no scope never count). Search hits (at most 200) are all
@@ -168,6 +194,7 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
                         body: String::new(),
                         created_at: row.created_at.clone(),
                         updated_at: row.updated_at.clone(),
+                        relevance: None,
                     },
                 ));
                 if fit == 0 {
@@ -179,12 +206,21 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
             }
         }
     }
-    found.sort_by(|a, b| {
-        b.0.cmp(&a.0)
-            .then(a.1.cmp(&b.1))
-            .then(a.2.total_cmp(&b.2))
-            .then(b.3.created_at.cmp(&a.3.created_at))
-    });
+    let ranked_by_jev = jev_cfg
+        .as_ref()
+        .is_some_and(|cfg| super::jev::rank_memories(conn, cfg, query, scope, &mut found));
+    if !ranked_by_jev {
+        // Without Jev ranking, drop any zero-word candidates that were only added for Jev rescue.
+        if !query.is_empty() {
+            found.retain(|(words, _, _, _)| *words > 0);
+        }
+        found.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then(a.1.cmp(&b.1))
+                .then(a.2.total_cmp(&b.2))
+                .then(b.3.created_at.cmp(&a.3.created_at))
+        });
+    }
     found.truncate(limit);
     let with_body = q.include_body.unwrap_or(true);
     Ok(found
@@ -261,8 +297,10 @@ pub struct Written {
     pub changed: Vec<String>,
     /// The same memory was already recorded, so nothing was written.
     pub existing: bool,
-    /// An active memory in the same scope that looks like the same claim: (page id, title).
+    /// An active memory in the same scope that looks like the same claim or conflicts with it: (page id, title).
     pub similar: Option<(String, String)>,
+    /// Whether `similar` was flagged by Jev as a contradiction/update rather than a near-duplicate.
+    pub conflict: bool,
 }
 
 fn words(s: &str) -> HashSet<String> {
@@ -356,6 +394,7 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<Writte
     };
     let hub = ensure_hub(conn, &ws)?;
     let mut similar = None;
+    let mut conflict = false;
     if let Some(old) = &w.supersedes {
         let (_, props) = memory_record(conn, agent, old)?;
         if status_of(conn, &props, old)? == "Superseded" {
@@ -366,34 +405,88 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<Writte
             }
         }
     } else {
-        let near = recall(
+        let jev_cfg = super::jev::active(conn);
+        // Fetch recent active memories in the target scope (query is empty so recall does not
+        // make a separate Jev call), plus lexical matches for the title.
+        let mut near = recall(
             conn,
             agent,
             &Recall {
-                query: title.clone(),
+                query: String::new(),
                 scope: scope.clone(),
                 workspace_id: Some(ws.clone()),
-                limit: Some(5),
+                limit: Some(10),
                 ..Default::default()
             },
         )?;
-        let want_scope = scope.clone().unwrap_or_default().to_lowercase();
-        for m in near {
-            if clean_scope(&text_of(m.values.get("Scope"))).to_lowercase() != want_scope {
-                continue;
+        if jev_cfg.is_none() {
+            let lexical = recall(
+                conn,
+                agent,
+                &Recall {
+                    query: title.clone(),
+                    scope: scope.clone(),
+                    workspace_id: Some(ws.clone()),
+                    limit: Some(5),
+                    ..Default::default()
+                },
+            )?;
+            for m in lexical {
+                if !near.iter().any(|n| n.page_id == m.page_id) {
+                    near.push(m);
+                }
             }
+        }
+        let want_scope = scope.clone().unwrap_or_default().to_lowercase();
+        let same_scope: Vec<Memory> = near
+            .into_iter()
+            .filter(|m| clean_scope(&text_of(m.values.get("Scope"))).to_lowercase() == want_scope)
+            .collect();
+        for m in &same_scope {
             if super::content::norm(&m.title) == super::content::norm(&title)
                 && super::content::norm(&m.body) == super::content::norm(&w.body)
             {
+                let saved = super::analytics::estimate_tokens(&title)
+                    + super::analytics::estimate_tokens(&w.body);
+                super::analytics::record_saved(saved, 0);
                 return Ok(Written {
-                    id: m.page_id,
+                    id: m.page_id.clone(),
                     changed: Vec::new(),
                     existing: true,
                     similar: None,
+                    conflict: false,
                 });
             }
             if similar.is_none() && overlap(&m.title, &title) >= 0.6 {
                 similar = Some((m.page_id.clone(), m.title.clone()));
+            }
+        }
+        if let Some(cfg) = &jev_cfg {
+            match super::jev::check_write(cfg, &title, &w.body, &same_scope) {
+                Some(super::jev::WriteDecision::ExactDuplicate { page_id, .. }) => {
+                    let saved = super::analytics::estimate_tokens(&title)
+                        + super::analytics::estimate_tokens(&w.body);
+                    super::analytics::record_saved(saved, 1);
+                    return Ok(Written {
+                        id: page_id,
+                        changed: Vec::new(),
+                        existing: true,
+                        similar: None,
+                        conflict: false,
+                    });
+                }
+                Some(super::jev::WriteDecision::Contradicts { page_id, title: t }) => {
+                    super::analytics::record_saved(0, 1);
+                    similar = Some((page_id, t));
+                    conflict = true;
+                }
+                Some(super::jev::WriteDecision::Similar { page_id, title: t }) => {
+                    super::analytics::record_saved(0, 1);
+                    if similar.is_none() {
+                        similar = Some((page_id, t));
+                    }
+                }
+                None => {}
             }
         }
     }
@@ -444,6 +537,7 @@ pub fn write(conn: &mut Connection, agent: &Agent, w: Write) -> AppResult<Writte
         changed: fx.page_ids,
         existing: false,
         similar,
+        conflict,
     })
 }
 
@@ -548,8 +642,35 @@ pub fn render_one(m: &Memory, style: Style) -> String {
     };
     let mut out = format!("- {tags}**{}** ({})\n", m.title, meta.join(" · "));
     let body = m.body.trim();
-    if style.body_chars > 0 && !body.is_empty() {
-        let (text, cut) = excerpt(body, style.body_chars);
+    // When Jev evaluated this memory as only moderately relevant (< 0.72), compress its body:
+    // in context packs (<= 500 body_chars) omit the body so only the title + id bullet is sent;
+    // in direct memory_recall calls shorten the excerpt to 220 chars.
+    let effective_chars = match m.relevance {
+        Some(rel) if rel < 0.72 && style.body_chars > 0 => {
+            if style.body_chars <= 500 {
+                0
+            } else {
+                style.body_chars.min(220)
+            }
+        }
+        _ => style.body_chars,
+    };
+    if effective_chars < style.body_chars && !body.is_empty() {
+        let (full_text, _) = excerpt(body, style.body_chars);
+        let full_tokens = super::analytics::estimate_tokens(full_text);
+        let kept_tokens = if effective_chars == 0 {
+            0
+        } else {
+            let (kept_text, _) = excerpt(body, effective_chars);
+            super::analytics::estimate_tokens(kept_text)
+        };
+        let saved = full_tokens.saturating_sub(kept_tokens);
+        if saved > 0 {
+            super::analytics::record_saved(saved, 1);
+        }
+    }
+    if effective_chars > 0 && !body.is_empty() {
+        let (text, cut) = excerpt(body, effective_chars);
         for line in text.lines().filter(|l| !l.trim().is_empty()) {
             out.push_str(&format!("  {}\n", line.trim_end()));
         }

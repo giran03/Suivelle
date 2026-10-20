@@ -331,6 +331,10 @@ pub fn pack(conn: &Connection, agent: &Agent, input: &PackInput) -> AppResult<St
         let start = out.len();
         out.push_str(&head);
         if input.known_hash.as_deref() == Some(hash.as_str()) {
+            let omitted = content::body_markdown(conn, &page.id)
+                .map(|b| super::analytics::estimate_tokens(&b))
+                .unwrap_or(0);
+            super::analytics::record_saved(omitted, 0);
             out.push_str("Unchanged since you read it (same hash), so the text is left out.\n\n");
         } else {
             let body = content::body_markdown(conn, &page.id)?;
@@ -368,11 +372,22 @@ pub fn pack(conn: &Connection, agent: &Agent, input: &PackInput) -> AppResult<St
         });
         near.sort_by_key(|l| via_rank(&l.via));
         if !near.is_empty() {
+            let total_near = near.len();
             let cap = budget * 20 / 100 + spare;
+            let mut items: Vec<(Link, String)> = near
+                .into_iter()
+                .take(40)
+                .map(|l| {
+                    let line = first_line(conn, &l.page_id);
+                    (l, line)
+                })
+                .collect();
+            if let (Some(q), Some(cfg)) = (&query, super::jev::active(conn)) {
+                super::jev::filter_connected_pages(&cfg, q, &page.title, &mut items);
+            }
             let mut section = String::from("## Connected pages\n\n");
             let mut listed = 0;
-            for l in near.iter().take(40) {
-                let line = first_line(conn, &l.page_id);
+            for (l, line) in &items {
                 let item = format!(
                     "- {} — **{}** (id {}){}\n",
                     l.via,
@@ -390,10 +405,9 @@ pub fn pack(conn: &Connection, agent: &Agent, input: &PackInput) -> AppResult<St
                 section.push_str(&item);
                 listed += 1;
             }
-            if listed < near.len() {
+            if listed < total_near {
                 notes.push(format!(
-                    "{listed} of {} connected pages are listed; graph_neighbors(page_id=\"{}\") lists them all.",
-                    near.len(),
+                    "{listed} of {total_near} connected pages are listed; graph_neighbors(page_id=\"{}\") lists them all.",
                     page.id
                 ));
             }
@@ -428,8 +442,11 @@ pub fn pack(conn: &Connection, agent: &Agent, input: &PackInput) -> AppResult<St
             ..Default::default()
         },
     )?;
+    let jev_evaluated = !topic.is_empty() && super::jev::active(conn).is_some();
     let mut generic = Vec::new();
-    if memories.len() < 5 {
+    // When Jev is active, `recall` already evaluated recent memories in scope and pruned the
+    // irrelevant ones, so we don't pad the pack with unmatched fallback memories.
+    if memories.len() < 5 && !jev_evaluated {
         generic = memory::recall(
             conn,
             agent,

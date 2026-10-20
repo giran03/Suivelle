@@ -227,6 +227,27 @@ fn add_command(path: &Path, text: &str) -> AppResult<bool> {
     Ok(true)
 }
 
+/// Exact command-file paths shown in the setup preview.
+pub fn command_paths(env: &Env, c: &Client) -> Vec<PathBuf> {
+    commands_dir(env, c)
+        .map(|(dir, spec)| {
+            COMMANDS
+                .iter()
+                .map(|cmd| dir.join(file_name(spec, cmd.name)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn commands_current(env: &Env, c: &Client) -> bool {
+    commands_dir(env, c).is_some_and(|(dir, spec)| {
+        COMMANDS.iter().all(|cmd| {
+            read_file(&dir.join(file_name(spec, cmd.name)))
+                .is_ok_and(|file| file.existed && file.text == stub(spec, cmd))
+        })
+    })
+}
+
 /// Adds what was asked for. Failures become notes: the MCP entry already works without these.
 pub fn add(env: &Env, c: &Client, instructions: bool, commands: bool) -> Added {
     let mut out = Added::default();

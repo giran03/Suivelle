@@ -5,6 +5,7 @@ import { Selection } from "@tiptap/pm/state";
 import { DOMParser } from "@tiptap/pm/model";
 import { buildExtensions } from "./extensions";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
+import { TURN_INTO, mergeSelectedBlocksInto } from "./blockKinds";
 import {
   duplicateSelectedBlocks,
   moveSelectedBlocks,
@@ -126,7 +127,7 @@ it("shows only shared bulk capabilities and removes editing actions in read-only
   expect(editor.state.selection).toBeInstanceOf(BlockRangeSelection);
   editor.setEditable(false);
   labels = selectedBlockItems(editor).map((i) => i.label);
-  expect(labels).toEqual(["Copy blocks", "Select all blocks"]);
+  expect(labels).toEqual(["Copy blocks", "Copy text", "Copy image…", "Select all blocks"]);
 });
 it("copies and pastes mixed blocks with attachment identity and image presentation intact", () => {
   make();
@@ -387,7 +388,7 @@ it("disables Turn into items when a non-convertible block such as an image is in
   expect(quoteItem.disabled).toBe(true);
 });
 
-it("offers Merge into one quote, callout, or paragraph when multiple blocks of that type are selected", () => {
+it("offers all merge targets for mixed blocks and retains formatting, callout tone, IDs and undo", () => {
   make([
     {
       type: "quote",
@@ -420,16 +421,14 @@ it("offers Merge into one quote, callout, or paragraph when multiple blocks of t
       content: [{ type: "text", text: "Line two" }],
     },
   ]);
-  // Mixed selection (quote + callout) should not show any merge option
+  const mergeItems = () => selectedBlockItems(editor).find(i => i.label === "Merge all into…")!.children!;
   select(1, 2);
-  const mixedLabels = selectedBlockItems(editor).map((i) => i.label);
-  expect(mixedLabels).not.toContain("Merge into one quote");
-  expect(mixedLabels).not.toContain("Merge into one callout");
-  expect(mixedLabels).not.toContain("Merge into one paragraph");
+  expect(mergeItems().filter(i => i.label.startsWith("Merge"))).toHaveLength(TURN_INTO.length);
+  expect(mergeItems().every(i => !i.disabled)).toBe(true);
 
   // Merge quotes
   select(0, 1);
-  selectedBlockItems(editor).find((i) => i.label === "Merge into one quote")!.onSelect();
+  mergeItems().find((i) => i.label === "Merge into one quote")!.onSelect();
   const mergedQuote = editor.state.doc.child(0);
   expect(mergedQuote.type.name).toBe("quote");
   expect(mergedQuote.attrs.blockId).toBe("q1");
@@ -442,7 +441,7 @@ it("offers Merge into one quote, callout, or paragraph when multiple blocks of t
 
   // Merge callouts (preserves first callout's tone and blockId)
   select(2, 3);
-  selectedBlockItems(editor).find((i) => i.label === "Merge into one callout")!.onSelect();
+  mergeItems().find((i) => i.label === "Merge into one callout")!.onSelect();
   const mergedCallout = editor.state.doc.child(2);
   expect(mergedCallout.type.name).toBe("callout");
   expect(mergedCallout.attrs.blockId).toBe("c1");
@@ -453,7 +452,7 @@ it("offers Merge into one quote, callout, or paragraph when multiple blocks of t
 
   // Merge paragraphs
   select(4, 5);
-  selectedBlockItems(editor).find((i) => i.label === "Merge into one paragraph")!.onSelect();
+  mergeItems().find((i) => i.label === "Merge into one paragraph")!.onSelect();
   const mergedParagraph = editor.state.doc.child(4);
   expect(mergedParagraph.type.name).toBe("paragraph");
   expect(mergedParagraph.attrs.blockId).toBe("p1");
@@ -461,4 +460,104 @@ it("offers Merge into one quote, callout, or paragraph when multiple blocks of t
   expect(mergedParagraph.textContent).toBe("Line oneLine two");
   editor.commands.undo();
   expect(editor.state.doc.childCount).toBe(6);
+});
+
+it.each(TURN_INTO.map(kind => kind.id))("merges mixed blocks into %s as one valid, undoable result", kind => {
+  make([
+    { ...paragraph("Before"), attrs: { blockId: "before" } },
+    { type: "heading", attrs: { level: 2, blockId: "head" }, content: [{ type: "text", text: "Title", marks: [{ type: "bold" }] }] },
+    { type: "quote", attrs: { blockId: "quote" }, content: [{ type: "text", text: "Quote" }] },
+    { type: "codeBlock", attrs: { blockId: "code", language: "javascript" }, content: [{ type: "text", text: "a\nb" }] },
+    { ...paragraph("After"), attrs: { blockId: "after" } },
+  ]);
+  select(1, 3);
+  const original = editor.getJSON();
+  expect(mergeSelectedBlocksInto(editor, kind)).toBe(true);
+  editor.state.doc.check();
+  expect(editor.state.doc.childCount).toBe(3);
+  expect(editor.state.doc.firstChild!.textContent).toBe("Before");
+  expect(editor.state.doc.lastChild!.textContent).toBe("After");
+  expect(editor.state.selection).toBeInstanceOf(BlockRangeSelection);
+  expect(editor.state.doc.child(1).textContent.replace(/\n/g, "")).toBe("TitleQuoteab");
+  const result = editor.getJSON();
+  expect(editor.commands.undo()).toBe(true);
+  expect(editor.getJSON()).toEqual(original);
+  expect(editor.commands.redo()).toBe(true);
+  expect(editor.getJSON()).toEqual(result);
+});
+
+it("lets the merge menu combine text with spaces instead of line breaks", () => {
+  make([paragraph("One"), { type: "codeBlock", content: [{ type: "text", text: "Two\nThree" }] }, paragraph("After")]);
+  select(0, 1);
+  const items = selectedBlockItems(editor).find(i => i.label === "Merge all into…")!.children!;
+  items.find(i => i.label === "Keep line breaks")!.onSelect();
+  items.find(i => i.label === "Merge into one quote")!.onSelect();
+  expect(editor.state.doc.firstChild!.textContent).toBe("One Two Three");
+  expect(editor.state.doc.firstChild!.childCount).toBe(1);
+  editor.commands.undo();
+  select(0, 1);
+  expect(mergeSelectedBlocksInto(editor, "code")).toBe(true);
+  expect(editor.state.doc.firstChild!.textContent).toBe("One\nTwo\nThree");
+});
+
+it("merges partial nested list ranges without consuming unselected rows", () => {
+  make([taskList, paragraph("After")]);
+  select(1, 2);
+  expect(mergeSelectedBlocksInto(editor, "quote")).toBe(true);
+  editor.state.doc.check();
+  expect(editor.state.doc.childCount).toBe(4);
+  expect(editor.state.doc.child(0).textContent).toBe("One");
+  expect(editor.state.doc.child(1).textBetween(0, editor.state.doc.child(1).content.size, "", "\n")).toBe("Two\nThree");
+  expect(editor.state.doc.child(2).textContent).toBe("Four");
+  expect(editor.state.doc.child(3).textContent).toBe("After");
+});
+
+it("includes nested toggle bodies, lists, empty lines and inline mentions in text merges", () => {
+  make([
+    { type: "details", attrs: { open: true }, content: [
+      { type: "detailsSummary", content: [{ type: "text", text: "Summary", marks: [{ type: "italic" }] }] },
+      { type: "detailsContent", content: [paragraph("Body"), { type: "bulletList", content: [
+        { type: "listItem", content: [paragraph("Nested")] },
+      ] }] },
+    ] },
+    { type: "paragraph" },
+    { type: "paragraph", content: [{ type: "pageMention", attrs: { pageId: "page-id" } }] },
+  ]);
+  select(0, 2);
+  expect(mergeSelectedBlocksInto(editor, "quote")).toBe(true);
+  const quote = editor.state.doc.firstChild!;
+  expect(quote.textBetween(0, quote.content.size, "", "\n")).toBe("Summary\nBody\nNested\n\n\n");
+  expect(quote.firstChild!.marks[0].type.name).toBe("italic");
+  expect(quote.lastChild!.attrs.pageId).toBe("page-id");
+  editor.state.doc.check();
+});
+
+it.each(["tabs", "toggle", "bullet_list", "numbered_list", "todo"])("retains embedded blocks when merging into %s", kind => {
+  make([paragraph("Label"), image, { type: "equation", attrs: { latex: "x^2" } }]);
+  select(0, 2);
+  expect(mergeSelectedBlocksInto(editor, kind)).toBe(true);
+  editor.state.doc.check();
+  const types: string[] = [];
+  editor.state.doc.descendants(node => {
+    if (["image", "equation"].includes(node.type.name)) types.push(node.type.name);
+  });
+  expect(types).toEqual(["image", "equation"]);
+});
+
+it("offers every merge target for media selections and guards read-only, single-block and unknown targets", () => {
+  make([image, { type: "equation", attrs: { latex: "x^2" } }]);
+  select(0, 1);
+  const targets = selectedBlockItems(editor).find(i => i.label === "Merge all into…")!.children!.slice(1);
+  expect(targets).toHaveLength(TURN_INTO.length);
+  expect(targets.some(i => i.disabled)).toBe(false);
+  const original = editor.getJSON();
+  expect(mergeSelectedBlocksInto(editor, "image")).toBe(false);
+  expect(editor.getJSON()).toEqual(original);
+  editor.setEditable(false);
+  expect(mergeSelectedBlocksInto(editor, "quote")).toBe(false);
+  expect(selectedBlockItems(editor).some(i => i.children)).toBe(false);
+  editor.setEditable(true);
+  select(0, 0);
+  expect(mergeSelectedBlocksInto(editor, "quote")).toBe(false);
+  expect(selectedBlockItems(editor).some(i => i.children)).toBe(false);
 });

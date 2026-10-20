@@ -63,6 +63,23 @@ Project-scoped configs (a repository's `.mcp.json`) are not edited.
 
 ### Session-start lines and commands
 
+Each connected app has a visible **Setup checklist**: connection configured, instructions and
+commands installed, and first session verified. **View setup files and start lines** shows
+the exact instruction and command paths before making changes. **Set up instructions**,
+**Repair instructions**, and **Set up commands** only install the selected files; they keep
+the existing token and MCP configuration. Custom command files are left alone and a partial
+installation stays incomplete. Skipped options are labelled, and apps whose instructions
+live in settings get copyable lines and a manual step rather than an automatic check mark.
+
+For the first session, copy the supplied check into the agent app, start/reload that app as
+directed, then choose **Check again**. Verification requires a retained successful `whoami`
+call after this connection was configured; authenticating or calling another tool does not
+count. It confirms the call, not that a model followed every instruction. Clearing activity
+history requires another check. Project setup and optional workflows remain separate.
+
+Connection repair is labelled **Repair connection** and still refreshes the token. An app
+with valid connection settings and damaged optional files can repair those files alone.
+
 Connect also offers two additions, both ticked by default and listed with their exact files:
 
 - **Start sessions from Suivelle** writes these lines into the app's user-level instructions
@@ -103,7 +120,7 @@ The connector also serves the four commands as MCP prompts (`init`, `setup`, `sy
 `/mcp__suivelle__wrap-up`). A page titled "Agent command: sync" (and so on) replaces a
 command's built-in steps. Command files Suivelle did not write are left alone; a removed or
 changed file or block shows as Edited outside Suivelle, and Repair writes it again. Apps connected
-before these existed show **Add commands**, which repairs the connection and adds both.
+before these existed can install instructions and commands separately through the checklist.
 
 `/suivelle_init` adds the session-start lines without asking when they are missing, through the
 `start_lines` tool: Suivelle itself, not the agent, appends its marked block to the connected
@@ -155,7 +172,8 @@ the old text: at once when the agent is saved, and otherwise within the hourly u
 
 `whoami` returns the agent's instructions and, when one of its workspaces has a page titled
 "Agent protocol", that page's text too, so a protocol shared by every agent costs no extra call.
-It also lists each workspace's "X project" pages, and `whoami(project, topic)` appends that
+The protocol's header carries its hash; a later `whoami(protocol_hash)` with the same hash
+leaves the text out and says it is unchanged. It also lists each workspace's "X project" pages, and `whoami(project, topic)` appends that
 project's context pack, so an agent that knows its project starts a session in one call.
 
 ### Carrying on after a review
@@ -252,7 +270,8 @@ foreign files is refused (use Import instead).
 Review inbox > Vault health runs read-only checks: broken links, unresolved `[[links]]` (with a
 likely-match alias fix), duplicate titles, empty and isolated pages, tag spellings, stale or
 superseded memories, similar active memories in one scope, an "Agent protocol" page
-older than the built-in one, expired leases and stuck tasks, and proposals waiting over a week. Chosen
+older than the built-in one, agents' instructions that tell them to `page_read` the protocol
+`whoami` already includes, expired leases and stuck tasks, and proposals waiting over a week. Chosen
 fixes apply as one changeset. Hourly, without review, Suivelle requeues tasks whose lease ran out
 and marks memories past their expiry date.
 
@@ -296,7 +315,40 @@ decision from another thread ends without a follow-up task. Browser check of the
 the original, a second run changes nothing, Disconnect leaves the original; hand-added lines are
 left exactly as they were; Cursor gets the place to paste; agents set up by hand are refused.
 
+## Shared REA workflow
+
+Settings > Agents > **REA workflow (optional)** offers **Install REA workflow** or
+**Update REA workflow**, independently of the Jev toggle, API key and local MCP connection.
+The versioned template is embedded in the desktop executable, so the installer carries it
+without a separate download. Installation is an explicit settings action, not an installer
+side effect or a generated setup prompt.
+
+It writes the procedure, role prompts and templates to `~/.agents/skills/rea-workflow`, plus
+user-level discovery pointers for Codex, Claude Code, Cursor, Gemini, Antigravity and opencode.
+Native invocation policies and instruction blocks require an explicit user request; installing,
+connecting an agent or opening a project never starts REA. Reload the agent app after installation.
+REA tools and provider integrations are configured separately. Per-run research and approvals
+stay outside this shared directory. Builders and verifiers still need clean contexts.
+
+Updates replace the workflow's bundled files, retain a `.suivelle-backup` beside each changed
+file, and preserve text outside the REA blocks in global instructions. Existing shared-directory
+junctions are retained. Status checks the installed version and actual managed files; missing
+or changed files offer repair. An interrupted install can be retried. No hooks or MCP server
+configuration are changed. Filesystem permissions can prevent installation; errors stay visible.
+
+Jev is optional. Human or independent agent evidence review supports the complete workflow
+without an API key. When installed through the app, `review-availability.json` records whether
+Jev is enabled and configured, without credentials. Settings changes update that file; turning
+Jev off or removing its key keeps the installed workflow and disables its Jev-assisted route.
+Agents must re-read availability before provider submissions and still obtain transmission
+approval. Missing/unreadable availability disables that route. Suivelle's Jev memory filter is
+not a REA evidence-review endpoint: assisted review requires a separately connected integration.
+Every route retains evidence checks and human approval of the final specification.
+
 ## Not yet done
+
+Automatic REA investigation, agent launching and in-app evidence review remain deferred.
+The [manual workflow](workflows/rea-rebuild/README.md) works independently of those features.
 
 - Project-scoped configs (`.mcp.json`, a repository's `.cursor/mcp.json`).
 - Command files for Windsurf and Antigravity workflows, and writing VS Code user instructions

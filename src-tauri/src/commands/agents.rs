@@ -79,12 +79,51 @@ pub async fn agents_save_settings(
     blocking("agents_save_settings", move || {
         writable(&app)?;
         let saved = run(&app, "agents_save_settings", |c| {
-            agents::save_settings(c, &settings)
+            let home = Env::system()?.home;
+            // Disable the external route before committing a disabled setting or cleared key.
+            // Keep the DB lock through file sync so installation cannot restore stale eligibility.
+            if !settings.jev_enabled || settings.jev_api_key.as_deref().is_some_and(|k| k.trim().is_empty()) {
+                clients::rea_workflow::sync_review(&home, false)?;
+            }
+            let saved = agents::save_settings(c, &settings)?;
+            clients::rea_workflow::sync_review(&home, saved.jev_enabled && saved.jev_key_hint.is_some())?;
+            Ok(saved)
         })?;
         if saved.api_enabled {
             agents::server::start(&app);
         }
         Ok(saved)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn rea_workflow_status() -> AppResult<clients::rea_workflow::Status> {
+    blocking("rea_workflow_status", move || {
+        clients::rea_workflow::status(&Env::system()?.home)
+    }).await
+}
+
+#[tauri::command]
+pub async fn rea_workflow_install(app: tauri::AppHandle) -> AppResult<clients::rea_workflow::Status> {
+    blocking("rea_workflow_install", move || {
+        writable(&app)?;
+        run(&app, "rea_workflow_install", |c| {
+            let s = agents::settings(c)?;
+            clients::rea_workflow::install(&Env::system()?.home, s.jev_enabled && s.jev_key_hint.is_some())
+        })
+    }).await
+}
+
+#[tauri::command]
+pub async fn agents_jev_health(
+    app: tauri::AppHandle,
+    api_key: Option<String>,
+) -> AppResult<agents::jev::JevHealth> {
+    blocking("agents_jev_health", move || {
+        run(&app, "agents_jev_health", |c| {
+            agents::jev::health_check(c, api_key.as_deref())
+        })
     })
     .await
 }
@@ -156,6 +195,31 @@ pub async fn agent_audit(
     blocking("agent_audit", move || {
         run(&app, "agent_audit", |c| {
             agents::audit_list(c, agent_id.as_deref(), 200)
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn agents_usage(
+    app: tauri::AppHandle,
+    range: Option<String>,
+    agent_id: Option<String>,
+) -> AppResult<agents::analytics::UsageReport> {
+    blocking("agents_usage", move || {
+        run(&app, "agents_usage", |c| {
+            agents::analytics::report(c, range.as_deref(), agent_id.as_deref())
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn agents_usage_clear(app: tauri::AppHandle, agent_id: Option<String>) -> AppResult<()> {
+    blocking("agents_usage_clear", move || {
+        writable(&app)?;
+        run(&app, "agents_usage_clear", |c| {
+            agents::analytics::clear(c, agent_id.as_deref())
         })
     })
     .await
@@ -264,7 +328,21 @@ pub async fn janitor_report(
 ) -> AppResult<Vec<janitor::Finding>> {
     blocking("janitor_report", move || {
         run(&app, "janitor_report", |c| {
-            janitor::report(c, &workspace_id, &[], 100)
+            agents::analytics::begin_call();
+            let started = std::time::Instant::now();
+            let res = janitor::report(c, &workspace_id, &[], 100);
+            let m = agents::analytics::finish_call("", "");
+            if m.jev_calls > 0 || m.jev_cache_hits > 0 || m.jev_errors > 0 {
+                agents::audit_with_metrics(
+                    c,
+                    "janitor",
+                    "janitor_report",
+                    res.is_ok(),
+                    started.elapsed().as_millis() as u64,
+                    m,
+                );
+            }
+            res
         })
     })
     .await
@@ -469,6 +547,23 @@ pub async fn client_repair(
         let env = Env::system()?;
         run(&app, "client_repair", |c| {
             clients::repair(c, &env, &client_id)
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn client_setup_files(
+    app: tauri::AppHandle,
+    client_id: String,
+    instructions: bool,
+    commands: bool,
+) -> AppResult<clients::SetupResult> {
+    blocking("client_setup_files", move || {
+        writable(&app)?;
+        let env = Env::system()?;
+        run(&app, "client_setup_files", |c| {
+            clients::setup_files(c, &env, &client_id, instructions, commands)
         })
     })
     .await

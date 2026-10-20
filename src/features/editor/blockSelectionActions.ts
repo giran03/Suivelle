@@ -1,60 +1,18 @@
 import { key } from "../shortcuts/bindings";
 import type { Editor } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
-import { Fragment } from "@tiptap/pm/model";
 import type { MenuItem } from "../../components/ContextMenu";
 import { toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
-import { TURN_INTO, canTurnInto, turnSelectedBlocksInto } from "./blockKinds";
+import { TURN_INTO, canTurnInto, mergeSelectedBlocksInto, turnSelectedBlocksInto } from "./blockKinds";
 import { BlockRangeSelection, blockRange } from "./blockSelection";
 import { imagePresentation } from "./imageModel";
+import { imageCopyItem } from "./imageActions";
+import { copyPlainText, selectedPlainText } from "./plainText";
 import { canSyncSelection, syncSelectedBlocks } from "./synced";
 
-const MERGEABLE_INLINE = {
-  quote: "Merge into one quote",
-  callout: "Merge into one callout",
-  paragraph: "Merge into one paragraph",
-} as const;
-
-export type MergeableInlineType = keyof typeof MERGEABLE_INLINE;
-
-export function mergeSelectedInlineBlocks(
-  editor: Editor,
-  typeName: MergeableInlineType,
-) {
-  const { selection, doc, schema } = editor.state;
-  if (!editor.isEditable || !(selection instanceof BlockRangeSelection))
-    return false;
-  const blocks = blockRange(doc, selection.from, selection.to);
-  if (
-    blocks.length < 2 ||
-    !blocks.every((b) => b.node.type.name === typeName)
-  )
-    return false;
-  const hardBreak = schema.nodes.hardBreak;
-  let content = Fragment.empty;
-  blocks.forEach((b, i) => {
-    if (i > 0 && hardBreak)
-      content = content.append(Fragment.from(hardBreak.create()));
-    content = content.append(b.node.content);
-  });
-  const first = blocks[0].node;
-  const merged = first.type.create({ ...first.attrs }, content);
-  const from = selection.from;
-  const tr = closeHistory(editor.state.tr).replaceWith(
-    from,
-    selection.to,
-    merged,
-  );
-  tr.setSelection(
-    BlockRangeSelection.create(tr.doc, from, from + merged.nodeSize),
-  );
-  editor.view.dispatch(tr.scrollIntoView());
-  return true;
-}
-
 export function mergeSelectedQuotes(editor: Editor) {
-  return mergeSelectedInlineBlocks(editor, "quote");
+  return mergeSelectedBlocksInto(editor, "quote");
 }
 
 export function duplicateSelectedBlocks(editor: Editor) {
@@ -111,7 +69,7 @@ export function moveSelectedBlocks(editor: Editor, direction: -1 | 1) {
   return true;
 }
 
-/** Only expose actions shared by all whole blocks in this selection. */
+/** Shared bulk actions, plus merge targets that accept mixed block types. */
 export function selectedBlockItems(editor: Editor): MenuItem[] {
   const selection = editor.state.selection;
   if (!(selection instanceof BlockRangeSelection)) return [];
@@ -155,13 +113,12 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
     }
   };
   const blocks = blockRange(editor.state.doc, selection.from, selection.to);
+  const imageCopies = blocks.flatMap(({ node, pos }) => {
+    const item = imageCopyItem(editor, pos, node);
+    return item ? [{ ...item, title: item.label, imageName: node.attrs.name || "Image" }] : [];
+  });
   const convertible = blocks.length > 0 && blocks.every((b) => canTurnInto(b.node));
-  const mergeType =
-    blocks.length > 1
-      ? (Object.keys(MERGEABLE_INLINE) as MergeableInlineType[]).find((t) =>
-          blocks.every((b) => b.node.type.name === t),
-        )
-      : undefined;
+  let keepLineBreaks = true;
   const $from = selection.$from,
     $to = selection.$to;
   const sameParent = $from.sameParent($to);
@@ -192,6 +149,15 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
         editor.isEditable && (editor.can().undo() || editor.can().redo()),
       onSelect: () => void copy(false),
     },
+    {
+      label: "Copy text", shortcut: "copy-plain",
+      disabled: !selectedPlainText(editor),
+      onSelect: () => { if (restore()) copyPlainText(editor); },
+    },
+    ...(imageCopies.length === 1 ? [imageCopies[0]] : imageCopies.length > 1 ? [{
+      label: "Copy image…", onSelect: () => {},
+      children: imageCopies.map((item, index) => ({ ...item, label: `Copy image ${index + 1}: ${item.imageName}${item.label.includes("still frame") ? " (still frame)" : ""}` })),
+    }] : []),
     ...(editor.isEditable
       ? [
           { label: "Cut blocks", shortcut: [key("x", "Primary")], onSelect: () => void copy(true) },
@@ -241,14 +207,21 @@ export function selectedBlockItems(editor: Editor): MenuItem[] {
                 }),
               }))
             : []),
-          ...(mergeType
+          ...(blocks.length > 1
             ? [
                 {
-                  label: MERGEABLE_INLINE[mergeType],
+                  label: "Merge all into…",
                   separated: true,
-                  onSelect: action(() => {
-                    mergeSelectedInlineBlocks(editor, mergeType);
-                  }),
+                  onSelect: () => {},
+                  children: [
+                    { label: "Keep line breaks", title: "Keep text on separate lines, or turn off to combine it with spaces. Lists, toggles and tabs keep their structure.", checked: true, keepOpen: true, onSelect: () => { keepLineBreaks = !keepLineBreaks; } },
+                    ...TURN_INTO.map((kind, index) => ({
+                      label: kind.id === "tabs" ? "Merge into tabs" : `Merge into one ${kind.id === "paragraph" ? "paragraph" : kind.title.toLowerCase()}`,
+                      separated: index === 0,
+                      title: ["Text", "Advanced"].includes(kind.group) ? "Combines nested text. Embedded blocks become names or URLs; lists, toggles and tabs keep embedded blocks." : undefined,
+                      onSelect: action(() => { mergeSelectedBlocksInto(editor, kind.id, keepLineBreaks); }),
+                    })),
+                  ],
                 },
               ]
             : []),
