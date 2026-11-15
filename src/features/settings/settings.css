@@ -182,3 +182,37 @@
 .backup-mirror { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
 .backup-mirror-actions { display: flex; gap: 8px; }
 .backup-mirror-path { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: right; }
+
+/* ==========================================================================
+   Settings structure: a page note, then titled sections whose rows share one card.
+   ========================================================================== */
+.set-page-note { margin: -6px 0 18px !important; max-width: 62ch; color: var(--text-muted); font-size: 0.875rem; line-height: 1.55; }
+.set-section { margin-top: calc(26px * var(--density)); }
+.set-page-note + .set-section, .set-panel > h3 + .set-section { margin-top: 4px; }
+.set-section-head { margin: 0 0 8px; }
+.set-section-title { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--text-primary); font-size: 0.875rem; font-weight: 650; letter-spacing: 0; }
+.set-section-title .app-icon { color: var(--accent-ui); }
+.set-section-hint { margin: 2px 0 0 !important; color: var(--text-muted); font-size: 0.8125rem; line-height: 1.5; }
+.set-card { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-1); }
+.set-card-padded { padding: 4px 16px 14px; }
+.set-card > .set-row { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.set-card > .set-row:last-child { border-bottom: 0; }
+.set-card > .set-row:first-child { border-start-start-radius: inherit; border-start-end-radius: inherit; }
+.set-card > .set-row:hover { background: color-mix(in srgb, var(--surface-hover) 55%, transparent); }
+.set-card .set-title { font-weight: 550; }
+.set-card > .set-row:last-child { border-end-start-radius: inherit; border-end-end-radius: inherit; }
+
+/* the sample on the Editor page sits above its controls like a live preview */
+.set-preview.doc-sample { margin: 0 0 4px; padding: 16px 20px; border-color: var(--border); border-radius: var(--r-xl); background: var(--editor-background); }
+
+/* the Appearance editor reuses the same cards and a quiet section title */
+.theme-toolbar { margin-top: calc(26px * var(--density)); }
+.theme-toolbar h3 { margin: 0; font-size: 0.875rem; font-weight: 650; color: var(--text-primary); }
+.theme-gallery h4 { font-size: 0.75rem; }
+
+/* About: a hero card */
+.set-about { margin-bottom: 4px; padding: 20px; border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-1); }
+.set-about-name { font-size: 1.25rem; }
+
+.set-reset { margin-top: calc(22px * var(--density)); padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+.set-panel > h3 { margin-bottom: 10px; }

@@ -8,7 +8,7 @@ export const key = (value: string, ...modifiers: Modifier[]): Binding => ({ kind
 export const mouse = (button: number, ...modifiers: Modifier[]): Binding => ({ kind: "mouse", button, modifiers });
 const action = (id: string, title: string, scope: Scope, ...defaults: Binding[]): Action => ({ id, title, scope, defaults });
 export const ACTIONS: Action[] = [
-  action("search", "Search pages and commands", "workspace", key("k", "Primary")),
+  action("search", "Search pages and commands", "workspace", key("p", "Primary")),
   action("new-page", "New page", "workspace", key("n", "Primary")),
   action("daily-note", "Open today's note", "workspace", key("d", "Primary", "Alt")),
   action("sidebar", "Collapse or expand the sidebar", "workspace", key("\\", "Primary")),

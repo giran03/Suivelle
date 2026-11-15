@@ -22,8 +22,8 @@ describe("custom theme model", () => {
     const config = emptyTheme(); config.palettes.dark = { background: "#121212", "surface-hover": "#223344", "editor-background": "#181818", accent: "#FFFFFF", "on-accent": "#112233" };
     const colors = resolvePalette(config, "dark", choices);
     expect(colors["surface-hover"]).toBe("#223344"); expect(colors["editor-background"]).toBe("#181818"); expect(colors["on-accent"]).toBe("#112233");
-    expect(themeVariables(config, choices)["--background"]).toBe("light-dark(#F7F6F2, #121212)");
-    expect(resolvePalette(config, "light", choices).background).toBe("#F7F6F2");
+    expect(themeVariables(config, choices)["--background"]).toBe("light-dark(#F6F7F9, #121212)");
+    expect(resolvePalette(config, "light", choices).background).toBe("#F6F7F9");
   });
   it("generates readable button text while honoring manual choices", () => {
     for (const accent of ["#FFFFFF", "#000000", "#FFFF00", "#123456"]) {
@@ -40,9 +40,9 @@ describe("custom theme model", () => {
     }
   });
   it("reports bad contrast without changing the requested colors", () => {
-    const config = emptyTheme(); config.palettes.dark["text-primary"] = "#0C1329";
+    const config = emptyTheme(); config.palettes.dark["text-primary"] = "#101216";
     expect(contrastWarnings(resolvePalette(config, "dark", choices))).toContainEqual(expect.objectContaining({ fg: "text-primary", bg: "background", ratio: 1 }));
-    expect(config.palettes.dark["text-primary"]).toBe("#0C1329");
+    expect(config.palettes.dark["text-primary"]).toBe("#101216");
   });
   it("clears custom CSS on cancel/reset and restores the original accent preset", () => {
     const config = emptyTheme(); config.accent = "rose"; config.palettes.dark.sidebar = "#123456";
@@ -105,7 +105,7 @@ it("retains theme background opacity through sanitizing, saved profiles and expo
   config.palettes.dark = { background: "#12345680", sidebar: "#abc4", "text-primary": "#FFFFFF80" };
   const clean = sanitizeTheme(config);
   expect(clean.palettes.dark).toEqual({ background: "#12345680", sidebar: "#AABBCC44" });
-  expect(themeVariables(clean, choices)["--background"]).toBe("light-dark(#F7F6F2, #12345680)");
+  expect(themeVariables(clean, choices)["--background"]).toBe("light-dark(#F6F7F9, #12345680)");
   useThemes.getState().saveProfile("Translucent", clean);
   expect(useThemes.getState().profiles[0].config.palettes.dark.background).toBe("#12345680");
   expect(parseThemeFile(JSON.stringify({format: "suivelle-theme", version: 1, config: clean})).config).toEqual(clean);

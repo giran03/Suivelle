@@ -286,6 +286,8 @@ export const ipc = {
   nodeMapEdit: (input: import("../features/node-map/model").MapEdit) => call<import("../features/node-map/model").MapEdit>("node_map_edit", { input }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
   traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
+  traySetAppearance: (appearance: import("./appearance").TrayAppearancePayload) =>
+    call<void>("tray_set_appearance", { appearance }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),
   /** Stores a file that was pasted or dropped. The bytes are the raw request body, not JSON. */
   attachmentImportBytes: (workspaceId: string, name: string, bytes: ArrayBuffer) =>

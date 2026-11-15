@@ -1,8 +1,8 @@
 .peek-panel { flex: none; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--editor-background); }
 .peek-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border-subtle); }
 .peek-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.peek-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; }
+.peek-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; /* room for the block handle (add + grip) that sits left of each block, so it never pokes out of the pane */ padding-inline-start: calc(var(--handle-w) + 20px); }
 .peek-body .editor { max-width: none; }
 .pane-resizer { flex: 0 0 6px; cursor: col-resize; touch-action: none; background: var(--surface-1); }
 .pane-resizer:hover, .pane-resizer:focus-visible { background: var(--accent); }
-@media (max-width: 640px) { .peek-body { padding-inline: 8px; } .peek-head { padding-inline: 8px; } }
+@media (max-width: 640px) { .peek-body { padding-inline: 8px; padding-inline-start: calc(var(--handle-w) + 8px); } .peek-head { padding-inline: 8px; } }

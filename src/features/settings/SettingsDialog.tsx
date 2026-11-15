@@ -12,6 +12,7 @@ import type { ThemeSetting } from "../../types";
 import { useBackupsDialog } from "../backup/store";
 import { useFilesDialog } from "../files/store";
 import { syncDialog } from "../../lib/dialog";
+import { installDragScroll } from "../../lib/dragScroll";
 import "./settings.css";
 import { UpdatesSection } from "../updates/Updates";
 import { ThemeEditor } from "./ThemeEditor";
@@ -19,6 +20,7 @@ import { useThemes } from "./themes";
 import { radioKeys } from "./radioKeys";
 import { READ_ONLY } from "../../lib/access";
 import { seedGettingStarted } from "../onboarding/gettingStarted";
+import { PageNote, SettingsSection } from "./SettingsSection";
 
 const PAGES: { id: string; title: string; icon: IconName }[] = [
   { id: "appearance", title: "Appearance", icon: "sun" },
@@ -135,6 +137,24 @@ function WindowCornersRow() {
   </Row>;
 }
 
+function WindowButtonsRow() {
+  const style = usePreferences((s) => s.windowControls);
+  const setStyle = usePreferences((s) => s.setWindowControls);
+  return <Row title="Window buttons" hint="Switch between macOS traffic lights and Windows titlebar buttons">
+    <Segmented label="Window buttons" value={style} options={[["macos", "macOS"], ["windows", "Windows"]]} onChange={setStyle} />
+  </Row>;
+}
+
+function TrafficLightPositionRow() {
+  const style = usePreferences((s) => s.windowControls);
+  const side = usePreferences((s) => s.windowControlsSide);
+  const setSide = usePreferences((s) => s.setWindowControlsSide);
+  if (style !== "macos") return null;
+  return <Row title="Traffic light position" hint="Place the macOS buttons on the left or right of the titlebar">
+    <Segmented label="Traffic light position" value={side} options={[["left", "Left"], ["right", "Right"]]} onChange={setSide} />
+  </Row>;
+}
+
 /** Starting with the computer, the tray icon, and what closing or minimizing the window does. */
 function WindowSection() {
   const shell = usePreferences((s) => s.shell);
@@ -159,21 +179,26 @@ function WindowSection() {
   return (
     <section>
       <h3>Window and startup</h3>
-      <Row title="Start with Windows" hint="Open Suivelle when you sign in.">
-        <Switch label="Start with Windows" checked={shell.launchAtStartup} onChange={(on) => change({ launchAtStartup: on })} />
-      </Row>
-      <Row title="Start minimized to the tray" hint="When it starts with Windows, stay out of the way until you open it.">
-        <Switch label="Start minimized to the tray" checked={shell.startMinimized} disabled={!shell.launchAtStartup} onChange={(on) => change({ startMinimized: on })} />
-      </Row>
-      <Row title="Show a tray icon" hint={trayForced ? "Always shown while closing or minimizing to the tray is on." : "Keep an icon in the notification area."}>
-        <Switch label="Show a tray icon" checked={shell.showTray || trayForced} disabled={trayForced} onChange={(on) => change({ showTray: on })} />
-      </Row>
-      <Row title="Close to the tray" hint="The close button hides the window and keeps Suivelle running. Quit from the tray menu.">
-        <Switch label="Close to the tray" checked={shell.closeToTray} onChange={(on) => change({ closeToTray: on })} />
-      </Row>
-      <Row title="Minimize to the tray" hint="Minimizing hides the window instead of leaving it on the taskbar.">
-        <Switch label="Minimize to the tray" checked={shell.minimizeToTray} onChange={(on) => change({ minimizeToTray: on })} />
-      </Row>
+      <PageNote>What Suivelle does when Windows starts, and what the window buttons do.</PageNote>
+      <SettingsSection title="Startup" icon="play" hint="Opening with your computer.">
+        <Row title="Start with Windows" hint="Open Suivelle when you sign in.">
+          <Switch label="Start with Windows" checked={shell.launchAtStartup} onChange={(on) => change({ launchAtStartup: on })} />
+        </Row>
+        <Row title="Start minimized to the tray" hint="When it starts with Windows, stay out of the way until you open it.">
+          <Switch label="Start minimized to the tray" checked={shell.startMinimized} disabled={!shell.launchAtStartup} onChange={(on) => change({ startMinimized: on })} />
+        </Row>
+      </SettingsSection>
+      <SettingsSection title="Tray" icon="download" hint="Keeping Suivelle running out of the way.">
+        <Row title="Show a tray icon" hint={trayForced ? "Always shown while closing or minimizing to the tray is on." : "Keep an icon in the notification area."}>
+          <Switch label="Show a tray icon" checked={shell.showTray || trayForced} disabled={trayForced} onChange={(on) => change({ showTray: on })} />
+        </Row>
+        <Row title="Close to the tray" hint="The close button hides the window and keeps Suivelle running. Quit from the tray menu.">
+          <Switch label="Close to the tray" checked={shell.closeToTray} onChange={(on) => change({ closeToTray: on })} />
+        </Row>
+        <Row title="Minimize to the tray" hint="Minimizing hides the window instead of leaving it on the taskbar.">
+          <Switch label="Minimize to the tray" checked={shell.minimizeToTray} onChange={(on) => change({ minimizeToTray: on })} />
+        </Row>
+      </SettingsSection>
       {error && (
         <p className="field-error" role="alert">
           {error}
@@ -289,38 +314,62 @@ function SettingsBody() {
         {query.trim() && <div className="set-search-results" role="region" aria-label="Settings search results"><h3>Search results</h3><p className="set-hint" role="status">{results.length ? `${results.length} matching settings` : "No settings match. Try theme, font, tray, or backup."}</p>{results.map((result, i) => <button className="set-search-result" key={i} onClick={() => { setPage(result.page); setQuery(""); requestAnimationFrame(() => { const details = result.element.closest("details"); if (details) details.open = true; result.element.scrollIntoView({ block: "center" }); (result.element.querySelector<HTMLElement>("input, button, select") ?? result.element).focus(); }); }}><span>{result.title}</span><small>{PAGES.find((item) => item.id === result.page)?.title}</small></button>)}</div>}
         <SettingsPage id="appearance" active={query.trim() ? "search" : page}>
           <h3>Appearance</h3>
-          <Row title="Theme mode" hint="For the whole application. System follows your Windows setting.">
-            <Segmented<ThemeSetting>
-              label="Theme"
-              value={preview && draftMode ? draftMode : theme}
-              options={[["system", "System"], ["light", "Light"], ["dark", "Dark"]]}
-              onChange={setDraftMode}
-            />
-          </Row>
+          <PageNote>Colors and themes for the whole app. Changes preview live; Apply saves them.</PageNote>
+          <SettingsSection title="Mode" icon="sun" hint="Light, dark, or follow Windows.">
+            <Row title="Theme mode" hint="For the whole application. System follows your Windows setting.">
+              <Segmented<ThemeSetting>
+                label="Theme"
+                value={preview && draftMode ? draftMode : theme}
+                options={[["system", "System"], ["light", "Light"], ["dark", "Dark"]]}
+                onChange={setDraftMode}
+              />
+            </Row>
+          </SettingsSection>
           <ThemeEditor config={draft} onChange={(config, mode) => { setDraft(config); if (mode) setDraftMode(mode); }} preview={preview} onPreview={setPreview} />
         </SettingsPage>
         <SettingsPage id="layout" active={query.trim() ? "search" : page}>
           <h3>Layout and motion</h3>
-          <ChoiceRow k="corners" />
-          <WindowCornersRow />
-          <ChoiceRow k="lines" />
-          <ChoiceRow k="density" />
-          <InterfaceSizeRow />
-          <ChoiceRow k="motion" />
-          <div className="set-reset"><button className="btn ghost" onClick={() => { for (const key of ["corners", "lines", "density", "uiScale", "motion"] as const) usePreferences.getState().set(key, CHOICES[key].fallback); usePreferences.getState().setWindowCorners("soft"); }}>Restore default layout</button></div>
+          <PageNote>How the app is shaped, sized and animated. Each group below changes one thing.</PageNote>
+          <SettingsSection title="Shape and lines" icon="corner-soft" hint="How round things are and how visible borders are.">
+            <ChoiceRow k="corners" />
+            <ChoiceRow k="lines" />
+          </SettingsSection>
+          <SettingsSection title="Window frame" icon="monitor" hint="The window itself and its buttons.">
+            <WindowCornersRow />
+            <WindowButtonsRow />
+            <TrafficLightPositionRow />
+          </SettingsSection>
+          <SettingsSection title="Icons" icon="star" hint="The symbols used on every button and menu.">
+            <ChoiceRow k="iconStyle" />
+            <ChoiceRow k="iconWeight" />
+            <ChoiceRow k="iconFill" />
+          </SettingsSection>
+          <SettingsSection title="Size and spacing" icon="densityNormal" hint="How much room things take.">
+            <ChoiceRow k="density" />
+            <InterfaceSizeRow />
+          </SettingsSection>
+          <SettingsSection title="Motion" icon="bolt" hint="Animations follow your Windows setting unless you change it here.">
+            <ChoiceRow k="motion" />
+          </SettingsSection>
+          <div className="set-reset"><button className="btn ghost" onClick={() => { for (const key of ["corners", "lines", "iconStyle", "iconWeight", "iconFill", "density", "uiScale", "motion"] as const) usePreferences.getState().set(key, CHOICES[key].fallback); usePreferences.getState().setWindowCorners("soft"); usePreferences.getState().setWindowControls("macos"); usePreferences.getState().setWindowControlsSide("right"); }}>Restore default layout</button></div>
         </SettingsPage>
 
         <SettingsPage id="editor" active={query.trim() ? "search" : page}>
           <h3>Editor</h3>
-          <ChoiceRow k="textSize" />
-          <ChoiceRow k="pageWidth" />
-          <ChoiceRow k="pageSpacing" />
-          <ChoiceRow k="pageFont" />
+          <PageNote>How pages read. The sample follows every change.</PageNote>
           <div className="set-preview doc-sample" aria-hidden="true">
             <strong>A page reads like this</strong>
-            <p>Notes, plans and wikis share one calm column. Change the size, width, spacing or typeface above and this sample follows.</p>
+            <p>Notes, plans and wikis share one calm column. Change the size, width, spacing or typeface below and this sample follows.</p>
             <p>A second paragraph shows the space between blocks.</p>
           </div>
+          <SettingsSection title="Text" icon="text" hint="The size and typeface of page text.">
+            <ChoiceRow k="textSize" />
+            <ChoiceRow k="pageFont" />
+          </SettingsSection>
+          <SettingsSection title="Page layout" icon="alignLeft" hint="How wide the column is and how airy it feels.">
+            <ChoiceRow k="pageWidth" />
+            <ChoiceRow k="pageSpacing" />
+          </SettingsSection>
           <div className="set-reset">
             <button className="btn ghost" onClick={() => { for (const key of ["textSize", "pageWidth", "pageSpacing", "pageFont"] as const) usePreferences.getState().set(key, CHOICES[key].fallback); }}>
               Restore default reading settings
@@ -332,38 +381,35 @@ function SettingsBody() {
 
         <SettingsPage id="data" active={query.trim() ? "search" : page}>
           <h3>Data and backups</h3>
-          <Row title="Back up automatically" hint="A verified copy is kept every day.">
-            <label className="switch">
-              <input type="checkbox" checked={autoBackup} onChange={(e) => void setAutoBackup(e.target.checked)} aria-label="Back up automatically" />
-              <span className="switch-track" aria-hidden="true" />
-            </label>
-          </Row>
-          <Row title="Files" hint="See every file in this workspace and clear out the ones nothing uses.">
-            <button
-              className="btn"
-              onClick={() => {
-                close(() => useFilesDialog.getState().show());
-              }}
-            >
-              Manage files…
-            </button>
-          </Row>
-          <Row title="Second copy" hint="Also save each automatic backup to another folder, such as an external drive. If it is unavailable, backups continue here.">
-            <BackupMirror />
-          </Row>
-          <Row title="Backups" hint="Create, check or restore a backup.">
-            <button
-              className="btn"
-              onClick={() => {
-                close(() => useBackupsDialog.getState().show());
-              }}
-            >
-              Open backups…
-            </button>
-          </Row>
-          <h3>Storage health</h3>
-          <p className="set-hint">Everything stored on this computer, across all workspaces.</p>
+          <PageNote>Where your data lives and how it is kept safe. Everything stays on this computer.</PageNote>
+          <SettingsSection title="Backups" icon="restore" hint="Verified copies you can restore from.">
+            <Row title="Back up automatically" hint="A verified copy is kept every day.">
+              <label className="switch">
+                <input type="checkbox" checked={autoBackup} onChange={(e) => void setAutoBackup(e.target.checked)} aria-label="Back up automatically" />
+                <span className="switch-track" aria-hidden="true" />
+              </label>
+            </Row>
+            <Row title="Second copy" hint="Also save each automatic backup to another folder, such as an external drive. If it is unavailable, backups continue here.">
+              <BackupMirror />
+            </Row>
+            <Row title="Backups" hint="Create, check or restore a backup.">
+              <button className="btn" onClick={() => { close(() => useBackupsDialog.getState().show()); }}>Open backups…</button>
+            </Row>
+          </SettingsSection>
+          <SettingsSection title="Files" icon="layers" hint="Images and attachments stored with this workspace.">
+            <Row title="Files" hint="See every file in this workspace and clear out the ones nothing uses.">
+              <button className="btn" onClick={() => { close(() => useFilesDialog.getState().show()); }}>Manage files…</button>
+            </Row>
+          </SettingsSection>
+          <section className="set-section">
+            <header className="set-section-head">
+              <h4 className="set-section-title"><Icon name="chart" size={15} /><span>Storage health</span></h4>
+              <p className="set-section-hint">Everything stored on this computer, across all workspaces.</p>
+            </header>
+            <div className="set-card set-card-padded">
           <HealthSection active={page === "data" && !query.trim()} />
+            </div>
+          </section>
         </SettingsPage>
 
         <SettingsPage id="agents" active={query.trim() ? "search" : page}>
@@ -380,22 +426,24 @@ function SettingsBody() {
         <SettingsPage id="about" active={query.trim() ? "search" : page}>
           <h3>About</h3>
           <div className="set-about">
-            <BrandMark size={48} />
+            <BrandMark size={56} />
             <div>
               <div className="set-about-name">Suivelle</div>
               <div className="set-about-tag">A universe for your thoughts.</div>
               <div className="set-hint">{VERSION ? `Version ${VERSION}. ` : ""}Your notes and data stay on this computer.</div>
             </div>
           </div>
-          <Row title="Getting started" hint="Add a fresh copy of the introductory checklist to your current workspace.">
-            <button type="button" className="btn" disabled={!workspaceId || READ_ONLY || creatingStarter} onClick={() => void addGettingStarted()}>
-              {creatingStarter ? "Creating…" : "Add Getting started page"}
-            </button>
-          </Row>
+          <SettingsSection title="Help" icon="note" hint="A starting point, and what to send if something breaks.">
+            <Row title="Getting started" hint="Add a fresh copy of the introductory checklist to your current workspace.">
+              <button type="button" className="btn" disabled={!workspaceId || READ_ONLY || creatingStarter} onClick={() => void addGettingStarted()}>
+                {creatingStarter ? "Creating…" : "Add Getting started page"}
+              </button>
+            </Row>
+            <Row title="Diagnostic report" hint="Versions, storage sizes and the recent log, to attach to a bug report. It never includes your notes.">
+              <DiagnosticsButton />
+            </Row>
+          </SettingsSection>
           {starterError && <p className="field-error" role="alert">{starterError}</p>}
-          <Row title="Diagnostic report" hint="Versions, storage sizes and the recent log, to attach to a bug report. It never includes your notes.">
-            <DiagnosticsButton />
-          </Row>
         </SettingsPage>
       </div>
       </div>
@@ -419,6 +467,8 @@ export function SettingsDialog() {
     if (!d) return;
     syncDialog(d, open);
   }, [open]);
+  // Hold and drag empty space to scroll, with easing and momentum, as in Octopolis.
+  useEffect(() => (ref.current ? installDragScroll(ref.current) : undefined), []);
 
   return (
     <dialog

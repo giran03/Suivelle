@@ -31,16 +31,17 @@ afterEach(async () => {
   usePreferences.setState(preferences, true);
   vi.restoreAllMocks();
 });
+const selectedTheme = () => host.querySelector('.theme-gallery [aria-pressed="true"] .theme-thumb-name')?.childNodes[0]?.textContent;
 async function click(label: string) {
   const scope = label === "Light" || label === "Dark" ? host.querySelector('[aria-label="Palette to edit"]')! : host;
-  const button = [...scope.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === label);
+  const button = [...scope.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === label || button.querySelector(".theme-thumb-name")?.childNodes[0]?.textContent === label);
   expect(button, label).toBeDefined();
   await act(async () => button!.click());
 }
 
 it("selects the first preset and offers Apply as soon as the palette mode changes", async () => {
   await click("Light");
-  expect(host.querySelector('[aria-label="light color presets"] [aria-checked="true"]')?.textContent).toBe("Paper");
+  expect(selectedTheme()).toBe("Paper");
   expect([...host.querySelectorAll("button")].some(b => b.textContent === "Apply")).toBe(true);
   expect(usePreferences.getState().theme).toBe("dark");
   expect(useThemes.getState().previewMode).toBe("light");
@@ -52,7 +53,7 @@ it("selects the first preset and offers Apply as soon as the palette mode change
   expect(useThemes.getState().previewMode).toBeNull();
   await click("Dark");
   expect(useThemes.getState().previewMode).toBe("dark");
-  expect(host.querySelector('[aria-label="dark color presets"] [aria-checked="true"]')?.textContent).toBe("Midnight");
+  expect(selectedTheme()).toBe("Midnight");
   await click("Apply");
   expect(useThemes.getState().config.palettes.dark).toEqual(PALETTE_PRESETS.dark[0].colors);
 });
@@ -85,7 +86,7 @@ it("can activate an already saved preset without changing its colors", async () 
 });
 
 it("cancels preset changes without changing the active mode or saved colors", async () => {
-  await click("Light"); await click("Mist"); await click("Cancel");
+  await click("Light"); await click("Daylight"); await click("Cancel");
   expect(usePreferences.getState().theme).toBe("dark");
   expect(useThemes.getState().config).toEqual(emptyTheme());
   expect(useThemes.getState().previewMode).toBeNull();
@@ -130,7 +131,7 @@ it("uses the palette mode when applying an individual custom color", async () =>
 });
 
 it("keeps the current mode if saving the palette fails", async () => {
-  await click("Light"); await click("Sand");
+  await click("Light"); await click("Linen");
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage unavailable"); });
   await click("Apply");
   expect(usePreferences.getState().theme).toBe("dark");

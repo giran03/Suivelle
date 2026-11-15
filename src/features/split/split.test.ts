@@ -47,6 +47,11 @@ describe("layout tree", () => {
     expect(row.w).toBeCloseTo(0.42);
   });
 
+  it("honours a larger pixel-based minimum, but never one that cannot fit", () => {
+    expect(resize([0.5, 0.5], 0, -1, 0.3)[0]).toBeCloseTo(0.3);
+    expect(resize([0.5, 0.5], 0, 1, 0.3)[1]).toBeCloseTo(0.3);
+    expect(resize([0.5, 0.5], 0, 1, 0.9)).toEqual([0.5, 0.5]);
+  });
   it("keeps resized tracks whole and above the minimum", () => {
     const next = resize([0.5, 0.5], 0, 0.2);
     expect(next[0]).toBeCloseTo(0.7);

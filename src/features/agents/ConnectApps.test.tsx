@@ -231,6 +231,7 @@ it("saves, toggles, checks health, and removes the optional Jev API key in Agent
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root.render(<AgentsSettings active={true} />));
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.textContent?.startsWith("Memory"))!.click());
 
   const input = host.querySelector<HTMLInputElement>('input[aria-label="Jev API key"]')!;
   expect(input).toBeTruthy();
@@ -295,13 +296,13 @@ it("displays token and Jev usage analytics across connected agents and clears hi
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root.render(<AgentsSettings active={true} />));
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.textContent?.startsWith("Usage"))!.click());
 
   expect(host.textContent).toContain("Token usage");
   expect(host.textContent).toContain("15k (12k out · 2.1k in)");
   expect(host.textContent).toContain("6.5k (31% smaller)");
   expect(host.textContent).toContain("1.3k tokens (9 API · 5 cached · 41 ms)");
   expect(host.textContent).toContain("17 pruned (48 questions)");
-  expect(host.textContent).toContain("15k tokens (12k out, 2.1k in) · 6.5k saved (31%) · Jev: 9 API, 5 cached · 42 calls · avg 28 ms");
 
   await act(async () => button("24h").click());
   expect(ipc.agentsUsage).toHaveBeenCalledWith("24h", null);

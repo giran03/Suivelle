@@ -23,7 +23,7 @@ interface SplitState {
   closePane: (slot: number) => void;
   removePage: (pageId: string) => void;
   closeAll: () => void;
-  resizeAt: (path: number[], index: number, delta: number) => void;
+  resizeAt: (path: number[], index: number, delta: number, minShare?: number) => void;
   evenOut: () => void;
 }
 
@@ -145,7 +145,7 @@ export const useSplit = create<SplitState>((set, get) => {
       set(SINGLE);
     },
 
-    resizeAt: (path, index, delta) => set({ tree: resizeAt(get().tree, path, index, delta) }),
+    resizeAt: (path, index, delta, minShare) => set({ tree: resizeAt(get().tree, path, index, delta, minShare) }),
 
     evenOut: () => {
       const { layout, tree, panes } = get();

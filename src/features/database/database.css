@@ -175,6 +175,22 @@
 
 /* ---- board ---- */
 .board { flex: 1; min-height: 240px; overflow: auto; border-top: 1px solid var(--border); }
+/* A soft edge shows which side still holds columns; it follows the horizontal scroll position and is absent when nothing overflows. */
+@property --board-fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --board-fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes board-edge {
+  0% { --board-fade-l: 0px; --board-fade-r: 28px; }
+  3% { --board-fade-l: 28px; }
+  97% { --board-fade-r: 28px; }
+  100% { --board-fade-l: 28px; --board-fade-r: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .board {
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--board-fade-l), #000 calc(100% - var(--board-fade-r)), transparent 100%);
+    animation: board-edge linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
 .board-inner { display: inline-block; min-width: 100%; padding-bottom: 16px; }
 .board-heads, .lane-cols { display: flex; gap: 12px; padding: 0 2px; }
 .board-heads { position: sticky; top: 0; z-index: 3; background: var(--bg); padding-top: 8px; padding-bottom: 6px; }

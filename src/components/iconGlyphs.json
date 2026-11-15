@@ -1,502 +1,502 @@
 {
   "nodeMap": {
-    "name": "md-graph_outline",
-    "codepoint": 987210
+    "name": "hub",
+    "codepoint": 59892
   },
   "agent": {
-    "name": "md-robot_outline",
-    "codepoint": 988794
+    "name": "smart_toy",
+    "codepoint": 61548
   },
   "inbox": {
-    "name": "md-inbox_outline",
-    "codepoint": 987764
+    "name": "inbox",
+    "codepoint": 57686
   },
   "orbit": {
-    "name": "md-orbit",
-    "codepoint": 983064
+    "name": "public",
+    "codepoint": 59403
   },
   "corner-sharp": {
-    "name": "md-crop_square",
-    "codepoint": 983458
+    "name": "square",
+    "codepoint": 60214
   },
   "corner-soft": {
-    "name": "md-square_rounded_outline",
-    "codepoint": 988412
+    "name": "rounded_corner",
+    "codepoint": 59680
   },
   "corner-round": {
-    "name": "md-rounded_corner",
-    "codepoint": 984583
+    "name": "circle",
+    "codepoint": 61258
   },
   "alignLeft": {
-    "name": "md-format_align_left",
-    "codepoint": 983650
+    "name": "format_align_left",
+    "codepoint": 57910
   },
   "alignCenter": {
-    "name": "md-format_align_center",
-    "codepoint": 983648
+    "name": "format_align_center",
+    "codepoint": 57908
   },
   "alignRight": {
-    "name": "md-format_align_right",
-    "codepoint": 983651
+    "name": "format_align_right",
+    "codepoint": 57911
   },
   "caption": {
-    "name": "md-closed_caption_outline",
-    "codepoint": 986557
+    "name": "closed_caption",
+    "codepoint": 59798
   },
   "expand": {
-    "name": "md-arrow_expand_all",
-    "codepoint": 983116
+    "name": "open_in_full",
+    "codepoint": 61902
   },
   "comment": {
-    "name": "md-comment_text_outline",
-    "codepoint": 983433
+    "name": "comment",
+    "codepoint": 57932
   },
   "crop": {
-    "name": "md-crop",
-    "codepoint": 983454
+    "name": "crop",
+    "codepoint": 58302
   },
   "chevron": {
-    "name": "md-chevron_right",
-    "codepoint": 983362
+    "name": "chevron_right",
+    "codepoint": 58828
   },
   "plus": {
-    "name": "md-plus",
-    "codepoint": 984085
+    "name": "add",
+    "codepoint": 57669
   },
   "expandAll": {
-    "name": "md-unfold_more_horizontal",
-    "codepoint": 984399
+    "name": "unfold_more",
+    "codepoint": 58839
   },
   "collapseAll": {
-    "name": "md-unfold_less_horizontal",
-    "codepoint": 984398
+    "name": "unfold_less",
+    "codepoint": 58838
   },
   "star": {
-    "name": "md-star_outline",
-    "codepoint": 984274
+    "name": "star",
+    "codepoint": 61594
   },
   "trash": {
-    "name": "md-trash_can_outline",
-    "codepoint": 985722
+    "name": "delete",
+    "codepoint": 59694
   },
   "back": {
-    "name": "md-arrow_left",
-    "codepoint": 983117
+    "name": "arrow_back",
+    "codepoint": 58820
   },
   "forward": {
-    "name": "md-arrow_right",
-    "codepoint": 983124
+    "name": "arrow_forward",
+    "codepoint": 58824
   },
   "more": {
-    "name": "md-dots_horizontal",
-    "codepoint": 983512
+    "name": "more_horiz",
+    "codepoint": 58835
   },
   "page": {
-    "name": "md-file_document_outline",
-    "codepoint": 985582
+    "name": "description",
+    "codepoint": 59507
   },
   "restore": {
-    "name": "md-history",
-    "codepoint": 983770
+    "name": "history",
+    "codepoint": 59571
   },
   "grip": {
-    "name": "md-drag_vertical",
-    "codepoint": 983517
+    "name": "drag_indicator",
+    "codepoint": 59717
   },
   "text": {
-    "name": "md-text",
-    "codepoint": 985512
+    "name": "text_fields",
+    "codepoint": 57954
   },
   "bullet": {
-    "name": "md-format_list_bulleted",
-    "codepoint": 983673
+    "name": "format_list_bulleted",
+    "codepoint": 57921
   },
   "todo": {
-    "name": "md-checkbox_marked_outline",
-    "codepoint": 983349
+    "name": "check_box",
+    "codepoint": 59870
   },
   "toggle": {
-    "name": "md-format_indent_increase",
-    "codepoint": 983670
+    "name": "arrow_right",
+    "codepoint": 58847
   },
   "quote": {
-    "name": "md-format_quote_close",
-    "codepoint": 983678
+    "name": "format_quote",
+    "codepoint": 57924
   },
   "divider": {
-    "name": "md-minus",
-    "codepoint": 983924
+    "name": "horizontal_rule",
+    "codepoint": 61704
   },
   "code": {
-    "name": "md-code_tags",
-    "codepoint": 983412
+    "name": "code",
+    "codepoint": 59503
   },
   "sigma": {
-    "name": "md-sigma",
-    "codepoint": 984224
+    "name": "functions",
+    "codepoint": 57930
   },
   "table": {
-    "name": "md-table",
-    "codepoint": 984299
+    "name": "table",
+    "codepoint": 61841
   },
   "image": {
-    "name": "md-image_outline",
-    "codepoint": 985462
+    "name": "image",
+    "codepoint": 58356
   },
   "audio": {
-    "name": "md-waveform",
-    "codepoint": 988285
+    "name": "graphic_eq",
+    "codepoint": 57784
   },
   "video": {
-    "name": "md-video_outline",
-    "codepoint": 986076
+    "name": "videocam",
+    "codepoint": 57419
   },
   "link": {
-    "name": "md-link_variant",
-    "codepoint": 983865
+    "name": "link",
+    "codepoint": 57936
   },
   "note": {
-    "name": "md-information_outline",
-    "codepoint": 983805
+    "name": "info",
+    "codepoint": 59534
   },
   "tip": {
-    "name": "md-check_circle_outline",
-    "codepoint": 984545
+    "name": "check_circle",
+    "codepoint": 61630
   },
   "warning": {
-    "name": "md-alert_outline",
-    "codepoint": 983082
+    "name": "warning",
+    "codepoint": 61571
   },
   "search": {
-    "name": "md-magnify",
-    "codepoint": 983881
+    "name": "search",
+    "codepoint": 61306
   },
   "hash": {
-    "name": "md-pound",
-    "codepoint": 984099
+    "name": "tag",
+    "codepoint": 59887
   },
   "tag": {
-    "name": "md-tag_outline",
-    "codepoint": 984316
+    "name": "sell",
+    "codepoint": 61531
   },
   "calendar": {
-    "name": "md-calendar_month_outline",
-    "codepoint": 986648
+    "name": "calendar_month",
+    "codepoint": 60364
   },
   "mail": {
-    "name": "md-email_outline",
-    "codepoint": 983536
+    "name": "mail",
+    "codepoint": 57689
   },
   "phone": {
-    "name": "md-phone_outline",
-    "codepoint": 986608
+    "name": "call",
+    "codepoint": 61652
   },
   "clock": {
-    "name": "md-clock_outline",
-    "codepoint": 983376
+    "name": "schedule",
+    "codepoint": 61398
   },
   "arrowUp": {
-    "name": "md-arrow_up",
-    "codepoint": 983133
+    "name": "arrow_upward",
+    "codepoint": 58840
   },
   "arrowDown": {
-    "name": "md-arrow_down",
-    "codepoint": 983109
+    "name": "arrow_downward",
+    "codepoint": 58843
   },
   "filter": {
-    "name": "md-filter_variant",
-    "codepoint": 983606
+    "name": "filter_list",
+    "codepoint": 57682
   },
   "columns": {
-    "name": "md-view_column_outline",
-    "codepoint": 988295
+    "name": "view_column",
+    "codepoint": 59628
   },
   "eye": {
-    "name": "md-eye_outline",
-    "codepoint": 984784
+    "name": "visibility",
+    "codepoint": 59636
   },
   "eyeOff": {
-    "name": "md-eye_off_outline",
-    "codepoint": 984785
+    "name": "visibility_off",
+    "codepoint": 59637
   },
   "check": {
-    "name": "md-check",
-    "codepoint": 983340
+    "name": "check",
+    "codepoint": 58984
   },
   "close": {
-    "name": "md-close",
-    "codepoint": 983382
+    "name": "close",
+    "codepoint": 58829
   },
   "open": {
-    "name": "md-open_in_new",
-    "codepoint": 984012
+    "name": "open_in_new",
+    "codepoint": 59550
   },
   "timeline": {
-    "name": "md-chart_timeline",
-    "codepoint": 984686
+    "name": "timeline",
+    "codepoint": 59682
   },
   "function": {
-    "name": "md-function_variant",
-    "codepoint": 985201
+    "name": "function",
+    "codepoint": 63590
   },
   "layers": {
-    "name": "md-layers_outline",
-    "codepoint": 985598
+    "name": "layers",
+    "codepoint": 58683
   },
   "download": {
-    "name": "md-download",
-    "codepoint": 983514
+    "name": "download",
+    "codepoint": 61584
   },
   "upload": {
-    "name": "md-upload",
-    "codepoint": 984402
+    "name": "upload",
+    "codepoint": 61595
   },
   "play": {
-    "name": "md-play",
-    "codepoint": 984074
+    "name": "play_arrow",
+    "codepoint": 57399
   },
   "bolt": {
-    "name": "md-lightning_bolt_outline",
-    "codepoint": 988172
+    "name": "bolt",
+    "codepoint": 59915
   },
   "chart": {
-    "name": "md-chart_bar",
-    "codepoint": 983336
+    "name": "bar_chart",
+    "codepoint": 57963
   },
   "form": {
-    "name": "md-form_select",
-    "codepoint": 988161
+    "name": "dynamic_form",
+    "codepoint": 61887
   },
   "canvas": {
-    "name": "md-vector_square",
-    "codepoint": 983041
+    "name": "draw",
+    "codepoint": 59206
   },
   "feed": {
-    "name": "md-view_agenda_outline",
-    "codepoint": 987608
+    "name": "view_agenda",
+    "codepoint": 59625
   },
   "dashboard": {
-    "name": "md-view_dashboard_outline",
-    "codepoint": 985629
+    "name": "dashboard",
+    "codepoint": 59505
   },
   "edit": {
-    "name": "md-pencil_outline",
-    "codepoint": 986294
+    "name": "edit",
+    "codepoint": 61591
   },
   "monitor": {
-    "name": "md-monitor",
-    "codepoint": 983929
+    "name": "desktop_windows",
+    "codepoint": 58124
   },
   "sun": {
-    "name": "md-white_balance_sunny",
-    "codepoint": 984488
+    "name": "light_mode",
+    "codepoint": 58648
   },
   "moon": {
-    "name": "md-weather_night",
-    "codepoint": 984468
+    "name": "dark_mode",
+    "codepoint": 58652
   },
   "gear": {
-    "name": "md-cog_outline",
-    "codepoint": 985275
+    "name": "settings",
+    "codepoint": 59576
   },
   "collapseSidebar": {
-    "name": "md-page_layout_sidebar_left",
-    "codepoint": 984829
+    "name": "left_panel_close",
+    "codepoint": 63255
   },
   "expandSidebar": {
-    "name": "md-page_layout_sidebar_right",
-    "codepoint": 984830
+    "name": "left_panel_open",
+    "codepoint": 63254
   },
   "sidebar": {
-    "name": "md-dock_left",
-    "codepoint": 987306
+    "name": "side_navigation",
+    "codepoint": 59874
   },
   "smile": {
-    "name": "md-emoticon_happy_outline",
-    "codepoint": 983541
+    "name": "mood",
+    "codepoint": 59938
   },
   "keyboard": {
-    "name": "md-keyboard_outline",
-    "codepoint": 985467
+    "name": "keyboard",
+    "codepoint": 58130
   },
   "duplicate": {
-    "name": "md-content_copy",
-    "codepoint": 983439
+    "name": "content_copy",
+    "codepoint": 57677
   },
   "cursor": {
-    "name": "md-cursor_default_outline",
-    "codepoint": 983487
+    "name": "near_me",
+    "codepoint": 58729
   },
   "move": {
-    "name": "md-cursor_move",
-    "codepoint": 983486
+    "name": "open_with",
+    "codepoint": 59551
   },
   "marquee": {
-    "name": "md-selection",
-    "codepoint": 984201
+    "name": "crop_free",
+    "codepoint": 58306
   },
   "connect": {
-    "name": "md-vector_line",
-    "codepoint": 984414
+    "name": "conversion_path",
+    "codepoint": 61633
   },
   "zoomIn": {
-    "name": "md-magnify_plus_outline",
-    "codepoint": 984813
+    "name": "zoom_in",
+    "codepoint": 59647
   },
   "zoomOut": {
-    "name": "md-magnify_minus_outline",
-    "codepoint": 984812
+    "name": "zoom_out",
+    "codepoint": 59648
   },
   "fit": {
-    "name": "md-fit_to_screen_outline",
-    "codepoint": 989429
+    "name": "fit_screen",
+    "codepoint": 59920
   },
   "cube": {
-    "name": "md-cube_outline",
-    "codepoint": 983463
+    "name": "deployed_code",
+    "codepoint": 63264
   },
   "square": {
-    "name": "md-square_outline",
-    "codepoint": 984931
+    "name": "square",
+    "codepoint": 60214
   },
   "list": {
-    "name": "md-format_list_bulleted",
-    "codepoint": 983673
+    "name": "format_list_bulleted",
+    "codepoint": 57921
   },
   "target": {
-    "name": "md-target",
-    "codepoint": 984318
+    "name": "my_location",
+    "codepoint": 58716
   },
   "undo": {
-    "name": "md-undo",
-    "codepoint": 984396
+    "name": "undo",
+    "codepoint": 57702
   },
   "redo": {
-    "name": "md-redo",
-    "codepoint": 984142
+    "name": "redo",
+    "codepoint": 57690
   },
   "pin": {
-    "name": "md-pin_outline",
-    "codepoint": 985393
+    "name": "push_pin",
+    "codepoint": 61709
   },
   "hand": {
-    "name": "md-hand_back_right_outline",
-    "codepoint": 989229
+    "name": "pan_tool",
+    "codepoint": 59685
   },
   "stickyNote": {
-    "name": "md-note_text_outline",
-    "codepoint": 987607
+    "name": "sticky_note_2",
+    "codepoint": 61948
   },
   "minus": {
-    "name": "md-minus",
-    "codepoint": 983924
+    "name": "remove",
+    "codepoint": 57691
   },
   "focus": {
-    "name": "md-image_filter_center_focus",
-    "codepoint": 983793
+    "name": "center_focus_strong",
+    "codepoint": 58292
   },
   "minimap": {
-    "name": "md-map_outline",
-    "codepoint": 985474
+    "name": "map",
+    "codepoint": 58715
   },
   "alignObjectsLeft": {
-    "name": "md-align_horizontal_left",
-    "codepoint": 987586
+    "name": "align_horizontal_left",
+    "codepoint": 57357
   },
   "alignObjectsCenter": {
-    "name": "md-align_horizontal_center",
-    "codepoint": 987587
+    "name": "align_horizontal_center",
+    "codepoint": 57359
   },
   "alignObjectsRight": {
-    "name": "md-align_horizontal_right",
-    "codepoint": 987588
+    "name": "align_horizontal_right",
+    "codepoint": 57360
   },
   "alignTop": {
-    "name": "md-align_vertical_top",
-    "codepoint": 987591
+    "name": "align_vertical_top",
+    "codepoint": 57356
   },
   "alignMiddle": {
-    "name": "md-align_vertical_center",
-    "codepoint": 987590
+    "name": "align_vertical_center",
+    "codepoint": 57361
   },
   "alignBottom": {
-    "name": "md-align_vertical_bottom",
-    "codepoint": 987589
+    "name": "align_vertical_bottom",
+    "codepoint": 57365
   },
   "distributeX": {
-    "name": "md-distribute_horizontal_center",
-    "codepoint": 987593
+    "name": "horizontal_distribute",
+    "codepoint": 57364
   },
   "distributeY": {
-    "name": "md-distribute_vertical_center",
-    "codepoint": 987596
+    "name": "vertical_distribute",
+    "codepoint": 57462
   },
   "front": {
-    "name": "md-arrange_bring_to_front",
-    "codepoint": 983102
+    "name": "flip_to_front",
+    "codepoint": 59523
   },
   "sendBack": {
-    "name": "md-arrange_send_to_back",
-    "codepoint": 983104
+    "name": "flip_to_back",
+    "codepoint": 59522
   },
   "palette": {
-    "name": "md-palette_outline",
-    "codepoint": 986636
+    "name": "palette",
+    "codepoint": 58378
   },
   "snap": {
-    "name": "md-magnet",
-    "codepoint": 983879
+    "name": "grid_on",
+    "codepoint": 58348
   },
   "minimize": {
-    "name": "md-window_minimize",
-    "codepoint": 984496
+    "name": "minimize",
+    "codepoint": 59697
   },
   "maximize": {
-    "name": "md-window_maximize",
-    "codepoint": 984495
+    "name": "crop_square",
+    "codepoint": 58310
   },
   "restoreWindow": {
-    "name": "md-window_restore",
-    "codepoint": 984498
+    "name": "filter_none",
+    "codepoint": 58336
   },
   "densityCompact": {
-    "name": "md-view_compact_outline",
-    "codepoint": 986732
+    "name": "density_small",
+    "codepoint": 60328
   },
   "densityNormal": {
-    "name": "md-view_agenda_outline",
-    "codepoint": 987608
+    "name": "density_medium",
+    "codepoint": 60318
   },
   "densityComfortable": {
-    "name": "md-view_stream_outline",
-    "codepoint": 988304
+    "name": "density_large",
+    "codepoint": 60329
   },
   "chevronDown": {
-    "name": "md-chevron_down",
-    "codepoint": 983360
+    "name": "expand_more",
+    "codepoint": 58831
   },
   "chevronLeft": {
-    "name": "md-chevron_left",
-    "codepoint": 983361
+    "name": "chevron_left",
+    "codepoint": 58827
   },
   "chevronDoubleLeft": {
-    "name": "md-chevron_double_left",
-    "codepoint": 983357
+    "name": "keyboard_double_arrow_left",
+    "codepoint": 60099
   },
   "chevronDoubleRight": {
-    "name": "md-chevron_double_right",
-    "codepoint": 983358
+    "name": "keyboard_double_arrow_right",
+    "codepoint": 60105
   },
   "starFilled": {
-    "name": "md-star",
-    "codepoint": 984270
+    "name": "star",
+    "codepoint": 61594
   },
   "arrowRight": {
-    "name": "md-arrow_right",
-    "codepoint": 983124
+    "name": "arrow_forward",
+    "codepoint": 58824
   },
   "lineSpacing": {
-    "name": "md-format_line_spacing",
-    "codepoint": 983672
+    "name": "format_line_spacing",
+    "codepoint": 57920
   }
 }

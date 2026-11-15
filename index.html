@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Suivelle: a universe for your thoughts." />
-    <meta name="theme-color" content="#0c1329" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101216" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
     <title>Suivelle</title>
-    <link rel="preload" href="/fonts/suivelle-nerd-symbols.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script src="/startup-theme.js"></script>
     <style>
@@ -15,9 +15,9 @@
       :root { color-scheme: light dark; }
       :root[data-theme="light"] { color-scheme: light; }
       :root[data-theme="dark"] { color-scheme: dark; }
-      body { margin: 0; background: var(--background, light-dark(#f7f6f2, #0c1329)); }
+      body { margin: 0; background: var(--background, light-dark(#f6f7f9, #101216)); }
       .splash { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: var(--text-primary, light-dark(#151b2e, #e8edf8)); }
-      #startup { position: fixed; inset: 0; z-index: 99999; background: var(--background, light-dark(#f7f6f2, #0c1329)); }
+      #startup { position: fixed; inset: 0; z-index: 99999; background: var(--background, light-dark(#f6f7f9, #101216)); }
       .splash button { font: inherit; padding: 8px 16px; border: 1px solid currentColor; border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
       #startup-status { max-width: 360px; text-align: center; padding: 0 24px; font-size: 14px; }
       .splash svg { width: 64px; height: 64px; }

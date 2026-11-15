@@ -11,6 +11,9 @@ import { SubagentImport } from "./SubagentImport";
 import { MODE_LABELS, TOOL_GROUP_LABELS, type Agent, type AgentClient, type AgentInput, type AgentMode, type AgentUsage, type AgentsOverview, type ClientScan, type MirrorConfig, type UsageReport } from "./types";
 import "./agents.css";
 
+type SettingsTab = "general" | "agents" | "usage" | "memory" | "files";
+const TABS: readonly (readonly [SettingsTab, string])[] = [["general", "General"], ["agents", "Agents"], ["usage", "Usage"], ["memory", "Memory"], ["files", "Files"]];
+
 function ago(iso: string | null): string {
   if (!iso) return "never connected";
   const s = (Date.now() - Date.parse(iso)) / 1000;
@@ -149,7 +152,7 @@ function MirrorSection() {
   return (
     <>
       <h4>Plain-text mirror</h4>
-      <p className="picker-muted">Keeps a folder of Markdown files in step with “{workspace.name}”, so agents, editors, search tools and git can use it as plain text. Pages link with [[wikilinks]]. Edits made in the folder come back {cfg && "according to the setting above"}.</p>
+      <p className="picker-muted">Keeps a folder of Markdown files in step with “{workspace.name}”, so agents, editors, search tools and git can use it as plain text. Pages link with [[wikilinks]]. Edits made in the folder come back according to the setting below.</p>
       <div className="set-row">
         <div className="set-text">
           <div className="set-title">{cfg.path ? cfg.path : "No folder chosen"}</div>
@@ -293,6 +296,7 @@ export function AgentsSettings({ active }: { active: boolean }) {
   const [clients, setClients] = useState<ClientScan | null>(null);
   const [usage, setUsage] = useState<UsageReport | null>(null);
   const [adding, setAdding] = useState(false);
+  const [tab, setTab] = useState<SettingsTab>("general");
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
@@ -317,65 +321,97 @@ export function AgentsSettings({ active }: { active: boolean }) {
     setError(null);
     try { await ipc.agentsSaveSettings(next); await load(); } catch (e) { setError(toAppError(e).message); }
   };
+  const mirrorEdits = (
+    <div className="set-row">
+      <div className="set-text">
+        <div className="set-title">Edits made in mirror folders</div>
+        <div className="set-hint">{s.mirrorEdits === "apply" ? "Applied as soon as they are saved. A page changed in both places always waits for review." : "Each edit waits in the Review inbox."}</div>
+      </div>
+      <div className="set-control">
+        <div className="seg" role="radiogroup" aria-label="Edits made in mirror folders">
+          {(["propose", "apply"] as const).map((m) => <button key={m} type="button" role="radio" aria-checked={s.mirrorEdits === m} className={s.mirrorEdits === m ? "on" : ""} onClick={() => void save({ ...s, mirrorEdits: m })}>{m === "propose" ? "Wait for review" : "Apply"}</button>)}
+        </div>
+      </div>
+    </div>
+  );
+  const badges: Partial<Record<SettingsTab, number>> = { general: overview.pending, agents: overview.agents.length };
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : e.key === "Home" ? "first" : e.key === "End" ? "last" : 0;
+    if (!step) return;
+    e.preventDefault();
+    const i = TABS.findIndex(([id]) => id === tab);
+    const next = step === "first" ? 0 : step === "last" ? TABS.length - 1 : (i + step + TABS.length) % TABS.length;
+    setTab(TABS[next][0]);
+    window.requestAnimationFrame(() => document.getElementById(`agx-tab-${TABS[next][0]}`)?.focus());
+  };
   return (
     <div className="agx-settings">
       <p className="set-hint">AI agents on this computer (Claude Code, Codex and other MCP clients) can use your workspaces as shared memory, a knowledge graph and a task queue. Suivelle never runs a model or starts an agent; agents connect and ask. Everything they change is recorded and can be reverted.</p>
-      <div className="set-row">
-        <div className="set-text">
-          <div className="set-title">Let local agents connect</div>
-          <div className="set-hint">Listens on this computer only (127.0.0.1), and only for agents with a token.{overview.port ? ` Listening on port ${overview.port}.` : s.apiEnabled ? " Starts with the next agent connection or restart." : ""}</div>
-        </div>
-        <div className="set-control"><label className="switch"><input type="checkbox" checked={s.apiEnabled} disabled={READ_ONLY} aria-label="Let local agents connect" onChange={(e) => void save({ ...s, apiEnabled: e.target.checked })} /><span className="switch-track" aria-hidden="true" /></label></div>
-      </div>
-      <div className="set-row">
-        <div className="set-text">
-          <div className="set-title">New agents start in</div>
-          <div className="set-hint">{MODE_LABELS[s.defaultMode].hint} Each agent can be changed below.</div>
-        </div>
-        <div className="set-control"><ModePicker label="New agents start in" value={s.defaultMode} onChange={(m) => void save({ ...s, defaultMode: m })} /></div>
-      </div>
-      <div className="set-row">
-        <div className="set-text">
-          <div className="set-title">Edits made in mirror folders</div>
-          <div className="set-hint">{s.mirrorEdits === "apply" ? "Applied as soon as they are saved. A page changed in both places always waits for review." : "Each edit waits in the Review inbox."}</div>
-        </div>
-        <div className="set-control">
-          <div className="seg" role="radiogroup" aria-label="Edits made in mirror folders">
-            {(["propose", "apply"] as const).map((m) => <button key={m} type="button" role="radio" aria-checked={s.mirrorEdits === m} className={s.mirrorEdits === m ? "on" : ""} onClick={() => void save({ ...s, mirrorEdits: m })}>{m === "propose" ? "Wait for review" : "Apply"}</button>)}
-          </div>
-        </div>
-      </div>
-      <JevRow settings={s} onSave={save} />
-      <ReaWorkflowSettings jevAvailable={Boolean(s.jevEnabled && s.jevKeyHint)} />
-      <div className="set-row">
-        <div className="set-text">
-          <div className="set-title">Review inbox</div>
-          <div className="set-hint">{overview.pending ? `${overview.pending} proposal${overview.pending === 1 ? "" : "s"} waiting.` : "Nothing waiting."} Activity lists every change agents made, with Revert.</div>
-        </div>
-        <div className="set-control"><button type="button" className="btn" onClick={() => { void import("../settings/store").then((m) => m.useSettingsDialog.getState().hide()); useAgents.getState().show("review"); }}>Open inbox…</button></div>
+      <div role="tablist" aria-label="Agent settings" className="agx-tabs agx-settings-tabs" onKeyDown={onTabKey}>
+        {TABS.map(([id, label]) => (
+          <button key={id} id={`agx-tab-${id}`} role="tab" type="button" aria-selected={tab === id} aria-controls="agx-tabpanel" tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}>
+            {label}{Boolean(badges[id]) && <span className={`agx-badge${id === "general" ? " attention" : ""}`} aria-label={id === "general" ? `${badges[id]} waiting` : `${badges[id]} agents`}>{badges[id]}</span>}
+          </button>
+        ))}
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
+      <div role="tabpanel" id="agx-tabpanel" aria-labelledby={`agx-tab-${tab}`} className="agx-tabpanel">
+        {tab === "general" && <>
+          <div className="set-row">
+            <div className="set-text">
+              <div className="set-title">Let local agents connect</div>
+              <div className="set-hint">Listens on this computer only (127.0.0.1), and only for agents with a token.{overview.port ? ` Listening on port ${overview.port}.` : s.apiEnabled ? " Starts with the next agent connection or restart." : ""}</div>
+            </div>
+            <div className="set-control"><label className="switch"><input type="checkbox" checked={s.apiEnabled} disabled={READ_ONLY} aria-label="Let local agents connect" onChange={(e) => void save({ ...s, apiEnabled: e.target.checked })} /><span className="switch-track" aria-hidden="true" /></label></div>
+          </div>
+          <div className="set-row">
+            <div className="set-text">
+              <div className="set-title">New agents start in</div>
+              <div className="set-hint">{MODE_LABELS[s.defaultMode].hint} Each agent can be changed in the Agents tab.</div>
+            </div>
+            <div className="set-control"><ModePicker label="New agents start in" value={s.defaultMode} onChange={(m) => void save({ ...s, defaultMode: m })} /></div>
+          </div>
+          <div className="set-row">
+            <div className="set-text">
+              <div className="set-title">Review inbox</div>
+              <div className="set-hint">{overview.pending ? `${overview.pending} proposal${overview.pending === 1 ? "" : "s"} waiting.` : "Nothing waiting."} Activity lists every change agents made, with Revert.</div>
+            </div>
+            <div className="set-control"><button type="button" className={`btn${overview.pending ? " primary" : ""}`} onClick={() => { void import("../settings/store").then((m) => m.useSettingsDialog.getState().hide()); useAgents.getState().show("review"); }}>Open inbox…</button></div>
+          </div>
+        </>}
 
-      <h4>Token usage</h4>
-      <AgentUsageView mode="compact" jevConfigured={Boolean(s.jevKeyHint && s.jevEnabled)} onChanged={setUsage} />
+        {tab === "agents" && <>
+          <h4>Connect apps</h4>
+          <ConnectApps scan={clients} agents={overview.agents} settings={s} usageByAgent={usageByAgent} onScan={scan} onChanged={() => { void load(); void scan(); }} />
 
-      <h4>Connect apps</h4>
-      <ConnectApps scan={clients} agents={overview.agents} settings={s} usageByAgent={usageByAgent} onScan={scan} onChanged={() => { void load(); void scan(); }} />
+          <h4>Agents</h4>
+          <ul className="agx-cards">
+            {overview.agents.map((a) => <AgentCard key={a.id} agent={a} overview={overview} client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)} usage={usageByAgent[a.id]} onChanged={() => { void load(); void scan(); }} />)}
+          </ul>
+          {overview.agents.length === 0 && !adding && <p className="picker-muted">No agents yet.</p>}
+          {adding
+            ? <AgentForm initial={null} defaultMode={s.defaultMode} onSaved={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />
+            : !READ_ONLY && <div className="agx-actions"><button type="button" className="btn" onClick={() => setAdding(true)}>Add agent…</button></div>}
+          {!READ_ONLY && <SubagentImport defaultMode={s.defaultMode} onImported={() => void load()} />}
+        </>}
 
-      <h4>Agents</h4>
-      <ul className="agx-cards">
-        {overview.agents.map((a) => <AgentCard key={a.id} agent={a} overview={overview} client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)} usage={usageByAgent[a.id]} onChanged={() => { void load(); void scan(); }} />)}
-      </ul>
-      {overview.agents.length === 0 && !adding && <p className="picker-muted">No agents yet.</p>}
-      {adding
-        ? <AgentForm initial={null} defaultMode={s.defaultMode} onSaved={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />
-        : !READ_ONLY && <div className="agx-actions"><button type="button" className="btn" onClick={() => setAdding(true)}>Add agent…</button></div>}
+        {tab === "usage" && <>
+          <h4>Token usage</h4>
+          <AgentUsageView mode="compact" jevConfigured={Boolean(s.jevKeyHint && s.jevEnabled)} onChanged={setUsage} />
+        </>}
 
-      <MirrorSection />
+        {tab === "memory" && <>
+          <JevRow settings={s} onSave={save} />
+          <ReaWorkflowSettings jevAvailable={Boolean(s.jevEnabled && s.jevKeyHint)} />
+        </>}
 
-      <h4>Project files</h4>
-      <AgentsMdExport />
-      {!READ_ONLY && <SubagentImport defaultMode={s.defaultMode} onImported={() => void load()} />}
+        {tab === "files" && <>
+          <MirrorSection />
+          {mirrorEdits}
+          <h4>Project files</h4>
+          <AgentsMdExport />
+        </>}
+      </div>
     </div>
   );
 }

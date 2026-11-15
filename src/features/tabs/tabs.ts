@@ -102,6 +102,17 @@ export async function reopenClosedTab(): Promise<boolean> {
   return false;
 }
 
+/** Removes a tab from the tab strip after it is docked into a split pane, without closing that pane. */
+export async function detachTab(id: string): Promise<void> {
+  const ids = useTabs.getState().ids;
+  const i = ids.indexOf(id);
+  if (i < 0) return;
+  const rest = ids.filter((x) => x !== id);
+  const wasOpen = useWorkspace.getState().selectedPageId === id;
+  commit(rest);
+  if (wasOpen && rest.length) await useWorkspace.getState().selectPage(rest[Math.min(i, rest.length - 1)]);
+}
+
 /** Removes a tab whose page no longer exists, without moving anywhere. */
 export function dropTab(id: string): void {
   useSplit.getState().removePage(id);

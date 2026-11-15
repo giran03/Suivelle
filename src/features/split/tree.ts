@@ -14,6 +14,9 @@ export interface Rect { x: number; y: number; w: number; h: number }
 
 /** Smallest share a track may shrink to, so a pane never collapses out of reach. */
 export const MIN_SHARE = 0.14;
+/** The smallest a pane may be dragged to, in pixels, so a pane never shrinks to an unusable sliver. */
+export const MIN_PANE_W = 360;
+export const MIN_PANE_H = 280;
 export const ROOT: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
 export const isLeaf = (t: Tree): t is Leaf => "leaf" in t;
@@ -142,22 +145,22 @@ export function dividers(t: Tree, r: Rect = ROOT, path: number[] = [], out: Divi
 }
 
 /** Moves the divider after track `index` by `delta` (a share), keeping both neighbours above the minimum. */
-export function resize(sizes: number[], index: number, delta: number): number[] {
+export function resize(sizes: number[], index: number, delta: number, minShare = MIN_SHARE): number[] {
   const next = normalize(sizes);
   if (index < 0 || index >= next.length - 1) return next;
   const pair = next[index] + next[index + 1];
-  const min = Math.min(MIN_SHARE, pair / 2);
+  const min = Math.min(Math.max(MIN_SHARE, minShare), pair / 2);
   const a = Math.max(min, Math.min(pair - min, next[index] + delta));
   next[index] = a;
   next[index + 1] = pair - a;
   return next;
 }
 
-export function resizeAt(t: Tree, path: number[], index: number, delta: number): Tree {
+export function resizeAt(t: Tree, path: number[], index: number, delta: number, minShare = MIN_SHARE): Tree {
   if (isLeaf(t)) return t;
-  if (!path.length) return { ...t, sizes: resize(t.sizes, index, delta) };
+  if (!path.length) return { ...t, sizes: resize(t.sizes, index, delta, minShare) };
   const [head, ...rest] = path;
-  return { ...t, kids: t.kids.map((k, i) => (i === head ? resizeAt(k, rest, index, delta) : k)) };
+  return { ...t, kids: t.kids.map((k, i) => (i === head ? resizeAt(k, rest, index, delta, minShare) : k)) };
 }
 
 /** Every split in the tree gets equal shares. */

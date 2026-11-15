@@ -51,7 +51,7 @@ it("persists overrides, preserves default restoration conflicts and survives sto
   expect(useShortcuts.getState().overrides).toEqual({});
 });
 
-it("consumes background page keys and pointer inputs while preserving palette typing and Ctrl+K", () => {
+it("consumes background page keys and pointer inputs while preserving palette typing and Ctrl+P", () => {
   const dialog = document.createElement("dialog"); dialog.className = "palette"; dialog.open = true;
   const input = document.createElement("input"); dialog.append(input);
   const editor = document.createElement("textarea"); document.body.append(editor, dialog);
@@ -64,7 +64,7 @@ it("consumes background page keys and pointer inputs while preserving palette ty
   const click = new MouseEvent(down, { bubbles: true, cancelable: true }); editor.dispatchEvent(click);
   expect(click.defaultPrevented).toBe(true); expect(pageInput).not.toHaveBeenCalled();
   expect(keyboard(input, "a").defaultPrevented).toBe(false); expect(typing).toHaveBeenCalledTimes(1);
-  expect(keyboard(input, "k", { ctrlKey: true }).defaultPrevented).toBe(true); expect(search).toHaveBeenCalledTimes(1);
+  expect(keyboard(input, "p", { ctrlKey: true }).defaultPrevented).toBe(true); expect(search).toHaveBeenCalledTimes(1);
   dialog.open = false;
   expect(keyboard(editor, "a").defaultPrevented).toBe(false); expect(pageInput).toHaveBeenCalledTimes(1);
 });

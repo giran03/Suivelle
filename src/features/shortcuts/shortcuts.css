@@ -28,3 +28,55 @@
 .shortcuts .sc-row dd { flex: 1 1 140px; min-inline-size: 0; flex-wrap: wrap; justify-content: flex-end; }
 .shortcuts .sc-row .kbd { white-space: normal; overflow-wrap: anywhere; }
 .shortcuts .shortcuts-head { flex-wrap: wrap; gap: 8px; }
+
+/* ==========================================================================
+   Octopolis shortcuts panel: context chips, a card per context, key caps on the
+   right, row actions that appear on hover or focus.
+   ========================================================================== */
+.shortcut-settings { gap: calc(10px * var(--density)); }
+.shortcut-filters { flex-wrap: nowrap; }
+.shortcut-filters input { flex: 1 1 auto; }
+.shortcut-bar-actions { display: flex; flex: none; gap: 6px; }
+.shortcut-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.shortcut-cat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); color: var(--text-muted); font-size: 0.75rem; line-height: 1.2; transition: background-color var(--t-fast) ease-out, border-color var(--t-fast) ease-out, color var(--t-fast) ease-out; }
+.shortcut-cat-chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.shortcut-cat-chip.active { border-color: var(--accent-ui); background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.shortcut-subfilter { margin-top: -2px; }
+.shortcut-subfilter .shortcut-cat-chip { padding: 2px 9px; background: transparent; }
+.shortcut-subfilter .shortcut-cat-chip.active { background: var(--accent-soft); }
+
+.shortcut-list > section + section { margin-block-start: calc(20px * var(--density)); }
+.shortcut-sec-title { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
+.shortcut-sec-title .app-icon { color: var(--text-muted); }
+.shortcut-sec-count { padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); color: var(--text-muted); font-size: 0.6875rem; font-weight: 500; }
+.shortcut-sec-note { margin: 0 0 8px; max-inline-size: 62ch; color: var(--text-muted); font-size: 0.75rem; line-height: 1.5; }
+.shortcut-card { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-1); overflow: hidden; }
+
+.shortcut-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: calc(6px * var(--density)) 12px; border-block-end: 1px solid var(--border-subtle); transition: background var(--t-fast) ease-out; }
+.shortcut-card .shortcut-row:last-child { border-block-end: 0; }
+.shortcut-row:hover, .shortcut-row:focus-within { background: var(--surface-hover); }
+.shortcut-action { display: flex; align-items: center; gap: 8px; min-inline-size: 0; font-size: 0.875rem; }
+.shortcut-tag { padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ui); font-size: 0.6875rem; font-weight: 600; }
+.shortcut-bindings { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.shortcut-none { color: var(--text-muted); font-size: 0.75rem; }
+.shortcut-chip { padding: 2px; border-radius: var(--r-sm); }
+.shortcut-chip:hover:not(:disabled) { background: transparent; }
+.shortcut-chip:hover:not(:disabled) kbd, .shortcut-chip:focus-visible kbd { border-color: var(--accent-ui); color: var(--text-primary); }
+.shortcut-keycaps kbd { min-inline-size: 0; min-block-size: 0; padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: var(--r-xs); background: var(--editor-background); color: var(--text-secondary); font: 0.6875rem var(--font-ui); transition: border-color var(--t-fast) ease-out, color var(--t-fast) ease-out; }
+.shortcut-row-actions { flex-wrap: nowrap; gap: 2px; opacity: 0; transition: opacity var(--t-fast) ease-out; }
+.shortcut-row:hover .shortcut-row-actions, .shortcut-row:focus-within .shortcut-row-actions { opacity: 1; }
+@media (hover: none) { .shortcut-row-actions { opacity: 1; } }
+.shortcut-empty { padding: 24px 0; color: var(--text-muted); text-align: center; }
+
+.shortcut-recorder { padding: 14px; border: 1px solid var(--accent-ui); border-radius: var(--r-xl); background: var(--surface-1); }
+.shortcut-capture { background: var(--editor-background); }
+.shortcut-diagnostic { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-1); }
+.shortcut-diagnostic > summary { padding: 10px 14px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
+.shortcut-diagnostic[open] > summary { border-block-end: 1px solid var(--border-subtle); }
+.shortcut-diagnostic > :not(summary) { margin: 10px 14px; }
+@container (max-width: 560px) {
+  .shortcut-filters { flex-wrap: wrap; }
+  .shortcut-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .shortcut-row-actions { grid-column: 1 / -1; opacity: 1; justify-content: flex-end; }
+}
+.shortcut-list { margin-block-start: 10px; }

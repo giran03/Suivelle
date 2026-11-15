@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { Titlebar } from "./Titlebar";
+import { usePreferences } from "../stores/preferences";
 
 const native = vi.hoisted(() => ({
   minimize: vi.fn(async () => undefined), close: vi.fn(async () => undefined),
@@ -21,7 +22,7 @@ beforeEach(() => {
   native.onResized.mockResolvedValue(native.stopResize); native.onFocusChanged.mockResolvedValue(native.stopFocus);
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
-afterEach(async () => { await act(async () => root.unmount()); document.body.replaceChildren(); Reflect.deleteProperty(window, "__TAURI_INTERNALS__"); });
+afterEach(async () => { usePreferences.getState().setWindowControls("macos"); usePreferences.getState().setWindowControlsSide("right"); await act(async () => root.unmount()); document.body.replaceChildren(); Reflect.deleteProperty(window, "__TAURI_INTERNALS__"); });
 async function mount() { await act(async () => root.render(<Titlebar />)); }
 async function click(label: string) { await act(async () => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click()); }
 
@@ -32,7 +33,7 @@ it("connects window controls and restores the maximize button's state", async ()
   expect(host.querySelector('[aria-label="Restore window"]')).not.toBeNull();
   await click("Close window"); expect(native.close).toHaveBeenCalledOnce();
   expect(host.querySelector('[data-tauri-drag-region]')).not.toBeNull();
-  expect(host.querySelector('.app-window-controls [data-tauri-drag-region]')).toBeNull();
+  expect(host.querySelector('.tb-traffic[data-tauri-drag-region]')).toBeNull();
 });
 it("tracks native resize and focus events and removes listeners on unmount", async () => {
   await mount();
@@ -52,4 +53,14 @@ it("shows actionable window errors", async () => {
 it("does not render desktop chrome in the browser", async () => {
   Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
   await mount(); expect(host.innerHTML).toBe(""); expect(native.onResized).not.toHaveBeenCalled();
+});
+it("defaults to macOS traffic lights on the right, supports left, and smaller Windows icons", async () => {
+  await mount();
+  expect(host.querySelector('.tb-traffic-right')).not.toBeNull();
+  expect(host.querySelector('.app-titlebar-drag .tb-traffic')).toBeNull();
+  await act(async () => usePreferences.getState().setWindowControlsSide("left"));
+  expect(host.querySelector('.app-titlebar-drag .tb-traffic')).not.toBeNull();
+  expect(host.querySelector('.tb-traffic-right')).toBeNull();
+  await act(async () => usePreferences.getState().setWindowControls("windows"));
+  expect(host.querySelector<HTMLElement>('.app-window-controls .app-icon')?.style.width).toBe("12px");
 });

@@ -28,7 +28,7 @@ for (const mode of ["light", "dark"] as const) {
   for (const preset of PALETTE_PRESETS[mode]) {
     it(`finds and applies ${preset.name}, including its ${mode} mode`, async () => {
       const id = `theme-preset-${preset.id}`;
-      const command = matchCommands(`theme ${preset.name}`)[0];
+      const command = matchCommands(`theme ${preset.name}`).find(c => c.id === id)!;
       expect(command.id).toBe(id);
       expect(matchCommands("theme presets").some(c => c.id === id)).toBe(true);
       expect(READ_ONLY_COMMANDS.has(id)).toBe(true);
@@ -86,8 +86,8 @@ it("uses stable, separate commands for identically named themes and removes dele
   useThemes.getState().saveProfile("Paper", emptyTheme());
   useThemes.getState().saveProfile("Paper", emptyTheme());
   const commands = matchCommands("theme Paper");
-  expect(commands).toHaveLength(3);
-  expect(new Set(commands.map(c => c.id)).size).toBe(3);
+  expect(commands).toHaveLength(4);
+  expect(new Set(commands.map(c => c.id)).size).toBe(4);
   const profiles = useThemes.getState().profiles;
   const stale = commands.find(c => c.id === `theme-profile-${profiles[0].id}`)!;
   useThemes.getState().deleteProfile(profiles[0].id);

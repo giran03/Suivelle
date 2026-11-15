@@ -1,4 +1,5 @@
 import { useShortcuts } from "../shortcuts/store";
+import { frecencyReader, recordUse } from "../../lib/frecency";
 import { forgetSearch, saveSearch, savedSearches, type SavedSearch } from "./savedSearches";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { READ_ONLY } from "../../lib/access";
@@ -24,6 +25,8 @@ interface Row {
   hint?: string;
   /** Runs inside the palette (a saved search fills the box) instead of closing it. */
   keep?: boolean;
+  /** What frecency remembers this row as; defaults to its key. */
+  use?: string;
   run: () => void | Promise<void>;
 }
 
@@ -106,22 +109,25 @@ export function PaletteBody() {
         out.push({ key: `saved-${s.query}`, section: "Saved searches", kind: "command", title: s.query, sub: filters || undefined, keep: true, run: () => { setQuery(s.query); setTitlesOnly(s.titlesOnly); setDayIdx(Math.min(s.dayIdx, DAY_FILTERS.length - 1)); } });
       }
       for (const p of recents.filter((r) => r.id !== currentId).slice(0, 8)) {
-        out.push({ key: `recent-${p.id}`, section: "Recent", kind: "page", title: label(p.title), run: open(p.id) });
+        out.push({ key: `recent-${p.id}`, use: `page:${p.id}`, section: "Recent", kind: "page", title: label(p.title), run: open(p.id) });
       }
     } else {
-      for (const h of hits.filter((x) => x.kind === "page")) {
-        out.push({ key: `page-${h.pageId}`, section: "Pages", kind: "page", title: h.snippet, sub: h.parentTitle ? label(h.parentTitle) : undefined, run: open(h.pageId) });
+      // Pages you open often float up; equal frecency keeps the search's own order.
+      const used = frecencyReader();
+      const pageHits = hits.filter((x) => x.kind === "page").map((h, i) => ({ h, i, b: Math.min(used(`page:${h.pageId}`), 8) })).sort((a, b) => b.b - a.b || a.i - b.i).map((x) => x.h);
+      for (const h of pageHits) {
+        out.push({ key: `page-${h.pageId}`, use: `page:${h.pageId}`, section: "Pages", kind: "page", title: h.snippet, sub: h.parentTitle ? label(h.parentTitle) : undefined, run: open(h.pageId) });
       }
       const perPage = new Map<string, number>();
       for (const h of hits.filter((x) => x.kind === "block")) {
         const n = perPage.get(h.pageId) ?? 0;
         if (n >= MAX_PER_PAGE || out.filter((r) => r.section === "In pages").length >= MAX_BLOCK_HITS) continue;
         perPage.set(h.pageId, n + 1);
-        out.push({ key: `block-${h.blockId}`, section: "In pages", kind: "block", title: label(h.pageTitle), sub: h.snippet, run: open(h.pageId, h.blockId) });
+        out.push({ key: `block-${h.blockId}`, use: `page:${h.pageId}`, section: "In pages", kind: "block", title: label(h.pageTitle), sub: h.snippet, run: open(h.pageId, h.blockId) });
       }
     }
     for (const c of matchCommands(q)) {
-      out.push({ key: `cmd-${c.id}`, section: "Commands", kind: "command", title: c.title, hint: c.shortcut, run: c.run });
+      out.push({ key: `cmd-${c.id}`, use: `cmd:${c.id}`, section: "Commands", kind: "command", title: c.title, hint: c.shortcut, run: c.run });
     }
     if (q && !READ_ONLY) {
       out.push({ key: "create", section: "Commands", kind: "create", title: `Create page “${q}”`, run: () => useWorkspace.getState().createPage(null, q) });
@@ -137,6 +143,7 @@ export function PaletteBody() {
   const activate = (row: Row | undefined) => {
     if (!row) return;
     if (!row.keep) usePalette.getState().hide();
+    recordUse(row.use ?? row.key);
     void row.run();
   };
 

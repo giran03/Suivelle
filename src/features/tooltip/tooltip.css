@@ -59,8 +59,10 @@
     translate var(--tt-move-dur) var(--tt-move-ease),
     width var(--tt-move-dur) var(--tt-move-ease);
 }
+.t-tt-inner { display: flex; flex: none; align-items: center; box-sizing: content-box; }
 .t-tt-text { white-space: nowrap; }
-.t-tt[data-wrap="true"] { white-space: normal; align-items: flex-start; }
+.t-tt[data-wrap="true"] { white-space: normal; }
+.t-tt[data-wrap="true"] .t-tt-inner { align-items: flex-start; }
 .t-tt[data-wrap="true"] .t-tt-text { white-space: normal; }
 .t-tt-keys { margin-left: 10px; padding: 0 5px; border: 1px solid var(--border); border-radius: var(--r-xs); color: var(--text-muted); font-size: 0.75rem; line-height: 1.5; }
 .t-tt[data-wrap="true"] .t-tt-keys { align-self: flex-start; }

@@ -1,0 +1,56 @@
+/* ==========================================================================
+   Octopolis surface language for Suivelle. Loaded last.
+   The window frame and sidebar share --background; the page, its toolbar and
+   tab strip are one raised card (--editor-background) with a hairline border;
+   menus, dialogs and panels float on --surface-2 with a strong border.
+   ========================================================================== */
+body { font-size: 0.875rem; background: var(--background); }
+
+/* frame */
+.app-frame, .app-titlebar, .shell { background: var(--background); }
+.app-titlebar { border-bottom: 0; }
+.sidebar { background: var(--sidebar); border-right: 0; }
+main {
+  margin: calc(6px * var(--density)) calc(6px * var(--density)) calc(6px * var(--density)) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--editor-background);
+  overflow: hidden;
+}
+.shell[data-collapsed] main, .shell[data-focus] main { margin-left: calc(6px * var(--density)); }
+.main-scroll { background: var(--editor-background); }
+.topbar { border-bottom: 1px solid var(--border-subtle); }
+@media (max-width: 640px) { main { margin-left: 0; border-radius: var(--r-lg); } }
+
+/* sidebar rows: quiet at rest, tonal step on hover, wash when current */
+.sidebar .node:hover, .side-nav > *:hover { background: var(--surface-hover); }
+.node.selected { background: var(--accent-soft); }
+
+/* controls: raised neutral button with a strong hairline, filled accent for the primary action */
+.btn { background: var(--surface-active); border-color: var(--border-strong); }
+.btn:hover:not(:disabled) { background: var(--surface-active); border-color: var(--border-strong); filter: brightness(1.12); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover:not(:disabled) { background: var(--surface-hover); filter: none; }
+.btn.primary { border-color: var(--accent); }
+.btn.primary:hover:not(:disabled) { filter: none; border-color: var(--accent-hover); }
+
+/* floating layers */
+.menu, .toast { background: var(--surface-2); border-color: var(--border-strong); box-shadow: var(--menu-shadow); }
+.palette { border-color: var(--border-strong); box-shadow: var(--menu-shadow); }
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--accent-soft); }
+
+/* theme gallery (Settings > Appearance): Octopolis families as miniature windows */
+.theme-gallery { display: grid; gap: 18px; margin-block: 14px 8px; }
+.theme-gallery h4 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 0.8125rem; font-weight: 600; color: var(--text-primary); }
+.theme-gallery h4 span { font-weight: 400; font-size: 0.75rem; color: var(--text-muted); }
+.theme-gallery .theme-palette-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin: 0; }
+.theme-gallery .theme-palette-presets button { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px; border: 1px solid var(--border); border-radius: var(--r-lg); text-align: left; }
+.theme-gallery .theme-palette-presets button:hover { background: var(--surface-hover); }
+.theme-gallery .theme-palette-presets button[aria-pressed="true"] { border-color: var(--accent-ui); background: var(--accent-soft); }
+.theme-thumb { display: block; height: 52px; padding: 6px 6px 0 18px; border: 1px solid; border-radius: var(--r-md); overflow: hidden; forced-color-adjust: none; }
+.theme-thumb > i { display: block; height: 100%; padding: 6px 7px; border: 1px solid; border-bottom: 0; border-radius: 6px 6px 0 0; }
+.theme-thumb b { display: block; width: 18px; height: 5px; margin-bottom: 5px; border-radius: 3px; }
+.theme-thumb u { display: block; height: 3px; margin-bottom: 4px; border-radius: 2px; opacity: 0.55; }
+.theme-thumb u + u { width: 60%; }
+.theme-thumb-name { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 2px 2px; font-size: 0.75rem; font-weight: 500; color: var(--text-primary); }
+.theme-thumb-name .app-icon { color: var(--accent-ui); }

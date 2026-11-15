@@ -4,7 +4,7 @@ const ipc = vi.hoisted(() => ({ pageGet: vi.fn() }));
 vi.mock("../../lib/ipc", async (original) => ({ ...(await original<typeof import("../../lib/ipc")>()), ipc }));
 import { useWorkspace } from "../../stores/workspace";
 import type { Workspace } from "../../types";
-import { closeTab, cycleTab, dropTab, installTabs, moveTab, openInNewTab, openTabBeside, reopenClosedTab, useTabs } from "./tabs";
+import { closeTab, cycleTab, detachTab, dropTab, installTabs, moveTab, openInNewTab, openTabBeside, reopenClosedTab, useTabs } from "./tabs";
 import { usePeek } from "../peek/store";
 
 const workspace = { id: "w1", name: "W" } as Workspace;
@@ -162,5 +162,16 @@ describe("reopening closed tabs", () => {
     expect(ids()).toContain("B");
     expect(open()).toBe("B");
     expect(await reopenClosedTab()).toBe(false);
+  });
+
+  it("detaches a docked tab without closing its split pane", async () => {
+    await openInNewTab("B");
+    await openInNewTab("C");
+    await detachTab("B");
+    expect(ids()).toEqual(["A", "C"]);
+    expect(open()).toBe("C");
+    await detachTab("C");
+    expect(ids()).toEqual([]);
+    expect(open()).toBe("A");
   });
 });

@@ -4,8 +4,8 @@ import { Icon } from "../../components/Icon";
 import { useWorkspace } from "../../stores/workspace";
 import type { Page } from "../../types";
 import { PageGlyph } from "../pages/PageGlyph";
-import { DRAG_CLASS, dropOnSplit } from "../split/dropOnSplit";
-import { closeTab, dropTab, moveTab, openTabBeside, useTabs } from "./tabs";
+import { DRAG_CLASS, dropOnSplit, updateDockHint } from "../split/dropOnSplit";
+import { closeTab, detachTab, dropTab, moveTab, openTabBeside, useTabs } from "./tabs";
 import "./tabs.css";
 
 /** Finds what the sidebar already knows about a page before falling back to the title cache. */
@@ -68,6 +68,7 @@ function useTabDrag(id: string) {
         ghost.style.transform = `translate(${ev.clientX - (startX - grab.left)}px, ${ev.clientY - (startY - grab.top)}px)`;
         ghost.classList.toggle("docking", !inStrip);
       }
+      updateDockHint(ev.clientX, ev.clientY);
       if (!inStrip) return;
       // The tab takes the slot whose centre the pointer has passed.
       const others = [...bar.querySelectorAll<HTMLElement>(".tab")].filter((t) => t !== tab);
@@ -84,7 +85,7 @@ function useTabDrag(id: string) {
       tab.classList.remove("dragging");
       ghost?.remove();
       // Test the drop while the targets still exist; removing the class hides them.
-      if (dragging && ev.type !== "pointercancel") dropOnSplit(id, ev.clientX, ev.clientY);
+      if (dragging && ev.type !== "pointercancel") dropOnSplit(id, ev.clientX, ev.clientY, (docked) => { void detachTab(docked); });
       document.body.classList.remove(DRAG_CLASS, "tab-moving");
       if (dragging) {
         // The click that ends a drag must not also switch tabs.
@@ -135,12 +136,49 @@ function Tab({ id, active, focusable }: { id: string; active: boolean; focusable
   );
 }
 
+/** How long a dragged page must rest on a tab before that tab opens, so a page can be dropped into it. */
+const SPRING_MS = 700;
+
+/** Springs open the tab a dragged page is held over: a bar fills the tab, and when it is full the tab opens. */
+function useTabSpring() {
+  useEffect(() => {
+    let hovered: HTMLElement | null = null;
+    let timer = 0;
+    const clear = () => {
+      window.clearTimeout(timer);
+      hovered?.classList.remove("spring");
+      hovered = null;
+    };
+    const move = (e: PointerEvent) => {
+      if (!document.body.classList.contains("page-drag")) { if (hovered) clear(); return; }
+      const tab = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".tab[data-tab]") ?? null;
+      if (tab === hovered) return;
+      clear();
+      if (!tab || tab.classList.contains("on")) return;
+      hovered = tab;
+      tab.classList.add("spring");
+      const id = tab.dataset.tab!;
+      timer = window.setTimeout(() => { clear(); void useWorkspace.getState().selectPage(id); }, SPRING_MS);
+    };
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", clear, true);
+    window.addEventListener("pointercancel", clear, true);
+    return () => {
+      clear();
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", clear, true);
+      window.removeEventListener("pointercancel", clear, true);
+    };
+  }, []);
+}
+
 /** The strip of open pages. Hidden until a second page is opened in a new tab (Alt+click or middle-click a page). */
 export function TabBar() {
   const ids = useTabs((s) => s.ids);
   const selected = useWorkspace((s) => s.selectedPageId);
   const view = useWorkspace((s) => s.view);
   const bar = useRef<HTMLDivElement>(null);
+  useTabSpring();
   const lefts = useRef(new Map<string, number>());
   // Tabs glide to their new places when one is moved, opened or closed.
   useLayoutEffect(() => {

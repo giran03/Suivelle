@@ -7,6 +7,7 @@ import "./styles.css";
 import "./features/tooltip/tooltip.css";
 import "./forced-colors.css";
 import "./page-focus.css";
+import "./octopolis.css";
 
 loadIconFont();
 

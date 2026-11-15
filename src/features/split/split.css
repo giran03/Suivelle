@@ -7,7 +7,7 @@
 .split-grid:not([data-split]) .split-cell::after { box-shadow: none; }
 .split-grid[data-resizing] .split-cell { transition: none; }
 .split-cell > .main-scroll { flex: 1; }
-.split-pane { flex: 1; width: auto; min-height: 0; border-left: 0; }
+.peek-panel.split-pane { flex: 1; width: auto; min-height: 0; border-left: 0; }
 .split-head { cursor: grab; user-select: none; }
 .split-head .icon-btn { cursor: pointer; }
 body.split-moving, body.split-moving * { cursor: grabbing !important; }
@@ -22,9 +22,6 @@ body.split-moving, body.split-moving * { cursor: grabbing !important; }
 .split-divider:focus-visible { outline: none; }
 
 /* Dock hint: follows the pointer over the panes and outlines where the dragged page would land. */
-.dock-hint { position: fixed; z-index: 70; left: 0; top: 0; width: 0; height: 0; opacity: 0; pointer-events: none; border: 2px solid var(--accent-ui); border-radius: var(--r-md); background: color-mix(in srgb, var(--accent-ui) 14%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-ui) 30%, transparent), 0 8px 28px color-mix(in srgb, var(--accent-ui) 20%, transparent); transition: opacity var(--t-fast) ease-out, left 140ms var(--ease-smooth-out, ease-out), top 140ms var(--ease-smooth-out, ease-out), width 140ms var(--ease-smooth-out, ease-out), height 140ms var(--ease-smooth-out, ease-out); }
-.dock-hint[data-on] { opacity: 1; }
-.dock-hint[data-zone="center"] { background: color-mix(in srgb, var(--accent-ui) 8%, transparent); border-style: dashed; }
 
 .layout-glyph rect { fill: none; stroke: currentColor; stroke-width: 1.25; opacity: 0.55; }
 .layout-glyph rect.main { fill: currentColor; fill-opacity: 0.22; opacity: 0.9; }
@@ -41,3 +38,54 @@ body.split-moving, body.split-moving * { cursor: grabbing !important; }
 .split-tiles output { min-width: 1.5em; text-align: center; color: var(--fg); }
 
 @media (prefers-reduced-motion: reduce) { .split-divider::after, .split-cell, .dock-hint { transition: none; } }
+
+/* ---- Octopolis panes: when split, every pane is its own rounded card, the focused one outlined in the accent ---- */
+.split-grid[data-split] { background: var(--background); }
+.split-grid[data-split] .split-cell { padding: 3px; background: transparent; }
+.split-grid[data-split] .split-cell::after { box-shadow: none; }
+.split-grid[data-split] .split-cell > :is(.main-scroll, .split-pane) { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--editor-background); transition: border-color var(--t-fast) ease-out, box-shadow var(--t-fast) ease-out; }
+.split-grid[data-split] .split-cell:focus-within > :is(.main-scroll, .split-pane) { border-color: color-mix(in srgb, var(--accent-ui) 55%, var(--border-strong)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-ui) 22%, transparent); }
+.split-grid[data-split] .split-cell:not(.split-main) { animation: split-pane-in var(--m-slide, 280ms) var(--m-out, cubic-bezier(0.16, 1, 0.3, 1)); }
+@keyframes split-pane-in { from { opacity: 0; transform: scale(0.96); } }
+.split-divider:hover::after, .split-divider:focus-visible::after, .split-divider[data-active]::after { opacity: 1; }
+
+/* ---- Drag a tab, page or pane: every edge pulses, the edge under the pointer lights up ---- */
+.dock-cues { position: absolute; inset: 0; z-index: 30; display: none; pointer-events: none; }
+body:is(.split-drag, .page-drag) .dock-cues { display: block; }
+.dock-cues i { position: absolute; border-radius: 4px; background: var(--accent-ui); opacity: 0.4; box-shadow: 0 0 10px color-mix(in srgb, var(--accent-ui) 70%, transparent); animation: dock-pulse 1.4s ease-in-out infinite; }
+.dock-cues i[data-edge="left"] { left: 6px; top: 10%; bottom: 10%; width: 5px; }
+.dock-cues i[data-edge="right"] { right: 6px; top: 10%; bottom: 10%; width: 5px; }
+.dock-cues i[data-edge="top"] { top: 6px; left: 10%; right: 10%; height: 5px; }
+.dock-cues i[data-edge="bottom"] { bottom: 6px; left: 10%; right: 10%; height: 5px; }
+@keyframes dock-pulse { 50% { opacity: 0.18; } }
+
+.dock-hint { position: fixed; z-index: 70; left: 0; top: 0; width: 0; height: 0; opacity: 0; overflow: hidden; pointer-events: none; border: 2px dashed var(--accent-ui); border-radius: var(--r-xl); background: color-mix(in srgb, var(--accent-ui) 16%, var(--editor-background)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-ui) 22%, transparent), 0 12px 36px rgba(0, 0, 0, 0.4); transition: opacity var(--t-fast) ease-out, left 140ms var(--ease-smooth-out, ease-out), top 140ms var(--ease-smooth-out, ease-out), width 140ms var(--ease-smooth-out, ease-out), height 140ms var(--ease-smooth-out, ease-out); }
+.dock-hint[data-snap] { transition: opacity var(--t-fast) ease-out; }
+.dock-hint[data-on] { opacity: 1; animation: dock-in var(--m-base, 180ms) var(--m-out, ease-out); }
+@keyframes dock-in { from { opacity: 0; scale: 0.94; } }
+/* a glow that spreads in from the hovered edge, and a bright bar on it */
+.dock-hint::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.dock-hint[data-zone="left"]::before { background: linear-gradient(90deg, color-mix(in srgb, var(--accent-ui) 45%, transparent), transparent 55%); }
+.dock-hint[data-zone="right"]::before { background: linear-gradient(270deg, color-mix(in srgb, var(--accent-ui) 45%, transparent), transparent 55%); }
+.dock-hint[data-zone="top"]::before { background: linear-gradient(180deg, color-mix(in srgb, var(--accent-ui) 45%, transparent), transparent 55%); }
+.dock-hint[data-zone="bottom"]::before { background: linear-gradient(0deg, color-mix(in srgb, var(--accent-ui) 45%, transparent), transparent 55%); }
+.dock-edge { position: absolute; border-radius: 4px; background: var(--accent-ui); box-shadow: 0 0 18px var(--accent-ui), 0 0 4px var(--accent-ui); }
+.dock-hint[data-zone="left"] .dock-edge { left: 4px; top: 8%; bottom: 8%; width: 5px; }
+.dock-hint[data-zone="right"] .dock-edge { right: 4px; top: 8%; bottom: 8%; width: 5px; }
+.dock-hint[data-zone="top"] .dock-edge { top: 4px; left: 8%; right: 8%; height: 5px; }
+.dock-hint[data-zone="bottom"] .dock-edge { bottom: 4px; left: 8%; right: 8%; height: 5px; }
+.dock-hint[data-zone="center"] .dock-edge, .dock-hint[data-zone="center"] .dock-skel, .dock-hint[data-zone="center"]::before { display: none; }
+.dock-skel { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; }
+.dock-skel i { display: block; flex: none; height: 11px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent-ui) 26%, transparent) 30%, color-mix(in srgb, var(--accent-ui) 48%, transparent) 50%, color-mix(in srgb, var(--accent-ui) 26%, transparent) 70%); background-size: 300% 100%; animation: dock-shimmer 1.6s linear infinite; }
+.dock-skel .dock-skel-tab { width: 96px; height: 22px; border-radius: 6px 6px 0 0; }
+.dock-skel .dock-skel-bar { width: 100%; height: 22px; }
+@keyframes dock-shimmer { to { background-position: -300% 0; } }
+.dock-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px; text-align: center; color: var(--accent-ui); font-size: 0.9375rem; font-weight: 600; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--editor-background) 92%, transparent) 25%, transparent 78%); }
+.dock-label .app-icon { filter: drop-shadow(0 0 8px var(--accent-ui)); }
+:root[data-motion="reduced"] :is(.dock-cues i, .dock-skel i, .dock-hint, .split-cell) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .dock-cues i, .dock-skel i, .dock-hint, .split-cell { animation: none !important; } }
+
+/* A pane that was just closed: its card shrinks and fades where it stood. */
+.split-ghost { position: absolute; z-index: 5; padding: 3px; pointer-events: none; animation: split-pane-out 260ms var(--m-in, ease-in) forwards; }
+.split-ghost > div { width: 100%; height: 100%; border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--editor-background); }
+@keyframes split-pane-out { to { opacity: 0; transform: scale(0.94); } }

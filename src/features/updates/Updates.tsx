@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { formatBytes } from "../../lib/formatBytes";
 import { syncDialog } from "../../lib/dialog";
@@ -8,6 +8,8 @@ import { READ_ONLY } from "../../lib/access";
 import { useWorkspace } from "../../stores/workspace";
 import { useSettingsDialog } from "../settings/store";
 import { isPreparing, startUpdateScheduler, useUpdates, type Release } from "./store";
+import { ChangelogBody, ChangelogHistory, entryLabel } from "./ChangelogHistory";
+import { CHANGELOG } from "./changelogData";
 import "./updates.css";
 
 function releaseDate(value: string) {
@@ -19,6 +21,7 @@ export function UpdatesSection() {
   const { snapshot, phase, error, progress, check, download, preferences, install, showChangelog } = useUpdates();
   const target = useSettingsDialog((s) => s.section);
   const heading = useRef<HTMLHeadingElement>(null);
+  const [history, setHistory] = useState(false);
   useEffect(() => { void useUpdates.getState().init(); }, []);
   useEffect(() => {
     if (target !== "updates") return;
@@ -31,19 +34,24 @@ export function UpdatesSection() {
   }, [target]);
   const busy = phase !== "idle";
   const status = phase === "checking" ? "Checking for updates…" : phase === "downloading" ? "Downloading update…" : snapshot?.ready ? `Version ${snapshot.available?.version} is ready to install` : snapshot?.available ? `Version ${snapshot.available.version} is available` : error ? "Update check could not complete" : snapshot?.lastCheck ? "You're up to date" : "Not checked yet";
+  const tone: "good" | "bad" | "neutral" = error ? "bad" : snapshot?.ready || (!busy && !snapshot?.available && snapshot?.lastCheck) ? "good" : "neutral";
+  const glyph = error ? "warning" : tone === "good" ? "check" : snapshot?.available ? "download" : "restore";
+  const installed = snapshot?.installed.version;
+  const notes = CHANGELOG.find((e) => e.version === installed) ?? CHANGELOG[0];
   return (
     <section className="updates-section" aria-labelledby="updates-title">
       <h3 id="updates-title" ref={heading} tabIndex={-1}>Updates</h3>
-      <div className="set-row">
-        <div className="set-text">
-          <div className="set-title">Version {snapshot?.installed.version ?? "…"}</div>
-          <div className="set-hint" role="status">{snapshot?.unsupported ? "Manual updates for this installation" : status}</div>
-          {snapshot?.ready && <div className="set-hint">Saves changes and makes a backup before closing.</div>}
-          {snapshot?.lastCheck && <div className="set-hint">Last checked {new Date(snapshot.lastCheck).toLocaleString()}</div>}
+      <div className={`update-card${tone === "neutral" ? "" : ` ${tone}`}`}>
+        <span className={`update-glyph${phase === "checking" ? " spin" : ""}`}><Icon name={glyph} size={22} /></span>
+        <div className="update-text" role="status" aria-live="polite">
+          <div className="update-title">{snapshot?.unsupported ? "Manual updates for this installation" : status}</div>
+          <div className="update-detail">Version {snapshot?.installed.version ?? "…"}{snapshot?.lastCheck ? ` · last checked ${new Date(snapshot.lastCheck).toLocaleString()}` : ""}</div>
+          {snapshot?.ready && <div className="update-detail">Saves changes and makes a backup before closing.</div>}
         </div>
         {snapshot?.ready ? <button className="btn primary" disabled={busy} onClick={() => void install()}>Install and restart</button> : <button className="btn" disabled={busy || !snapshot || !!snapshot.unsupported} onClick={() => void check()}>Check for updates</button>}
       </div>
       {snapshot?.unsupported ? <p className="set-hint update-explanation">{snapshot.unsupported}</p> : <>
+        <h4 className="update-sub">Automatic updates</h4>
         <p className="set-hint update-explanation">Update checks and downloads contact GitHub. Your workspace content stays on this computer.</p>
         {([['autoCheck', 'Check for updates automatically'], ['autoDownload', 'Download updates automatically']] as const).map(([key, label]) => (
           <div className="set-row" key={key}>
@@ -52,7 +60,7 @@ export function UpdatesSection() {
           </div>
         ))}
       </>}
-      {snapshot?.available && <div className="update-available">
+      {snapshot?.available && <div className="update-available update-notes">
         <div className="set-title">Suivelle {snapshot.available.version}</div>
         {snapshot.available.date && <p className="set-hint">{releaseDate(snapshot.available.date)}</p>}
         {phase === "downloading" && <div className="update-progress">
@@ -69,9 +77,21 @@ export function UpdatesSection() {
       {snapshot?.recoveryBackup && <p className="set-hint update-explanation">Recovery backup: {snapshot.recoveryBackup}. Find it in Data and safety → Backups.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="update-actions">
-        <button className="btn" disabled={!snapshot || isPreparing(phase)} onClick={() => showChangelog()}>View changelog</button>
         {READ_ONLY ? <a className="btn ghost" href="https://github.com/giran03/Suivelle/releases" target="_blank" rel="noopener noreferrer">GitHub releases <Icon name="forward" /></a> : <button className="btn ghost" onClick={() => void invoke("update_open_releases").catch((e) => useUpdates.setState({ error: toAppError(e).message }))}>GitHub releases <Icon name="forward" /></button>}
       </div>
+      <div className="update-whatsnew">
+        <div className="update-sub-head">
+          <h4 className="update-sub">What's new{notes ? ` in ${notes.version}` : ""}</h4>
+          <button type="button" className="btn small" onClick={() => setHistory(true)}>View changelogs</button>
+        </div>
+        <div className="update-card-plain">
+          {notes ? <>
+            <p className="update-whatsnew-meta">{entryLabel(notes)}</p>
+            <ChangelogBody entry={notes} />
+          </> : <p className="set-hint">No changelog is bundled with this build.</p>}
+        </div>
+      </div>
+      <ChangelogHistory open={history} current={installed} onClose={() => setHistory(false)} />
     </section>
   );
 }

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray-menu",
+  "description": "The tray icon's right-click menu window: it listens for its show event and calls the tray_popup commands.",
+  "windows": ["tray-menu"],
+  "permissions": ["core:event:default"]
+}

@@ -1,4 +1,6 @@
 import { ACTIONS, label } from "../shortcuts/bindings";
+import { fuzzyMatch } from "../../lib/fuzzy";
+import { frecencyReader } from "../../lib/frecency";
 import { useShortcuts } from "../shortcuts/store";
 import { useWorkspaceDialog } from "../workspaces/store";
 import { READ_ONLY, READ_ONLY_COMMANDS } from "../../lib/access";
@@ -213,10 +215,15 @@ export function matchCommands(query: string): PaletteCommand[] {
     ...COMMANDS.map(c => ({ ...c, shortcut: label(c.id, useShortcuts.getState().overrides) || undefined })).filter((c) => (!READ_ONLY || READ_ONLY_COMMANDS.has(c.id)) && (!c.when || c.when())),
     ...profiles,
   ];
-  if (!q) return available;
-  const words = q.split(/\s+/);
-  return available.filter((c) => {
-    const hay = `${c.title} ${c.keywords}`.toLowerCase();
-    return words.every((w) => hay.includes(w));
-  });
+  const used = frecencyReader();
+  const boost = (c: PaletteCommand) => Math.min(used(`cmd:${c.id}`), 8) * 6;
+  // With nothing typed, what you use most comes first and the rest keeps its order.
+  if (!q) return available.map((c, i) => ({ c, i, b: used(`cmd:${c.id}`) })).sort((a, b) => b.b - a.b || a.i - b.i).map((x) => x.c);
+  // Typed: fuzzy match on title and keywords, best match first, nudged by how often you run the command.
+  return available
+    .map((c, i) => ({ c, i, score: fuzzyMatch(q, c.title, c.keywords) }))
+    .filter((x): x is { c: PaletteCommand; i: number; score: number } => x.score !== null)
+    .map((x) => ({ ...x, score: x.score + boost(x.c) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((x) => x.c);
 }

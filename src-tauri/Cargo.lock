@@ -4164,6 +4164,7 @@ dependencies = [
  "ts-rs",
  "uuid",
  "webview2-com",
+ "windows",
  "windows-core",
  "winreg 0.55.0",
  "zip 2.4.2",

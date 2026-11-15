@@ -229,7 +229,7 @@ const MAP_W = 176;
 const MAP_H = 116;
 
 /** A small overview of the whole board with the visible area outlined; click or drag to move there. */
-export function Minimap({ items, vp, size, onNavigate }: { items: (Box & { id: string; kind: string })[]; vp: Viewport; size: { w: number; h: number }; onNavigate: (worldX: number, worldY: number) => void }) {
+export function Minimap({ items, vp, size, onNavigate }: { items: (Box & { id: string; kind: string })[]; vp: Viewport; size: { w: number; h: number }; onNavigate: (worldX: number, worldY: number, smooth?: boolean) => void }) {
   const view: Box = { x: -vp.x / vp.k, y: -vp.y / vp.k, w: size.w / vp.k, h: size.h / vp.k };
   const all = bounds([...items, view]) ?? view;
   const pad = Math.max(all.w, all.h) * 0.06;
@@ -238,9 +238,11 @@ export function Minimap({ items, vp, size, onNavigate }: { items: (Box & { id: s
   const ox = (MAP_W - world.w * scale) / 2 - world.x * scale;
   const oy = (MAP_H - world.h * scale) / 2 - world.y * scale;
   const dragging = useRef(false);
-  const go = (e: React.PointerEvent<SVGSVGElement>) => {
+  const moved = useRef(false);
+  const downPos = useRef<{ x: number; y: number } | null>(null);
+  const go = (e: React.PointerEvent<SVGSVGElement>, smooth: boolean) => {
     const r = e.currentTarget.getBoundingClientRect();
-    onNavigate((e.clientX - r.left - ox) / scale, (e.clientY - r.top - oy) / scale);
+    onNavigate((e.clientX - r.left - ox) / scale, (e.clientY - r.top - oy) / scale, smooth);
   };
   return (
     <svg
@@ -252,12 +254,28 @@ export function Minimap({ items, vp, size, onNavigate }: { items: (Box & { id: s
       onPointerDown={(e) => {
         e.stopPropagation();
         dragging.current = true;
+        moved.current = false;
+        downPos.current = { x: e.clientX, y: e.clientY };
         e.currentTarget.setPointerCapture(e.pointerId);
-        go(e);
+        go(e, true);
       }}
-      onPointerMove={(e) => dragging.current && go(e)}
+      onPointerMove={(e) => {
+        if (!dragging.current) return;
+        if (!moved.current) {
+          if (downPos.current && Math.hypot(e.clientX - downPos.current.x, e.clientY - downPos.current.y) < 3) return;
+          moved.current = true;
+        }
+        go(e, false);
+      }}
       onPointerUp={() => {
         dragging.current = false;
+        moved.current = false;
+        downPos.current = null;
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+        moved.current = false;
+        downPos.current = null;
       }}
       onDoubleClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}

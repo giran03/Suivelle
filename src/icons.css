@@ -1,12 +1,26 @@
 @font-face {
-  font-family: "Suivelle Nerd Symbols";
-  src: url("/fonts/suivelle-nerd-symbols.woff2") format("woff2");
+  font-family: "Material Symbols Outlined";
+  src: url("/fonts/material-symbols-outlined.woff2") format("woff2");
   font-style: normal;
-  font-weight: 400;
+  font-weight: 100 700;
+  font-display: block;
+}
+@font-face {
+  font-family: "Material Symbols Rounded";
+  src: url("/fonts/material-symbols-rounded.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+}
+@font-face {
+  font-family: "Material Symbols Sharp";
+  src: url("/fonts/material-symbols-sharp.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 700;
   font-display: block;
 }
 
-:root { --font-icons: "Suivelle Nerd Symbols"; }
+:root { --font-icons: "Material Symbols Outlined"; --icon-weight: 300; --icon-fill: 0; }
 
 .app-icon {
   display: inline-flex;
@@ -22,11 +36,15 @@
   text-transform: none;
   text-indent: 0;
   vertical-align: middle;
+  /* Material glyphs sit inside a 20/24 box, so they are drawn a little larger to fill the icon square. */
+  scale: 1.15;
   user-select: none;
   pointer-events: none;
 }
 
 .app-icon::before { content: attr(data-glyph); }
+/* Icons that mean "on" (a favourite) are solid whatever the fill setting says. */
+.app-icon[data-icon="starFilled"] { font-variation-settings: "FILL" 1, "GRAD" 0, "opsz" 20; }
 :root[data-icon-font="failed"] .app-icon::before { display: none; }
 :root[data-icon-font="failed"] .app-icon::after {
   content: attr(data-fallback);

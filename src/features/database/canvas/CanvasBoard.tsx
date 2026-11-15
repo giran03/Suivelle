@@ -76,32 +76,38 @@ type Drag =
   | { mode: "marquee"; start: { x: number; y: number }; base: ReadonlySet<string> }
   | { mode: "move"; sx: number; sy: number; starts: Map<string, CanvasItem>; before: CanvasData | null; moved: boolean }
   | { mode: "resize"; sx: number; sy: number; start: CanvasItem; before: CanvasData | null; moved: boolean }
-  | { mode: "connect"; from: string };
+  | { mode: "connect"; from: string; ax: number; ay: number };
 
 interface NodeProps {
   item: CanvasItem;
   card: unknown;
   label: string;
   selected: boolean;
+  connectSource: boolean;
+  connectTarget: boolean;
   editing: boolean;
   readOnly: boolean;
   renderCard: BoardProps["renderCard"];
   onDown: (e: React.PointerEvent, item: CanvasItem, handle: "body" | "resize" | "connect") => void;
   onEdit: (item: CanvasItem | null, text?: string) => void;
   onOpen: (item: CanvasItem) => void;
+  onFitItem: (item: CanvasItem) => void;
   onMenu: (e: React.MouseEvent, item: CanvasItem) => void;
 }
 
 const isCard = (i: CanvasItem) => i.kind === "record" || i.kind === "page";
 const cardKey = (i: CanvasItem) => (i.kind === "record" ? i.recordId : i.kind === "page" ? (i.pageId ?? null) : null);
+const isCardHeaderTarget = (t: Element | null) =>
+  !!t?.closest(".cv-card-head, .cv-page-head") && !t.closest("input, textarea, button, a, [contenteditable='true']");
 
-const Node = memo(function Node({ item, card, label, selected, editing, readOnly, renderCard, onDown, onEdit, onOpen, onMenu }: NodeProps) {
+const Node = memo(function Node({ item, card, label, selected, connectSource, connectTarget, editing, readOnly, renderCard, onDown, onEdit, onOpen, onFitItem, onMenu }: NodeProps) {
   const style: React.CSSProperties = { left: item.x, top: item.y, width: item.w, height: item.h, zIndex: item.z };
   const custom = item.kind === "note" && isHexColor(item.color) ? item.color : null;
   if (custom) Object.assign(style, { "--note-bg": custom, "--note-ink": inkFor(custom) });
+  if (item.kind === "page" && item.color) Object.assign(style, { "--card-accent": item.color });
   return (
     <div
-      className={`cv-item kind-${item.kind}${selected ? " selected" : ""}${item.color && !custom ? ` tone-${item.color}` : ""}`}
+      className={`cv-item kind-${item.kind}${selected ? " selected" : ""}${connectSource ? " connect-source" : ""}${connectTarget ? " connect-target" : ""}${item.color && !custom ? ` tone-${item.color}` : ""}`}
       style={style}
       data-item-id={item.id}
       tabIndex={0}
@@ -111,6 +117,10 @@ const Node = memo(function Node({ item, card, label, selected, editing, readOnly
       onDoubleClick={(e) => {
         e.stopPropagation();
         if (item.kind === "page" && (e.target as Element).closest("[data-canvas-editor]")) return;
+        if (isCard(item) && isCardHeaderTarget(e.target as Element)) {
+          onFitItem(item);
+          return;
+        }
         if (isCard(item)) onOpen(item);
         else if (item.kind === "note" && !readOnly) onEdit(item);
       }}
@@ -206,7 +216,8 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
   const [edgeSel, setEdgeSel] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
-  const [ghost, setGhost] = useState<{ from: string; x: number; y: number } | null>(null);
+  const [ghost, setGhost] = useState<{ from: string; ax: number; ay: number; x: number; y: number } | null>(null);
+  const [connectTarget, setConnectTarget] = useState<string | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [snapping, setSnapping] = useState(() => readPref("snap", true));
@@ -264,6 +275,13 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
     const b = bounds(selItems);
     if (b && w) animateTo(zoomToBox(b, w, h));
   };
+  const fitItem = useCallback(
+    (item: CanvasItem) => {
+      const { w, h } = dims();
+      if (w > 0 && h > 0) animateTo(zoomToBox(item, w, h));
+    },
+    [animateTo],
+  );
   const zoomStep = (dir: 1 | -1) => {
     const { w, h } = dims();
     animateTo(zoomTo(vpRef.current, w / 2, h / 2, stepZoom(vpRef.current.k, dir)), 180);
@@ -474,9 +492,11 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
       setMenu(null);
       if (handle === "connect") {
         const rect = boardRef.current!.getBoundingClientRect();
+        const hb = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const anchor = toWorld(vpRef.current, hb.left + hb.width / 2 - rect.left, hb.top + hb.height / 2 - rect.top);
         const w = toWorld(vpRef.current, e.clientX - rect.left, e.clientY - rect.top);
-        drag.current = { mode: "connect", from: item.id };
-        setGhost({ from: item.id, x: w.x, y: w.y });
+        drag.current = { mode: "connect", from: item.id, ax: anchor.x, ay: anchor.y };
+        setGhost({ from: item.id, ax: anchor.x, ay: anchor.y, x: w.x, y: w.y });
         return;
       }
       if (readOnly) {
@@ -551,7 +571,9 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
       canvas.apply([{ op: "upsert_item", item: { ...d.start, w, h: keepRatio ? Math.max(MIN_H, Math.round((w * d.start.h) / d.start.w)) : h } }]);
     } else {
       const w = worldAt(e.clientX, e.clientY);
-      setGhost({ from: d.from, x: w.x, y: w.y });
+      setGhost({ from: d.from, ax: d.ax, ay: d.ay, x: w.x, y: w.y });
+      const to = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof HTMLElement && el.dataset.itemId && el.dataset.itemId !== d.from) as HTMLElement | undefined;
+      setConnectTarget(to?.dataset.itemId ?? null);
     }
   };
 
@@ -561,6 +583,7 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
     setPanning(false);
     setMarquee(null);
     setGuides([]);
+    setConnectTarget(null);
     if (boardRef.current?.hasPointerCapture(e.pointerId)) boardRef.current.releasePointerCapture(e.pointerId);
     if (!d) return;
     if ((d.mode === "move" || d.mode === "resize") && d.moved && d.before) {
@@ -736,10 +759,14 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
   const onlyNote = selItems.length === 1 && selItems[0].kind === "note" ? selItems[0] : null;
   const edge = edgeSel ? edges.find((x) => x.id === edgeSel) : undefined;
   const edgeBoxes = (x: CanvasEdge) => arrowBetween(itemById.get(x.fromItem)! as Box, itemById.get(x.toItem)! as Box);
-  const navigate = (wx: number, wy: number) => {
+  const navigate = (wx: number, wy: number, smooth = false) => {
     const { k } = vpRef.current;
-    jump({ k, x: size.w / 2 - wx * k, y: size.h / 2 - wy * k });
+    const target = { k, x: size.w / 2 - wx * k, y: size.h / 2 - wy * k };
+    if (smooth) animateTo(target);
+    else jump(target);
   };
+  let gridSize = 24 * vp.k;
+  while (gridSize > 0 && gridSize < 8) gridSize *= 2;
 
   return (
     <div className="canvas-wrap">
@@ -756,6 +783,11 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
       <div
         ref={boardRef}
         className={`canvas-view${handMode ? " hand" : ""}${panning ? " panning" : ""}`}
+        style={{
+          "--cv-zoom": String(vp.k),
+          backgroundPosition: `${vp.x}px ${vp.y}px`,
+          backgroundSize: `${gridSize}px ${gridSize}px`,
+        } as React.CSSProperties}
         tabIndex={0}
         role="application"
         aria-label="Canvas. Scroll to zoom, hold Space and drag to pan, double-click to add a note. Press V for the select tool and H for the hand tool."
@@ -763,6 +795,16 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
+        onPointerDownCapture={(e) => {
+          if (e.button !== 1 || (e.target as Element).closest(".cv-pill, .cv-minimap, .cv-edge-editor")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setMenu(null);
+          startPan(e);
+        }}
+        onMouseDownCapture={(e) => {
+          if (e.button === 1 && !(e.target as Element).closest(".cv-pill, .cv-minimap, .cv-edge-editor")) e.preventDefault();
+        }}
         onPointerDown={onBoardDown}
         onContextMenu={onBoardMenu}
         onDoubleClick={(e) => {
@@ -772,7 +814,8 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
           if (hit) {
             // Captured presses deliver the double-click here rather than to the item, so do what the item would.
             const item = itemById.get(hit.dataset.itemId ?? "");
-            if (item && isCard(item)) openItem(item);
+            if (item && isCard(item) && isCardHeaderTarget(t)) fitItem(item);
+            else if (item && isCard(item)) openItem(item);
             else if (item?.kind === "note" && !readOnly) onEdit(item);
             return;
           }
@@ -831,8 +874,8 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
                 </g>
               );
             })}
-            {ghost && itemById.get(ghost.from) && (
-              <line className="cv-ghost" x1={itemById.get(ghost.from)!.x + itemById.get(ghost.from)!.w / 2} y1={itemById.get(ghost.from)!.y + itemById.get(ghost.from)!.h / 2} x2={ghost.x} y2={ghost.y} />
+            {ghost && (
+              <line className="cv-ghost" x1={ghost.ax} y1={ghost.ay} x2={ghost.x} y2={ghost.y} />
             )}
             {guides.map((g, n) => (
               <line key={`${g.axis}${g.at}${n}`} className="cv-guide" x1={g.axis === "x" ? g.at : g.from} y1={g.axis === "x" ? g.from : g.at} x2={g.axis === "x" ? g.at : g.to} y2={g.axis === "x" ? g.to : g.at} />
@@ -847,12 +890,15 @@ export function CanvasBoard({ scopeId, canvas, ready, awaitingPlacement, cards, 
                 card={card}
                 label={card === undefined ? "" : cardLabel(card)}
                 selected={selected.has(i.id)}
+                connectSource={ghost?.from === i.id}
+                connectTarget={connectTarget === i.id}
                 editing={editing === i.id}
                 readOnly={readOnly}
                 renderCard={renderCard}
                 onDown={onNodeDown}
                 onEdit={onEdit}
                 onOpen={openItem}
+                onFitItem={fitItem}
                 onMenu={onItemMenu}
               />
             );

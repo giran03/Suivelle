@@ -5,7 +5,7 @@ import { syncDialog } from "../../lib/dialog";
 const PaletteBody = lazy(() => import("./PaletteBody").then(m => ({ default: m.PaletteBody })));
 const ProjectTaskAction = lazy(() => import("./ProjectTaskAction").then(m => ({ default: m.ProjectTaskAction })));
 
-/** Ctrl/Cmd+K overlay. A native <dialog> gives modal focus handling, Esc and focus restore. */
+/** Ctrl/Cmd+P overlay. A native <dialog> gives modal focus handling, Esc and focus restore. */
 export function Palette() {
   const open = usePalette((s) => s.open);
   const task = usePalette(s => s.task);

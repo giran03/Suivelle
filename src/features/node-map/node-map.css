@@ -161,8 +161,6 @@
 .map-line[data-dashed] { border-top-style: dashed; }
 .map-line[data-strong] { border-top-color: var(--text-muted); }
 
-.sidebar > .map-launch { flex: none; margin: 0 10px 6px; }
-.shell[data-rail] .sidebar > .map-launch { margin-inline: 6px; justify-content: center; }
 .shell[data-rail] .map-launch > span { display: none; }
 
 :root[data-motion="reduced"] :is(.map-status-working) { animation: none; background: none; -webkit-text-fill-color: currentColor; }

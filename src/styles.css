@@ -10,49 +10,49 @@
   color-scheme: light dark;
 
   /* surfaces */
-  --background: light-dark(#f7f6f2, #0c1329);
-  --sidebar: light-dark(#eeeff0, #0a1022);
-  --editor-background: var(--background);
-  --toolbar-background: var(--background);
+  --background: light-dark(#f6f7f9, #101216);
+  --sidebar: light-dark(#f6f7f9, #101216);
+  --editor-background: light-dark(#ffffff, #161920);
+  --toolbar-background: light-dark(#ffffff, #161920);
   --sidebar-text: var(--text-primary);
   --sidebar-secondary: var(--text-secondary);
   --sidebar-muted: var(--text-muted);
-  --focus-ring: var(--accent-ui);
-  --surface-1: light-dark(#ffffff, #131c3a);
-  --surface-2: light-dark(#ffffff, #172243);
-  --field: light-dark(#ffffff, #0b1127);
-  --surface-hover: light-dark(#e9ecf1, #172245);
-  --surface-active: light-dark(#d8dde6, #243257);
-  --accent-soft: light-dark(#dde8fa, #15224a);
+  --focus-ring: light-dark(#385bdd, #7995ff);
+  --surface-1: light-dark(#f1f3f6, #1c2029);
+  --surface-2: light-dark(#f1f3f6, #1c2029);
+  --field: light-dark(#f6f7f9, #101216);
+  --surface-hover: light-dark(#f1f3f6, #1c2029);
+  --surface-active: light-dark(#e7eaf0, #242935);
+  --accent-soft: light-dark(#e4e9fd, #27304d);
 
   /* text */
-  --text-primary: light-dark(#151b2e, #e8edf8);
-  --text-secondary: light-dark(#4f5a72, #a4afc6);
-  --text-muted: light-dark(#59647a, #94a0bb);
+  --text-primary: light-dark(#1b1f27, #e3e6ed);
+  --text-secondary: light-dark(#5f6878, #949cac);
+  --text-muted: light-dark(#5e6672, #9299a8);
 
   /* lines */
-  --border-subtle: light-dark(rgba(21, 27, 46, 0.07), rgba(169, 196, 255, 0.07));
-  --border: light-dark(rgba(21, 27, 46, 0.12), rgba(169, 196, 255, 0.12));
-  --border-strong: light-dark(rgba(21, 27, 46, 0.2), rgba(169, 196, 255, 0.2));
+  --border-subtle: light-dark(#eceef2, #1b1f26);
+  --border: light-dark(#e2e5eb, #262b36);
+  --border-strong: light-dark(#cfd4dd, #343a48);
 
   /* accent: sapphire, with starlight for text and focus on dark. --accent fills buttons, --accent-ui is for text, icons and focus */
-  --accent: light-dark(#2a4694, #3b5ba9);
-  --accent-hover: light-dark(#1f3677, #4a6bbf);
-  --accent-ui: light-dark(#1c3270, #a9c4ff);
-  --on-accent: #ffffff;
+  --accent: light-dark(#3d63f0, #6d8cff);
+  --accent-hover: light-dark(#3657d3, #7f9aff);
+  --accent-ui: light-dark(#385bdd, #7995ff);
+  --on-accent: light-dark(#ffffff, #000000);
 
   /* status */
-  --success: light-dark(#2a7348, #62b886);
-  --warning: light-dark(#9b4f08, #e0a050);
-  --danger: light-dark(#b73426, #ef6e62);
+  --success: light-dark(#247848, #5ec98a);
+  --warning: light-dark(#826118, #e7b955);
+  --danger: light-dark(#b43a3a, #f17171);
 
   /* data tones */
-  --tone-gray: light-dark(#6b6a67, #9b9a97);
-  --tone-violet: light-dark(#6346dc, #a794f7);
-  --tone-red: light-dark(#c0392b, #ec7b6f);
-  --tone-orange: light-dark(#a3540a, #e0a050);
-  --tone-green: light-dark(#2a7348, #62b886);
-  --tone-blue: light-dark(#1f66a8, #6fb1e8);
+  --tone-gray: light-dark(#5e6672, #9299a8);
+  --tone-violet: light-dark(#8a42c4, #c084fc);
+  --tone-red: light-dark(#b43a3a, #f17171);
+  --tone-orange: light-dark(#a64b12, #fb923c);
+  --tone-green: light-dark(#247848, #5ec98a);
+  --tone-blue: light-dark(#1b69a9, #38bdf8);
   --history-added-bg: color-mix(in srgb, var(--tone-green) 16%, transparent);
   --history-changed-bg: color-mix(in srgb, var(--tone-orange) 16%, transparent);
   --history-removed-bg: color-mix(in srgb, var(--danger) 14%, transparent);
@@ -74,15 +74,15 @@
 
   /* radii: 4 tiny, 6 compact controls, 8 inputs and buttons, 10 menus, 12 panels, 14 modals */
   --r-xs: 4px;
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 10px;
-  --r-xl: 12px;
-  --r-2xl: 14px;
+  --r-sm: 5px;
+  --r-md: 6px;
+  --r-lg: 9px;
+  --r-xl: 10px;
+  --r-2xl: 12px;
 
   /* elevation is only for things that float */
-  --menu-shadow: 0 12px 32px light-dark(rgba(21, 27, 46, 0.14), rgba(2, 5, 15, 0.55));
-  --shadow-btn: light-dark(0 1px 2px rgba(30, 50, 120, 0.25), 0 1px 2px rgba(0, 0, 0, 0.45));
+  --menu-shadow: 0 10px 30px light-dark(rgba(20, 30, 50, 0.16), rgba(0, 0, 0, 0.45));
+  --shadow-btn: 0 1px 2px light-dark(rgba(20, 30, 50, 0.18), rgba(0, 0, 0, 0.4));
   --scrim: light-dark(rgba(21, 27, 46, 0.32), rgba(3, 6, 16, 0.65));
 
   /* motion: durations, distances and the Settings > Motion dial live in motion.css */
@@ -103,7 +103,8 @@
   --icon-btn-sm: max(20px, calc(24px * var(--density)));
   --topbar-h: clamp(40px, calc(52px * var(--density)), 60px);
   --tabbar-h: max(32px, calc(38px * var(--density)));
-  --page-pad: calc(56px * var(--density));               /* side margins of a page */
+  --handle-w: calc(var(--icon-btn-sm) * 2);              /* the block handle (add + grip) that sits left of each block */
+  --page-pad: max(calc(56px * var(--density)), calc(var(--handle-w) + 16px)); /* side margins of a page, never less than the handle needs */
   --block-gap: calc(14px * var(--density));              /* between sidebar sections */
   font-family: var(--font-ui);
 }
@@ -227,7 +228,10 @@ svg { flex: none; }
 .side-search:hover { border-color: var(--border); color: var(--fg); }
 .side-search span { flex: 1; }
 
-.sidebar footer { display: flex; flex-direction: column; gap: calc(var(--row-pad) * 0.4); padding: calc(8px * var(--density)) 10px calc(12px * var(--density)); border-top: 1px solid var(--border-subtle); }
+.sidebar footer { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--row-pad) * 0.4); padding: calc(8px * var(--density)) 10px calc(10px * var(--density)); border-top: 1px solid var(--border-subtle); }
+.foot-icon { flex: 1; display: grid; place-items: center; min-width: 0; height: var(--ctl-h-lg); border-radius: var(--r-md); color: var(--text-secondary); transition: background var(--t-fast) ease-out, color var(--t-fast) ease-out; }
+.foot-icon:hover { background: var(--surface-hover); color: var(--fg); }
+.foot-icon.active { background: var(--accent-soft); color: var(--accent-ui); }
 .foot-btn { display: flex; align-items: center; gap: 10px; height: var(--ctl-h-lg); padding: 0 8px; border-radius: var(--r-md); color: var(--text-secondary); text-align: left; transition: background var(--t-fast) ease-out, color var(--t-fast) ease-out; }
 .foot-btn > span { flex: 1; }
 .foot-btn .go { color: var(--text-muted); }

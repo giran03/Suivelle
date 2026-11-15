@@ -44,7 +44,7 @@ export function dockTargetAt(x: number, y: number, allowCenter = false): DockTar
 }
 
 /** Drops a dragged page where the pointer is aiming. Returns whether the drop was taken. */
-export function dropOnSplit(pageId: string, x: number, y: number): boolean {
+export function dropOnSplit(pageId: string, x: number, y: number, onDock?: (dockedPageId: string) => void): boolean {
   const t = dockTargetAt(x, y);
   useDockHint.setState({ target: null });
   if (!t) return false;
@@ -58,6 +58,7 @@ export function dropOnSplit(pageId: string, x: number, y: number): boolean {
     page = other;
   }
   useSplit.getState().dock(page, t.slot, t.zone);
+  onDock?.(page);
   return true;
 }
 
@@ -69,6 +70,17 @@ export function overSplitTarget(x: number, y: number): boolean {
 const same = (a: DockTarget | null, b: DockTarget | null) =>
   a === b || (!!a && !!b && a.slot === b.slot && a.zone === b.zone && a.rect.left === b.rect.left && a.rect.top === b.rect.top && a.rect.width === b.rect.width && a.rect.height === b.rect.height);
 
+/** Updates the live dock-hint overlay to the pane rim under `(x, y)`. */
+export function updateDockHint(x: number, y: number, allowCenter = false): void {
+  const next = dockTargetAt(x, y, allowCenter);
+  if (!same(useDockHint.getState().target, next)) useDockHint.setState({ target: next });
+}
+
+/** Clears any active dock-hint overlay. */
+export function clearDockHint(): void {
+  if (useDockHint.getState().target) useDockHint.setState({ target: null });
+}
+
 /**
  * While a page or tab is dragged (the body carries a drag class), follows the pointer and keeps
  * the hint on the part of the pane it would dock to. Returns an uninstall function.
@@ -77,8 +89,7 @@ export function installDockHint(): () => void {
   const dragging = () => document.body.classList.contains(DRAG_CLASS) || document.body.classList.contains("page-drag");
   const move = (e: PointerEvent) => {
     if (!dragging()) return;
-    const next = dockTargetAt(e.clientX, e.clientY, document.body.classList.contains("split-moving"));
-    if (!same(useDockHint.getState().target, next)) useDockHint.setState({ target: next });
+    updateDockHint(e.clientX, e.clientY, document.body.classList.contains("split-moving"));
   };
   const watch = new MutationObserver(() => {
     if (!dragging() && useDockHint.getState().target) useDockHint.setState({ target: null });

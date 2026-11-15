@@ -1,3 +1,4 @@
+import { Icon, type IconName } from "../../components/Icon";
 import { ShortcutKeys } from "../../components/ShortcutKeys";
 import { useShortcutSheet } from "./ShortcutSheet";
 import { useSettingsDialog } from "../settings/store";
@@ -8,6 +9,17 @@ import "./shortcuts.css";
 
 const SCOPES: Scope[] = ["workspace", "editor", "pages", "grid", "map", "tab", "capture"];
 const NAMES: Record<Scope, string> = { workspace: "Anywhere in the workspace", editor: "Writing", pages: "Page tree", grid: "Database grid", map: "Node Map", tab: "Tabs", capture: "Quick capture" };
+const SCOPE_ICONS: Record<Scope, IconName> = { workspace: "dashboard", editor: "edit", pages: "page", grid: "table", map: "nodeMap", tab: "layers", capture: "bolt" };
+const NOTES: Record<Scope, string> = {
+  workspace: "Search, navigation, sidebar, settings and everything that works on any page.",
+  editor: "Formatting and block commands while you write.",
+  pages: "Moving around and reordering in the page tree.",
+  grid: "Selecting and editing cells in a database.",
+  map: "Searching and moving around the Node Map.",
+  tab: "Closing and reordering the tab you are on.",
+  capture: "Adding to a page without leaving what you are doing.",
+};
+const FILTERS = [["all", "All bindings"], ["custom", "Customized"], ["unassigned", "Unassigned"], ["conflicts", "Conflicts"]] as const;
 const BUTTONS = ["Primary", "Middle", "Secondary", "Back", "Forward"];
 interface Edit { id: string; index: number | null; candidate: Binding | null }
 
@@ -52,14 +64,31 @@ export function ShortcutSettings({ active = true }: { active?: boolean }) {
   });
   const candidateError = edit?.candidate ? bindingError(edit.id, edit.candidate) : null;
   const collisions = edit?.candidate ? conflicts(edit.id, edit.candidate, overrides) : [];
+  const customCount = Object.keys(overrides).length;
+  const sections = SCOPES.filter(sc => scope === "all" || scope === sc).map(sc => ({
+    scope: sc,
+    actions: ACTIONS.filter(a => {
+      const bindings = effective(a.id, overrides);
+      const custom = overrides[a.id] !== undefined;
+      return a.scope === sc && `${a.title} ${bindings.map(format).join(" ")}`.toLowerCase().includes(query.toLowerCase()) && (filter === "all" || filter === "custom" && custom || filter === "unassigned" && !bindings.length || filter === "conflicts" && bindings.some(b => conflicts(a.id, b, overrides).length));
+    }),
+  })).filter(x => x.actions.length);
   return <div className="shortcut-settings">
     <p className="set-hint">Bindings apply across workspaces on this device. Text entry, focus navigation and cancellation keep their normal behavior.</p>
     <div className="shortcut-filters">
       <input type="search" aria-label="Search shortcuts" placeholder="Search actions or bindings…" value={query} onChange={e => setQuery(e.target.value)} />
-      <select aria-label="Shortcut context" value={scope} onChange={e => setScope(e.target.value as Scope | "all")}><option value="all">All contexts</option>{SCOPES.map(s => <option key={s} value={s}>{NAMES[s]}</option>)}</select>
-      <select aria-label="Shortcut filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All bindings</option><option value="custom">Customized</option><option value="unassigned">Unassigned</option><option value="conflicts">Conflicts</option></select>
-      <button type="button" className="btn" disabled={busy || !!edit} onClick={() => useSettingsDialog.getState().requestClose(() => useShortcutSheet.getState().show())}>View reference</button>
-      <button type="button" className="btn" disabled={busy || !!edit} onClick={() => perform(() => useShortcuts.getState().reset())}>Restore all defaults</button>
+      <div className="shortcut-bar-actions">
+        <button type="button" className="btn small" disabled={busy || !!edit} onClick={() => useSettingsDialog.getState().requestClose(() => useShortcutSheet.getState().show())}>View reference</button>
+        <button type="button" className="btn small" disabled={busy || !!edit || !customCount} title={customCount ? `${customCount} changed` : "You haven't changed any shortcuts"} onClick={() => perform(() => useShortcuts.getState().reset())}>Restore all defaults</button>
+      </div>
+    </div>
+    <div className="shortcut-cats" role="tablist" aria-label="Shortcut contexts">
+      {(["all", ...SCOPES] as const).map(s => <button type="button" key={s} role="tab" aria-selected={scope === s} className={`shortcut-cat-chip${scope === s ? " active" : ""}`} onClick={() => setScope(s)}>
+        {s !== "all" && <Icon name={SCOPE_ICONS[s]} size={14} />}<span>{s === "all" ? "All" : NAMES[s]}</span>
+      </button>)}
+    </div>
+    <div className="shortcut-cats shortcut-subfilter" role="radiogroup" aria-label="Shortcut filter">
+      {FILTERS.map(([id, label]) => <button type="button" key={id} role="radio" aria-checked={filter === id} className={`shortcut-cat-chip${filter === id ? " active" : ""}`} onClick={() => setFilter(id)}>{label}</button>)}
     </div>
     {error && <p className="field-error" role="alert">{error}</p>}
     {edit && <section className="shortcut-recorder" aria-label="Edit binding">
@@ -79,26 +108,26 @@ export function ShortcutSettings({ active = true }: { active?: boolean }) {
       <div className="shortcut-edit-actions"><button type="button" className="btn primary" disabled={busy || !edit.candidate || !!candidateError || !!collisions.length} onClick={() => save(false)}>Save binding</button>{!!collisions.length && <button type="button" className="btn" disabled={busy || !!candidateError} onClick={() => save(true)}>Replace conflicting assignments</button>}{edit.index !== null && <button type="button" className="btn" disabled={busy} onClick={() => perform(() => { useShortcuts.getState().assign(edit.id, effective(edit.id, overrides).filter((_, index) => index !== edit.index)); setEdit(null); })}>Remove binding</button>}<button type="button" className="btn" disabled={busy} onClick={() => setEdit(null)}>Cancel</button></div>
     </section>}
     <div className="shortcut-list">
-      {SCOPES.filter(s => scope === "all" || scope === s).map(s => {
-        const actions = ACTIONS.filter(a => {
+      {sections.map(({ scope: s, actions }) => <section key={s} className="shortcut-sec">
+        <h4 className="shortcut-sec-title"><Icon name={SCOPE_ICONS[s]} size={15} /><span>{NAMES[s]}</span><span className="shortcut-sec-count">{actions.length}</span></h4>
+        <p className="shortcut-sec-note">{NOTES[s]}</p>
+        <div className="shortcut-card">{actions.map(a => {
           const bindings = effective(a.id, overrides);
           const custom = overrides[a.id] !== undefined;
-          return a.scope === s && `${a.title} ${bindings.map(format).join(" ")}`.toLowerCase().includes(query.toLowerCase()) && (filter === "all" || filter === "custom" && custom || filter === "unassigned" && !bindings.length || filter === "conflicts" && bindings.some(b => conflicts(a.id, b, overrides).length));
-        });
-        return actions.length ? <section key={s}><h4>{NAMES[s]}</h4>{actions.map(a => {
-          const bindings = effective(a.id, overrides);
           const locked = busy || !!edit;
-          return <div className="shortcut-row" key={a.id}>
-          <div className="shortcut-action"><span>{a.title}</span></div>
-          <div className="shortcut-bindings">{effective(a.id, overrides).map((b, i) => <button type="button" className="shortcut-chip" key={i} disabled={busy || !!edit} aria-label={`Change ${format(b)} for ${a.title}`} title={`Change ${format(b)} for ${a.title}`} onClick={() => { setError(null); setEdit({ id: a.id, index: i, candidate: b }); }}><ShortcutKeys binding={b} /></button>)}{!effective(a.id, overrides).length && <span className="set-hint">Unassigned</span>}</div>
-          <div className="shortcut-row-actions">
-            {bindings.length > 0 && <button type="button" className="btn" disabled={locked} onClick={() => perform(() => useShortcuts.getState().assign(a.id, []))}>Disable</button>}
-            <button type="button" className="btn" disabled={locked} onClick={() => { setError(null); setEdit({ id: a.id, index: null, candidate: null }); }}>Add</button>
-            <button type="button" className="btn" disabled={locked} title="Restore the default keys" onClick={() => perform(() => useShortcuts.getState().reset(a.id))}>Reset</button>
-          </div>
-        </div>; })}</section> : null;
-      })}
+          return <div className={`shortcut-row${custom ? " custom" : ""}`} key={a.id} data-action-id={a.id}>
+            <div className="shortcut-action"><span>{a.title}</span>{custom && <span className="shortcut-tag">Edited</span>}</div>
+            <div className="shortcut-bindings">{bindings.length === 0 && <span className="shortcut-none">Not set</span>}{bindings.map((b, i) => <button type="button" className="shortcut-chip" key={i} disabled={locked} aria-label={`Change ${format(b)} for ${a.title}`} title={`Change ${format(b)} for ${a.title}`} onClick={() => { setError(null); setEdit({ id: a.id, index: i, candidate: b }); }}><ShortcutKeys binding={b} /></button>)}</div>
+            <div className="shortcut-row-actions">
+              {bindings.length > 0 && <button type="button" className="btn small ghost" disabled={locked} onClick={() => perform(() => useShortcuts.getState().assign(a.id, []))}>Disable</button>}
+              <button type="button" className="btn small ghost" disabled={locked} onClick={() => { setError(null); setEdit({ id: a.id, index: null, candidate: null }); }}>Add</button>
+              {custom && <button type="button" className="btn small ghost" disabled={locked} title="Restore the default keys" onClick={() => perform(() => useShortcuts.getState().reset(a.id))}>Reset</button>}
+            </div>
+          </div>;
+        })}</div>
+      </section>)}
+      {!sections.length && <p className="shortcut-empty">No shortcuts match.</p>}
     </div>
-    <section className="shortcut-diagnostic"><h4>Test input</h4><p className="set-hint">Only inputs received by the app can be bound. Fn and device-specific buttons may be handled by your keyboard or mouse driver.</p><div className="shortcut-capture" tabIndex={0} role="application" aria-label="Test keyboard and mouse input" onFocus={() => useShortcuts.getState().setRecording(true)} onBlur={() => useShortcuts.getState().setRecording(false)} onKeyDown={e => record(e, true)} onMouseDown={e => record(e, true)} onAuxClick={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}><output aria-live="polite">{lastInput}</output></div></section>
+    <details className="shortcut-diagnostic"><summary>Test input</summary><p className="set-hint">Only inputs received by the app can be bound. Fn and device-specific buttons may be handled by your keyboard or mouse driver.</p><div className="shortcut-capture" tabIndex={0} role="application" aria-label="Test keyboard and mouse input" onFocus={() => useShortcuts.getState().setRecording(true)} onBlur={() => useShortcuts.getState().setRecording(false)} onKeyDown={e => record(e, true)} onMouseDown={e => record(e, true)} onAuxClick={e => e.preventDefault()} onContextMenu={e => e.preventDefault()}><output aria-live="polite">{lastInput}</output></div></details>
   </div>;
 }

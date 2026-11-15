@@ -18,7 +18,7 @@ it("ignores composing, AltGraph, modifier-only and repeating command inputs", ()
 it("detects overlapping contexts and permits disjoint mouse bindings", () => {
   expect(conflicts("tab-close", mouse(1), {})).toEqual([]);
   expect(conflicts("sidebar", mouse(1), {}).map(a => a.id)).toContain("tab-close");
-  expect(conflicts("sidebar", key("k", "Control"), {}).map(a => a.id)).toContain("search");
+  expect(conflicts("sidebar", key("p", "Control"), {}).map(a => a.id)).toContain("search");
   expect(bindingError("sidebar", mouse(0))).toBeTruthy();
 });
 it("keeps disabled overrides distinct from defaults and validates persisted inputs", () => {

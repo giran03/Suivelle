@@ -101,6 +101,36 @@ export const CHOICES = {
       { id: "clear", label: "Clear", vars: { "--border-subtle": "light-dark(rgba(20, 20, 30, 0.14), rgba(255, 255, 255, 0.11))", "--border": "light-dark(rgba(20, 20, 30, 0.24), rgba(255, 255, 255, 0.2))", "--border-strong": "light-dark(rgba(20, 20, 30, 0.4), rgba(255, 255, 255, 0.34))" } },
     ],
   },
+  iconStyle: {
+    title: "Icon style",
+    hint: "The Material Symbols family used for every icon.",
+    fallback: "outlined",
+    options: [
+      { id: "outlined", label: "Outlined", vars: {} },
+      { id: "rounded", label: "Rounded", vars: { "--font-icons": "\"Material Symbols Rounded\"" } },
+      { id: "sharp", label: "Sharp", vars: { "--font-icons": "\"Material Symbols Sharp\"" } },
+    ],
+  },
+  iconWeight: {
+    title: "Icon weight",
+    hint: "How heavy icon strokes are.",
+    fallback: "regular",
+    options: [
+      { id: "light", label: "Light", vars: { "--icon-weight": "200" } },
+      { id: "regular", label: "Regular", vars: {} },
+      { id: "strong", label: "Strong", vars: { "--icon-weight": "450" } },
+      { id: "bold", label: "Bold", vars: { "--icon-weight": "600" } },
+    ],
+  },
+  iconFill: {
+    title: "Icon fill",
+    hint: "Outlined icons, or solid ones. Favourite stars are always solid.",
+    fallback: "outline",
+    options: [
+      { id: "outline", label: "Outline", vars: {} },
+      { id: "solid", label: "Solid", vars: { "--icon-fill": "1" } },
+    ],
+  },
   uiScale: {
     title: "Interface size",
     hint: "Zooms the whole app: sidebar, menus, dialogs and pages together.",
@@ -139,6 +169,8 @@ export interface ShellChoices {
 export const SHELL_DEFAULTS: ShellChoices = { launchAtStartup: false, startMinimized: false, showTray: false, closeToTray: false, minimizeToTray: false };
 
 export type WindowCornerStyle = "sharp" | "soft" | "round";
+export type WindowControlsStyle = "macos" | "windows";
+export type WindowControlsSide = "left" | "right";
 
 /** Preserve the previous window appearance when migrating the old opt-in toggle. */
 export function windowCornersFrom(raw: Partial<Record<string, unknown>>): WindowCornerStyle {
@@ -152,6 +184,8 @@ interface Saved extends Choices {
   /** Null until the current workspace's legacy mode has been adopted once. */
   theme: ThemeSetting | null;
   windowCorners: WindowCornerStyle;
+  windowControls: WindowControlsStyle;
+  windowControlsSide: WindowControlsSide;
   shell: ShellChoices;
 }
 
@@ -209,9 +243,11 @@ function read(): Saved {
     const sh = (v.shell ?? {}) as Partial<Record<keyof ShellChoices, unknown>>;
     const shell = Object.fromEntries(Object.entries(SHELL_DEFAULTS).map(([k, fallback]) => [k, typeof sh[k as keyof ShellChoices] === "boolean" ? sh[k as keyof ShellChoices] : fallback])) as unknown as ShellChoices;
     const theme = v.theme === "system" || v.theme === "light" || v.theme === "dark" ? v.theme : null;
-    return { ...sanitize(v), theme, windowCorners: windowCornersFrom(v), shell };
+    const windowControls: WindowControlsStyle = v.windowControls === "windows" ? "windows" : "macos";
+    const windowControlsSide: WindowControlsSide = v.windowControlsSide === "left" ? "left" : "right";
+    return { ...sanitize(v), theme, windowCorners: windowCornersFrom(v), windowControls, windowControlsSide, shell };
   } catch {
-    return { ...defaults(), theme: null, windowCorners: "soft", shell: SHELL_DEFAULTS };
+    return { ...defaults(), theme: null, windowCorners: "soft", windowControls: "macos", windowControlsSide: "right", shell: SHELL_DEFAULTS };
   }
 }
 
@@ -220,6 +256,8 @@ interface PreferencesState extends Saved {
   adoptTheme: (legacy: ThemeSetting) => void;
   set: (key: ChoiceKey, id: string) => void;
   setWindowCorners: (style: WindowCornerStyle) => void;
+  setWindowControls: (style: WindowControlsStyle) => void;
+  setWindowControlsSide: (side: WindowControlsSide) => void;
   setShell: (shell: ShellChoices) => void;
   /** Back to the defaults for every reading and layout choice. */
   reset: () => void;
@@ -230,7 +268,7 @@ export const usePreferences = create<PreferencesState>((set, get) => {
   const save = (patch: Partial<Saved>) => {
     set(patch);
     try {
-      const { set: _s, setTheme: _t, adoptTheme: _a, setWindowCorners: _w, setShell: _h, reset: _r, ...data } = get();
+      const { set: _s, setTheme: _t, adoptTheme: _a, setWindowCorners: _w, setWindowControls: _wc, setWindowControlsSide: _wcs, setShell: _h, reset: _r, ...data } = get();
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch {
       /* Convenience only: the choice still applies for this session. */
@@ -247,7 +285,9 @@ export const usePreferences = create<PreferencesState>((set, get) => {
       } else save({ [key]: id } as Partial<Saved>);
     },
     setWindowCorners: (windowCorners) => save({ windowCorners }),
+    setWindowControls: (windowControls) => save({ windowControls }),
+    setWindowControlsSide: (windowControlsSide) => save({ windowControlsSide }),
     setShell: (shell) => save({ shell }),
-    reset: () => save({ ...defaults(), windowCorners: "soft" }),
+    reset: () => save({ ...defaults(), windowCorners: "soft", windowControls: "macos", windowControlsSide: "right" }),
   };
 });

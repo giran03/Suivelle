@@ -4,7 +4,7 @@ import { useAgents } from "../agents/store";
 import { dropPagesOnBoard } from "../canvas/store";
 import { key } from "../shortcuts/bindings";
 import { usePeek } from "../peek/store";
-import { dropOnSplit } from "../split/dropOnSplit";
+import { clearDockHint, dropOnSplit, updateDockHint } from "../split/dropOnSplit";
 import {
   DndContext,
   DragOverlay,
@@ -162,7 +162,10 @@ function Recents() {
   const selectedPageId = useWorkspace((s) => s.selectedPageId);
   const view = useWorkspace((s) => s.view);
   const open = useLayout((s) => s.recentOpen);
-  const [pages, setPages] = useState<Page[]>([]);
+  const favorites = useWorkspace((s) => s.favorites);
+  const [recent, setPages] = useState<Page[]>([]);
+  // Favorites already sit one section above, so listing them again only adds noise.
+  const pages = recent.filter((p) => !favorites.some((f) => f.id === p.id));
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -251,7 +254,7 @@ export function Sidebar() {
   };
 
   /** Where the drag ended: the live pointer, falling back to the start plus the distance travelled. */
-  const endPoint = (e: DragEndEvent) => {
+  const endPoint = (e: { activatorEvent: Event; delta: { x: number; y: number } }) => {
     const live = lastPointer();
     if (live) return live;
     const start = e.activatorEvent as PointerEvent;
@@ -393,8 +396,10 @@ export function Sidebar() {
         {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
       </button>
 
-      <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="nodeMap" /><span>Node Map</span></button>
-      {(hasActiveAgents || agentsPending > 0) && <button type="button" className="foot-btn map-launch agents-launch" title="Agents: review inbox" aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"} onClick={() => useAgents.getState().show("review")}><Icon name="inbox" /><span>Inbox</span>{agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}</button>}
+      <div className="side-nav">
+        <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="nodeMap" /><span>Node Map</span></button>
+        {(hasActiveAgents || agentsPending > 0) && <button type="button" className="foot-btn map-launch agents-launch" title="Agents: review inbox" aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"} onClick={() => useAgents.getState().show("review")}><Icon name="inbox" /><span>Inbox</span>{agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}</button>}
+      </div>
 
       {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
         {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (
@@ -463,10 +468,15 @@ export function Sidebar() {
                 document.body.classList.add("page-drag");
                 setDragging(lookup(String(e.active.id)) ?? null);
               }}
-              onDragMove={(e) => setDropTarget(target(e))}
+              onDragMove={(e) => {
+                setDropTarget(target(e));
+                const pt = endPoint(e);
+                if (pt) updateDockHint(pt.x, pt.y);
+              }}
               onDragEnd={onDragEnd}
               onDragCancel={() => {
                 document.body.classList.remove("page-drag");
+                clearDockHint();
                 setDropTarget(null);
                 setDragging(null);
               }}
@@ -494,26 +504,18 @@ export function Sidebar() {
         </section>
       </nav>}
 
-      <footer>
-        <button aria-label="Trash" title="Trash" className={`foot-btn${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
+      <footer role="toolbar" aria-label="Workspace tools" aria-orientation={rail ? "vertical" : "horizontal"}>
+        <button type="button" aria-label="Trash" title="Trash" aria-pressed={view === "trash"} className={`foot-icon${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
           <Icon name="trash" />
-          <span>Trash</span>
-          <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" aria-label="Backups" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
+        <button type="button" className="foot-icon" aria-label="Backups" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
           <Icon name="restore" />
-          <span>Backups</span>
-          <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" aria-label="Import and export" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
+        <button type="button" className="foot-icon" aria-label="Import and export" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
           <Icon name="download" />
-          <span>Import &amp; export</span>
-          <Icon name="chevron" size={14} />
         </button>
-        <button className="foot-btn" aria-label="Settings" title={`Settings${settingsShortcut.label ? ` (${settingsShortcut.label})` : ""}`} onClick={() => useSettingsDialog.getState().show()}>
+        <button type="button" className="foot-icon" aria-label="Settings" title={`Settings${settingsShortcut.label ? ` (${settingsShortcut.label})` : ""}`} onClick={() => useSettingsDialog.getState().show()}>
           <Icon name="gear" />
-          <span>Settings</span>
-          <Icon name="chevron" size={14} />
         </button>
       </footer>
 

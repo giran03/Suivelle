@@ -45,10 +45,10 @@ for (const theme of ["light", "dark"] as const) {
       });
     }
 
-    it("white text on the primary button and on its hover colour is at least 4.5:1", () => {
-      const white = [255, 255, 255];
-      expect(ratio(white, token("accent")[theme])).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(white, token("accent-hover")[theme])).toBeGreaterThanOrEqual(4.5);
+    it("button text on the primary button and on its hover colour is at least 4.5:1", () => {
+      const on = token("on-accent")[theme];
+      expect(ratio(on, token("accent")[theme])).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(on, token("accent-hover")[theme])).toBeGreaterThanOrEqual(4.5);
     });
   });
 }

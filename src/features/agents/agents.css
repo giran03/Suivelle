@@ -180,3 +180,10 @@
 /* Daily overview and hourly detail share a row when there is room. */
 .agx-trend-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; }
 .agx-trend-pair > .agx-usage-section { min-width: 0; }
+
+/* Settings > Agents: the five-tab strip sits under the intro and above the active panel. */
+.agx-settings-tabs { margin: 10px 0 6px; overflow-x: auto; scrollbar-width: none; }
+.agx-settings-tabs [role="tab"] { flex: none; }
+.agx-badge.attention { background: var(--accent); color: var(--on-accent); }
+.agx-tabpanel { display: grid; gap: 4px; align-content: start; }
+.agx-tabpanel > h4:first-child { margin-top: 12px; }

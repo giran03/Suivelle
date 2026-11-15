@@ -19,7 +19,7 @@ export function CanvasPage({ page, onOpen }: { page: Page; onOpen: () => void })
   const [title, setTitle] = useState(page.title), [error, setError] = useState("");
   const value = useRef(title), saved = useRef(page.title), timer = useRef<number | undefined>(undefined);
   const chain = useRef<Promise<void>>(Promise.resolve()); value.current = title;
-  const body = useRef<HTMLDivElement>(null), [visible, setVisible] = useState(false);
+  const body = useRef<HTMLDivElement>(null), headRef = useRef<HTMLDivElement>(null), [visible, setVisible] = useState(false), [collapsed, setCollapsed] = useState(false);
   const cover = parseCover(page.cover);
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
@@ -42,13 +42,17 @@ export function CanvasPage({ page, onOpen }: { page: Page; onOpen: () => void })
     }, { root: body.current.closest(".canvas-view"), rootMargin: "300px" });
     observer.observe(body.current); return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    headRef.current?.closest<HTMLElement>(".cv-item")?.classList.toggle("cv-collapsed", collapsed);
+  }, [collapsed]);
   return <>
-    <div className="cv-card-head cv-page-head" title="Drag the header to move this page">
+    <div ref={headRef} className="cv-card-head cv-page-head" title="Drag the header to move this page">
       <span className="cv-page-grip" aria-hidden="true"><Icon name="grip" size={14} /></span>
       <span className="cv-page-glyph"><PageGlyph page={page} /></span>
       <input className="cv-page-title" aria-label="Page title" value={title} placeholder="Untitled" readOnly={READ_ONLY} maxLength={200}
         onChange={e => { setTitle(e.target.value); value.current = e.target.value; clearTimeout(timer.current); timer.current = window.setTimeout(() => void flush().catch(() => {}), 500); }}
         onBlur={() => void flush().catch(() => {})} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.closest(".cv-item")?.querySelector<HTMLElement>(".doc")?.focus(); } }} />
+      <button type="button" className="icon-btn cv-collapse" aria-label={collapsed ? `Expand ${title || "Untitled"}` : `Collapse ${title || "Untitled"}`} aria-expanded={!collapsed} onPointerDown={e => e.stopPropagation()} onClick={() => setCollapsed(c => !c)}><Icon name={collapsed ? "chevron" : "chevronDown"} size={14} /></button>
       <button type="button" className="icon-btn cv-open" aria-label={`Open ${title || "Untitled"}`} onClick={onOpen}><Icon name="forward" size={14} /></button>
     </div>
     <div ref={body} className="cv-page-body" data-canvas-editor data-context-page={page.id} aria-label={`Page: ${title || "Untitled"}`}>

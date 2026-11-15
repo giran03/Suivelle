@@ -13,7 +13,18 @@ body.resizing { cursor: col-resize; user-select: none; }
 .sidebar .pages-tree-tools { flex-wrap: wrap; }
 .sidebar > .ws-row { flex: none; gap: calc(4px * var(--density)); }
 .sidebar .ws-switcher { flex: 1; inline-size: auto; }
-.sidebar-collapse { flex: none; color: var(--text-muted); }
+/* Node Map and the agents Inbox share one row; Node Map takes the whole row when the Inbox is hidden.
+   These live here, not in node-map.css, because that file only loads once the map view opens. */
+.sidebar > .side-nav { flex: none; display: flex; gap: calc(var(--row-pad) * 0.4); margin: 0 10px 6px; }
+.side-nav > .map-launch { flex: 1 1 auto; min-width: 0; gap: 6px; padding-inline: 6px 4px; }
+.side-nav > .agents-launch { flex: 0 0 auto; }
+.side-nav > .agents-launch > span:not(.agx-badge) { flex: none; }
+.side-nav > .map-launch > span:not(.agx-badge) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-nav .agx-badge { flex: none; }
+.shell[data-rail] .sidebar > .side-nav { flex-direction: column; align-items: center; margin-inline: 6px; }
+.shell[data-rail] .side-nav > .map-launch { flex: none; justify-content: center; }
+.shell[data-rail] .map-launch > span { display: none; }
+.sidebar-collapse { flex: none; min-width: 28px; min-height: 28px; color: var(--text-muted); }
 .sidebar-collapse:hover { color: var(--text-primary); }
 .sidebar > .side-search, .sidebar > footer { flex-shrink: 0; }
 
@@ -28,10 +39,11 @@ body.resizing { cursor: col-resize; user-select: none; }
 .rail-page { display: flex; flex: none; align-items: center; justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; border-radius: var(--r-md); color: var(--text-secondary); }
 .rail-page:hover { background: var(--surface-hover); color: var(--fg); }
 .rail-page[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ui); }
-.shell[data-rail] .sidebar footer { align-items: center; gap: 4px; padding: 8px 0; }
+.shell[data-rail] .sidebar footer { flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; padding: 8px 0; }
+.shell[data-rail] .foot-icon { flex: none; inline-size: 40px; min-block-size: 40px; }
 .shell[data-rail] .foot-btn { justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; }
 @media (pointer: coarse) {
-  .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse, .shell[data-rail] .side-search, .shell[data-rail] .foot-btn, .rail-page { inline-size: 44px; min-block-size: 44px; }
+  .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse, .shell[data-rail] .side-search, .shell[data-rail] .foot-btn, .shell[data-rail] .foot-icon, .rail-page { inline-size: 44px; min-block-size: 44px; }
 }
 
 .shell > main { container: workspace-main / inline-size; }
@@ -47,9 +59,9 @@ body.resizing { cursor: col-resize; user-select: none; }
 .shell[data-compact] .sidebar { border-inline-end: 0; }
 .shell[data-compact] .sidebar-resizer { display: none; }
 .shell[data-compact] .sidebar-collapse { inline-size: 44px; block-size: 44px; }
-.shell[data-compact] .sidebar .side-search, .shell[data-compact] .sidebar .foot-btn { min-block-size: 44px; }
+.shell[data-compact] .sidebar .side-search, .shell[data-compact] .sidebar .foot-btn, .shell[data-compact] .sidebar .foot-icon { min-block-size: 44px; }
 .shell[data-compact] .sidebar .node { min-block-size: 44px; }
-.shell[data-compact] .main-scroll { --page-pad: clamp(16px, 5vw, 32px); }
+.shell[data-compact] .main-scroll { --page-pad: max(clamp(16px, 5vw, 32px), calc(var(--handle-w) + 8px)); }
 
 /* Respond to the content width, including a resized desktop sidebar. */
 @container workspace-main (max-width: 640px) {
@@ -89,7 +101,9 @@ body.resizing { cursor: col-resize; user-select: none; }
 .afford:hover { background: var(--surface-hover); color: var(--fg); }
 .pg-emoji { flex: none; display: inline-flex; align-items: center; justify-content: center; text-align: center; line-height: 1; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
 .pg-emoji > span { text-box: trim-both cap alphabetic; }
-.pg-image { flex: none; display: block; object-fit: cover; object-position: center; border-radius: var(--r-sm); }
+/* Page icons are shown whole: `contain` keeps a non-square image uncropped, and emoji are exempt from the row's ellipsis clipping. */
+.pg-image { flex: none; display: block; object-fit: contain; object-position: center; border-radius: var(--r-sm); }
+.node .title .pg-emoji, .node .title .pg-emoji > span, .fav .pg-emoji, .fav .pg-emoji > span { overflow: visible; text-overflow: clip; }
 .page-icon > .pg-image, .icon-upload-preview > .pg-image { width: 100%; height: 100%; border-radius: inherit; }
 
 /* ---- icon and cover pickers ---- */

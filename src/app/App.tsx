@@ -13,6 +13,7 @@ import { useOutline } from "../features/outline/store";
 import { useExplore } from "../features/explore/store";
 import { installSplit } from "../features/split/store";
 import { installDockHint } from "../features/split/dropOnSplit";
+import { installNativeKeyBlock } from "../lib/nativeKeys";
 import { SplitFrame } from "../features/split/SplitFrame";
 import { installReminderToasts } from "../features/explore/events";
 import { installAgentEvents } from "../features/agents/events";
@@ -317,7 +318,7 @@ export function App() {
   useEffect(() => installSessionPersistence(), []);
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
-  useEffect(() => { const a = installSplit(); const b = installDockHint(); return () => { a(); b(); }; }, []);
+  useEffect(() => { const a = installSplit(); const b = installDockHint(); const c = installNativeKeyBlock(); return () => { a(); b(); c(); }; }, []);
   useEffect(() => installReminderToasts(), []);
   useEffect(() => installAgentEvents(), []);
   useEffect(() => installTrayRecent(), []);

@@ -21,6 +21,9 @@ pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
+pub mod tray_popup;
+#[cfg(windows)]
+pub mod tray_win32;
 mod startup;
 pub mod transfer;
 pub mod updates;
@@ -254,6 +257,8 @@ pub fn run() {
             Some(vec![shell::AUTOSTART_ARG]),
         ))
         .manage(shell::ShellState::default())
+        .manage(tray_popup::TrayRecent::default())
+        .manage(tray_popup::TrayAppearanceState::default())
         .on_window_event(shell::on_window_event)
         // Answered on a worker thread: building a thumbnail or reading a large file must not
         // block the window.
@@ -264,7 +269,9 @@ pub fn run() {
             });
         })
         .setup(|app| {
-            // Disable WebView2's browser menu, including embedded documents and media.
+            // Make the webview behave like an app: no browser menu (including embedded documents and
+            // media), and no browser shortcuts (print, save page, view source, reload, find, zoom and so on).
+            // Release builds only for the shortcuts, so developer tools stay reachable while developing.
             #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
                 window.with_webview(|webview| unsafe {
@@ -272,9 +279,21 @@ pub fn run() {
                         .controller()
                         .CoreWebView2()
                         .and_then(|view| view.Settings())
-                        .and_then(|settings| settings.SetAreDefaultContextMenusEnabled(false));
+                        .and_then(|settings| {
+                            settings.SetAreDefaultContextMenusEnabled(false)?;
+                            settings.SetIsZoomControlEnabled(false)?;
+                            #[cfg(not(debug_assertions))]
+                            {
+                                use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+                                use windows_core::Interface;
+                                settings
+                                    .cast::<ICoreWebView2Settings3>()?
+                                    .SetAreBrowserAcceleratorKeysEnabled(false)?;
+                            }
+                            Ok(())
+                        });
                     if let Err(error) = result {
-                        tracing::error!(%error, "could not disable the native context menu");
+                        tracing::error!(%error, "could not apply the webview app-mode settings");
                     }
                 })?;
             }
@@ -285,6 +304,7 @@ pub fn run() {
             app.manage(commands::PendingRestore::default());
             app.manage(commands::ImportSessions::default());
             updates::init(app.handle())?;
+            tray_popup::init_appearance(app.handle());
             shell::init(app.handle())?;
             install_deep_links(app)?;
             app.manage(files::AttachmentStore {
@@ -388,6 +408,7 @@ pub fn run() {
             shell::shell_set_behavior,
             shell::shell_get_behavior,
             shell::tray_set_recent,
+            tray_popup::tray_set_appearance,
             commands::content::attachment_list,
             commands::content::attachment_delete_unused,
             commands::content::markdown_to_blocks,

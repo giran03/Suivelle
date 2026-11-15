@@ -53,7 +53,12 @@ export function installTooltips(): () => void {
   text.className = "t-tt-text";
   const keys = document.createElement("kbd");
   keys.className = "t-tt-keys";
-  tip.append(text, keys);
+  // The words live in a box of their own whose width is fixed to the final size, so tweening the bubble's
+  // width between two tooltips reveals the text instead of re-wrapping it line by line.
+  const inner = document.createElement("div");
+  inner.className = "t-tt-inner";
+  inner.append(text, keys);
+  tip.append(inner);
   document.body.append(tip);
   try {
     tip.showPopover?.();
@@ -102,18 +107,24 @@ export function installTooltips(): () => void {
     keys.textContent = parts.keys ?? "";
     keys.hidden = !parts.keys;
 
-    // Measure at natural size without animating, then restore the previous width so a move can tween.
+    // Measure at natural size, unscaled and without animating, then restore the previous width so a move can tween.
     const previous = tip.style.width;
     tip.style.transition = "none";
+    tip.style.scale = "1";
     tip.removeAttribute("data-wrap");
     tip.style.width = "max-content";
+    inner.style.width = "";
+    const cs = getComputedStyle(tip);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
     let width = Math.ceil(tip.getBoundingClientRect().width);
     if (width > MAX_WIDTH) {
       tip.setAttribute("data-wrap", "true");
       width = MAX_WIDTH;
       tip.style.width = `${width}px`;
     }
+    inner.style.width = `${width - padX}px`;
     const height = Math.ceil(tip.getBoundingClientRect().height);
+    tip.style.scale = "";
     tip.style.width = previous || "0px";
     void tip.offsetWidth;
     tip.style.transition = wasShowing ? "" : "none";
