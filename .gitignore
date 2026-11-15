@@ -63,5 +63,9 @@ Desktop.ini
 showcase/dist/
 showcase/tools/node_modules/
 showcase/tools/shots/
-brand/suivelle/
 .docs/
+brand/suivelle/*
+!brand/suivelle/png/
+brand/suivelle/png/*
+!brand/suivelle/png/suivelle-dark-128.png
+!brand/suivelle/png/suivelle-light-128.png
