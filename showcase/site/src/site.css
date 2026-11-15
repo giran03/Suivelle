@@ -1,6 +1,9 @@
 /* Suivelle site. Colours and radii come from DESIGN.md; the site adds an editorial serif for
    display type, since the app's Segoe UI Variable is not available to every visitor. */
 
+*, *::before, *::after { -webkit-user-select: none; user-select: none; }
+input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
+
 :root {
   color-scheme: dark;
   --canvas: #0c1329;
