@@ -308,7 +308,11 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
                 ("agent_audit", "output_tokens", "INTEGER NOT NULL DEFAULT 0"),
                 ("agent_audit", "saved_tokens", "INTEGER NOT NULL DEFAULT 0"),
                 ("agent_audit", "jev_calls", "INTEGER NOT NULL DEFAULT 0"),
-                ("agent_audit", "jev_cache_hits", "INTEGER NOT NULL DEFAULT 0"),
+                (
+                    "agent_audit",
+                    "jev_cache_hits",
+                    "INTEGER NOT NULL DEFAULT 0",
+                ),
                 ("agent_audit", "jev_errors", "INTEGER NOT NULL DEFAULT 0"),
                 ("agent_audit", "jev_tokens", "INTEGER NOT NULL DEFAULT 0"),
                 ("agent_audit", "jev_questions", "INTEGER NOT NULL DEFAULT 0"),

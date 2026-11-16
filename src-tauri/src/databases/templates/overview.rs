@@ -128,7 +128,10 @@ impl Writer<'_> {
         Ok(())
     }
     fn text(&mut self, kind: &str, text: &str) -> AppResult<()> {
-        self.add(kind, json!({ "content": [{ "type": "text", "text": text }] }))
+        self.add(
+            kind,
+            json!({ "content": [{ "type": "text", "text": text }] }),
+        )
     }
 }
 
@@ -151,9 +154,13 @@ pub fn write(b: &Builder, id: &str, database_pages: &[String]) -> AppResult<()> 
         )?;
     }
     for (index, view_name, heading) in o.embeds {
-        let Some(page) = database_pages.get(*index) else { continue };
+        let Some(page) = database_pages.get(*index) else {
+            continue;
+        };
         let detail = super::super::service::database_detail_by_page(b.tx, page)?;
-        let Some(view) = detail.views.iter().find(|v| v.name == *view_name) else { continue };
+        let Some(view) = detail.views.iter().find(|v| v.name == *view_name) else {
+            continue;
+        };
         w.text("heading_2", heading)?;
         w.add(
             "database_view",

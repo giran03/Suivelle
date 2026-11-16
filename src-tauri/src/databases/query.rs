@@ -705,8 +705,14 @@ fn aggregate_expr(ctx: &mut Ctx, prop: &Property, aggregate: &str) -> AppResult<
     };
     Ok(match aggregate {
         "count" => "COUNT(*)".into(),
-        "empty" => format!("COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0)", empty(ctx)?),
-        "filled" => format!("COALESCE(SUM(CASE WHEN {} THEN 0 ELSE 1 END), 0)", empty(ctx)?),
+        "empty" => format!(
+            "COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0)",
+            empty(ctx)?
+        ),
+        "filled" => format!(
+            "COALESCE(SUM(CASE WHEN {} THEN 0 ELSE 1 END), 0)",
+            empty(ctx)?
+        ),
         "percent_filled" => format!("AVG(CASE WHEN {} THEN 0.0 ELSE 1.0 END)", empty(ctx)?),
         "sum" => format!("TOTAL({})", scalar(ctx, prop)),
         "average" => format!("AVG({})", scalar(ctx, prop)),

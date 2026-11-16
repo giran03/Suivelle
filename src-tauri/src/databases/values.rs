@@ -239,7 +239,11 @@ pub fn with_checks(property_type: &str, mut out: Value, input: &Value) -> AppRes
                 return bad("the minimum is larger than the maximum");
             }
         }
-        if let Some(f) = v.get("format").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        if let Some(f) = v
+            .get("format")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+        {
             if !matches!(property_type, "text" | "title") || !matches!(f, "email" | "url") {
                 return bad("a format check must be email or url, on a text property");
             }

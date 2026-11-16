@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHANGELOG, compareVersions, parseChangelog } from "./changelogData";
+import { compareVersions, loadChangelog, parseChangelog } from "./changelogData";
 
 describe("changelog parsing", () => {
   it("reads the version, release line, groups and bullets, joining wrapped lines", () => {
@@ -22,7 +22,8 @@ describe("changelog parsing", () => {
     expect(compareVersions("0.1.10", "0.1.9")).toBeGreaterThan(0);
     expect(compareVersions("0.2.0", "0.10.0")).toBeLessThan(0);
   });
-  it("bundles the archived changelogs, newest first", () => {
+  it("bundles the archived changelogs, newest first", async () => {
+    const CHANGELOG = await loadChangelog();
     expect(CHANGELOG.length).toBeGreaterThan(3);
     for (let i = 1; i < CHANGELOG.length; i++) expect(compareVersions(CHANGELOG[i - 1].version, CHANGELOG[i].version)).toBeGreaterThan(0);
   });

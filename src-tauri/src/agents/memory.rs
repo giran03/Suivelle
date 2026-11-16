@@ -109,7 +109,9 @@ pub fn recall(conn: &Connection, agent: &Agent, q: &Recall) -> AppResult<Vec<Mem
     let limit = q.limit.unwrap_or(10).clamp(1, 50);
     let scope = q.scope.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let query = q.query.trim();
-    let jev_cfg = (!query.is_empty()).then(|| super::jev::active(conn)).flatten();
+    let jev_cfg = (!query.is_empty())
+        .then(|| super::jev::active(conn))
+        .flatten();
     // (words matched, scope fit, rank, memory), sorted once across workspaces.
     let mut found: Vec<(usize, u8, f64, Memory)> = Vec::new();
     for (ws, hub) in hubs(conn, agent, q.workspace_id.as_deref())? {

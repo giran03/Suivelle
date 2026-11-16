@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { syncDialog } from "../../lib/dialog";
-import { CHANGELOG, type ChangelogEntry } from "./changelogData";
+import { useChangelog, type ChangelogEntry } from "./changelogData";
 import { inlineMarkdown } from "./changelogMarkdown";
 
 export { inlineMarkdown as inline };
@@ -27,10 +27,14 @@ export const entryLabel = (e: ChangelogEntry) => e.unreleased ? "In development"
 export function ChangelogHistory({ open, onClose, current }: { open: boolean; onClose: () => void; current?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const loaded = useChangelog(open);
+  const CHANGELOG = loaded ?? [];
   useEffect(() => {
     if (ref.current) syncDialog(ref.current, open);
-    if (open) setExpanded(current && CHANGELOG.some((e) => e.version === current) ? current : CHANGELOG[0]?.version ?? null);
-  }, [open, current]);
+  }, [open]);
+  useEffect(() => {
+    if (open && loaded) setExpanded(current && loaded.some((e) => e.version === current) ? current : loaded[0]?.version ?? null);
+  }, [open, current, loaded]);
   return (
     <dialog ref={ref} className="palette changelog-history" aria-labelledby="clh-title" onClose={onClose} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <header className="clh-head">
@@ -53,7 +57,7 @@ export function ChangelogHistory({ open, onClose, current }: { open: boolean; on
             </section>
           );
         })}
-        {!CHANGELOG.length && <p className="set-hint">No changelogs are bundled with this build.</p>}
+        {loaded && !CHANGELOG.length && <p className="set-hint">No changelogs are bundled with this build.</p>}
       </div>
     </dialog>
   );

@@ -125,11 +125,7 @@ fn key_hint(key: &str) -> String {
 
 /// Reads whether Jev is enabled in Settings.
 pub fn is_enabled(conn: &Connection) -> bool {
-    setting(conn, SETTING_ENABLED)
-        .ok()
-        .flatten()
-        .as_deref()
-        == Some("true")
+    setting(conn, SETTING_ENABLED).ok().flatten().as_deref() == Some("true")
 }
 
 /// Reads the saved 4-character key hint, if a key is configured.
@@ -408,7 +404,10 @@ pub fn evaluate(
     };
     let Ok(resp) = client
         .post(&cfg.endpoint)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", cfg.api_key))
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", cfg.api_key),
+        )
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .body(body)
         .send()
@@ -478,11 +477,7 @@ pub fn rank_memories(
             .get("Kind")
             .and_then(|v| v.as_str())
             .unwrap_or("Fact");
-        let sc = m
-            .values
-            .get("Scope")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let sc = m.values.get("Scope").and_then(|v| v.as_str()).unwrap_or("");
         state.push_str(&format!(
             "[m{idx}] Title: {} | Kind: {kind} | Scope: {sc}\n",
             m.title
@@ -590,7 +585,8 @@ pub fn filter_connected_pages(
         return 0;
     }
     let eval_count = items.len().min(25);
-    let mut state = format!("Task Topic: {topic}\nCurrent Page: {center_title}\n\nConnected Pages:\n");
+    let mut state =
+        format!("Task Topic: {topic}\nCurrent Page: {center_title}\n\nConnected Pages:\n");
     let mut questions = BTreeMap::new();
     for (idx, (link, line)) in items.iter().take(eval_count).enumerate() {
         state.push_str(&format!(
@@ -634,7 +630,10 @@ pub fn filter_connected_pages(
         scored.retain(|(n, link, line)| {
             let keep = *n >= 0.35;
             if !keep {
-                let bullet = format!("- {} — **{}** (id {}): {}\n", link.via, link.title, link.page_id, line);
+                let bullet = format!(
+                    "- {} — **{}** (id {}): {}\n",
+                    link.via, link.title, link.page_id, line
+                );
                 dropped_tokens += super::analytics::estimate_tokens(&bullet);
                 dropped_count += 1;
             }
@@ -654,7 +653,10 @@ pub fn filter_connected_pages(
         0
     } else {
         for (link, line) in &tail {
-            let bullet = format!("- {} — **{}** (id {}): {}\n", link.via, link.title, link.page_id, line);
+            let bullet = format!(
+                "- {} — **{}** (id {}): {}\n",
+                link.via, link.title, link.page_id, line
+            );
             dropped_tokens += super::analytics::estimate_tokens(&bullet);
             dropped_count += 1;
         }
@@ -791,7 +793,11 @@ pub fn find_scope_duplicates(
     }
     let mut state = format!(
         "Scope: {}\nActive Memories in Scope:\n",
-        if scope.is_empty() { "(unscoped)" } else { scope }
+        if scope.is_empty() {
+            "(unscoped)"
+        } else {
+            scope
+        }
     );
     for (idx, (page_id, title, _)) in items.iter().enumerate() {
         let body = super::content::body_markdown(conn, page_id).unwrap_or_default();

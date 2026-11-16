@@ -2416,22 +2416,48 @@ fn view_csv_follows_the_views_filter_sort_and_visible_columns() {
     let page = made.database_page_ids[0].clone();
     let detail = dbs::database_detail_by_page(&conn, &page).unwrap();
     let view = detail.views[0].clone();
-    let title = detail.properties.iter().find(|p| p.property_type == "title").unwrap();
-    let status = detail.properties.iter().find(|p| p.property_type == "status").unwrap();
+    let title = detail
+        .properties
+        .iter()
+        .find(|p| p.property_type == "title")
+        .unwrap();
+    let status = detail
+        .properties
+        .iter()
+        .find(|p| p.property_type == "status")
+        .unwrap();
     // Show only the status then the title, hide everything else, sort by title descending.
     let mut cfg = view.config.clone();
     let keep = [status.id.clone(), title.id.clone()];
     cfg.columns = keep
         .iter()
-        .map(|id| crate::databases::ViewColumn { property_id: id.clone(), ..Default::default() })
-        .chain(detail.properties.iter().filter(|p| !keep.contains(&p.id)).map(|p| {
-            crate::databases::ViewColumn { property_id: p.id.clone(), hidden: true, ..Default::default() }
-        }))
+        .map(|id| crate::databases::ViewColumn {
+            property_id: id.clone(),
+            ..Default::default()
+        })
+        .chain(
+            detail
+                .properties
+                .iter()
+                .filter(|p| !keep.contains(&p.id))
+                .map(|p| crate::databases::ViewColumn {
+                    property_id: p.id.clone(),
+                    hidden: true,
+                    ..Default::default()
+                }),
+        )
         .collect();
-    cfg.sorts = vec![crate::databases::ViewSort { property_id: title.id.clone(), direction: "desc".into() }];
+    cfg.sorts = vec![crate::databases::ViewSort {
+        property_id: title.id.clone(),
+        direction: "desc".into(),
+    }];
     dbs::update_view(
         &mut conn,
-        crate::databases::ViewUpdate { view_id: view.id.clone(), name: None, config: cfg },
+        crate::databases::ViewUpdate {
+            view_id: view.id.clone(),
+            name: None,
+            config: cfg,
+        },
     )
     .unwrap();
     let (name, bytes) = export::view_csv(&conn, &page, &view.id).unwrap();

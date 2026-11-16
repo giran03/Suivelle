@@ -107,7 +107,12 @@ pub fn compute(conn: &Connection, input: &AggregatesQuery) -> AppResult<Aggregat
         .enumerate()
         .map(|(i, s)| (s.0.as_str(), i))
         .collect();
-    values.sort_by_key(|v| order.get(v.property_id.as_str()).copied().unwrap_or(usize::MAX));
+    values.sort_by_key(|v| {
+        order
+            .get(v.property_id.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
 
     let mut groups = Vec::new();
     if input.by_group && cfg.group.is_some() {

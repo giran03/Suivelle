@@ -2568,7 +2568,10 @@ fn formula_date_functions() {
         json!(20260315.0)
     );
     assert_eq!(ev("weekday(today())"), json!(7.0));
-    assert_eq!(ev("weekday(dateSubtract(today(), 6, \"days\"))"), json!(1.0));
+    assert_eq!(
+        ev("weekday(dateSubtract(today(), 6, \"days\"))"),
+        json!(1.0)
+    );
     assert_eq!(ev("week(today())"), json!(11.0));
     let between = |a: &str, b: &str, unit: &str| ev(&format!("dateBetween({a}, {b}, \"{unit}\")"));
     let in3 = "dateAdd(today(), 3, \"days\")";
@@ -4401,7 +4404,10 @@ fn set_cells_writes_everything_in_one_transaction() {
     // One refused cell leaves every other cell untouched.
     let bad = set_cells(
         &mut conn,
-        &[cell(&a, &qty, json!(50)), cell(&b, &qty, json!("not a number"))],
+        &[
+            cell(&a, &qty, json!(50)),
+            cell(&b, &qty, json!("not a number")),
+        ],
     );
     assert!(bad.is_err());
     let after = load_rows(&conn, std::slice::from_ref(&a.id)).unwrap();
@@ -4721,7 +4727,6 @@ fn boards_reject_bad_cards_atomically() {
     .is_err());
 }
 
-
 // ---------------------------------------------------------------------------------------------
 // totals row, number formats and formatting rules (milestone 2)
 // ---------------------------------------------------------------------------------------------
@@ -4768,10 +4773,26 @@ fn totals_cover_the_whole_filtered_set() {
     let pri = select(&mut conn, &db, "Priority", "select", &["Low", "High"]);
     let (low, high) = (opt(&pri, "Low"), opt(&pri, "High"));
     let r = |conn: &mut Connection, t: &str, v: Value| rec(conn, &db, t, v);
-    r(&mut conn, "A", json!({ pts.id.clone(): 1, done.id.clone(): true, due.id.clone(): { "start": "2026-01-01" }, notes.id.clone(): "x", pri.id.clone(): low }));
-    r(&mut conn, "B", json!({ pts.id.clone(): 2, due.id.clone(): { "start": "2026-01-11" }, pri.id.clone(): low }));
-    r(&mut conn, "C", json!({ pts.id.clone(): 9, done.id.clone(): true, pri.id.clone(): high }));
-    r(&mut conn, "D", json!({ notes.id.clone(): "y", pri.id.clone(): high }));
+    r(
+        &mut conn,
+        "A",
+        json!({ pts.id.clone(): 1, done.id.clone(): true, due.id.clone(): { "start": "2026-01-01" }, notes.id.clone(): "x", pri.id.clone(): low }),
+    );
+    r(
+        &mut conn,
+        "B",
+        json!({ pts.id.clone(): 2, due.id.clone(): { "start": "2026-01-11" }, pri.id.clone(): low }),
+    );
+    r(
+        &mut conn,
+        "C",
+        json!({ pts.id.clone(): 9, done.id.clone(): true, pri.id.clone(): high }),
+    );
+    r(
+        &mut conn,
+        "D",
+        json!({ notes.id.clone(): "y", pri.id.clone(): high }),
+    );
     // One column carries one summary, so each check saves its own view.
     let check = |conn: &mut Connection, c: ViewColumn, extra: Option<FilterNode>| {
         let mut d = db.clone();
@@ -4788,15 +4809,30 @@ fn totals_cover_the_whole_filtered_set() {
     let t = check(&mut conn, col(&pts, "sum"), None);
     assert_eq!(t.count, 4);
     assert_eq!(num(&t.values[0]), 12.0);
-    assert_eq!(num(&check(&mut conn, col(&pts, "average"), None).values[0]), 4.0);
-    assert_eq!(num(&check(&mut conn, col(&notes, "filled"), None).values[0]), 2.0);
-    assert_eq!(num(&check(&mut conn, col(&notes, "empty"), None).values[0]), 2.0);
-    assert_eq!(num(&check(&mut conn, col(&done, "percent_checked"), None).values[0]), 0.5);
+    assert_eq!(
+        num(&check(&mut conn, col(&pts, "average"), None).values[0]),
+        4.0
+    );
+    assert_eq!(
+        num(&check(&mut conn, col(&notes, "filled"), None).values[0]),
+        2.0
+    );
+    assert_eq!(
+        num(&check(&mut conn, col(&notes, "empty"), None).values[0]),
+        2.0
+    );
+    assert_eq!(
+        num(&check(&mut conn, col(&done, "percent_checked"), None).values[0]),
+        0.5
+    );
     assert_eq!(
         check(&mut conn, col(&due, "earliest"), None).values[0].value,
         json!("2026-01-01")
     );
-    assert_eq!(num(&check(&mut conn, col(&due, "date_range"), None).values[0]), 10.0);
+    assert_eq!(
+        num(&check(&mut conn, col(&due, "date_range"), None).values[0]),
+        10.0
+    );
     for (agg, want) in [
         ("median", 2.0),
         ("min", 1.0),
@@ -4804,18 +4840,33 @@ fn totals_cover_the_whole_filtered_set() {
         ("range", 8.0),
         ("percent_filled", 0.75),
     ] {
-        assert_eq!(num(&check(&mut conn, col(&pts, agg), None).values[0]), want, "{agg}");
+        assert_eq!(
+            num(&check(&mut conn, col(&pts, agg), None).values[0]),
+            want,
+            "{agg}"
+        );
     }
     // The totals follow the extra filter: only points above 1 (B and C).
-    let t = check(&mut conn, col(&pts, "sum"), Some(filter(&pts, ">", json!(1))));
+    let t = check(
+        &mut conn,
+        col(&pts, "sum"),
+        Some(filter(&pts, ">", json!(1))),
+    );
     assert_eq!((t.count, num(&t.values[0])), (2, 11.0));
-    let t = check(&mut conn, col(&pts, "median"), Some(filter(&pts, ">", json!(1))));
+    let t = check(
+        &mut conn,
+        col(&pts, "median"),
+        Some(filter(&pts, ">", json!(1))),
+    );
     assert_eq!(num(&t.values[0]), 5.5);
     // Nothing matches: the count is zero, averages and medians are null.
     let none = Some(filter(&pts, ">", json!(100)));
     let t = check(&mut conn, col(&pts, "average"), none.clone());
     assert_eq!((t.count, t.values[0].value.clone()), (0, Value::Null));
-    assert_eq!(check(&mut conn, col(&pts, "median"), none).values[0].value, Value::Null);
+    assert_eq!(
+        check(&mut conn, col(&pts, "median"), none).values[0].value,
+        Value::Null
+    );
 }
 
 #[test]
@@ -4825,9 +4876,24 @@ fn totals_by_group_and_stale_summaries() {
     let pts = add(&mut conn, &db, "Points", "number", None);
     let pri = select(&mut conn, &db, "Priority", "select", &["Low", "High"]);
     let (low, high) = (opt(&pri, "Low"), opt(&pri, "High"));
-    rec(&mut conn, &db, "A", json!({ pts.id.clone(): 1, pri.id.clone(): low }));
-    rec(&mut conn, &db, "B", json!({ pts.id.clone(): 2, pri.id.clone(): low }));
-    rec(&mut conn, &db, "C", json!({ pts.id.clone(): 9, pri.id.clone(): high }));
+    rec(
+        &mut conn,
+        &db,
+        "A",
+        json!({ pts.id.clone(): 1, pri.id.clone(): low }),
+    );
+    rec(
+        &mut conn,
+        &db,
+        "B",
+        json!({ pts.id.clone(): 2, pri.id.clone(): low }),
+    );
+    rec(
+        &mut conn,
+        &db,
+        "C",
+        json!({ pts.id.clone(): 9, pri.id.clone(): high }),
+    );
     rec(&mut conn, &db, "D", json!({ pts.id.clone(): 5 }));
     let mut db = db;
     db.views[0] = view(
@@ -4882,8 +4948,15 @@ fn totals_by_group_and_stale_summaries() {
 fn number_formats_are_validated_and_kept() {
     let (mut conn, ws) = setup();
     let db = new_db(&mut conn, &ws);
-    let fmt = json!({ "decimals": 2, "thousands": true, "currency": "$", "unit": "", "bar": false });
-    let p = add(&mut conn, &db, "Cost", "number", Some(json!({ "format": fmt })));
+    let fmt =
+        json!({ "decimals": 2, "thousands": true, "currency": "$", "unit": "", "bar": false });
+    let p = add(
+        &mut conn,
+        &db,
+        "Cost",
+        "number",
+        Some(json!({ "format": fmt })),
+    );
     assert_eq!(
         p.config["format"],
         json!({ "decimals": 2, "thousands": true, "currency": "$" })
@@ -4901,7 +4974,10 @@ fn number_formats_are_validated_and_kept() {
         .is_err()
     };
     assert!(bad(&mut conn, json!({ "format": { "decimals": 11 } })));
-    assert!(bad(&mut conn, json!({ "format": { "currency": "WAYTOOLONG" } })));
+    assert!(bad(
+        &mut conn,
+        json!({ "format": { "currency": "WAYTOOLONG" } })
+    ));
     let f = add(
         &mut conn,
         &db,
@@ -4942,9 +5018,15 @@ fn formatting_rules_are_validated_and_pruned() {
     assert!(save(&mut conn, vec![rule("red", "column")]).is_err());
     let saved = save(&mut conn, vec![rule("red", "row")]).unwrap();
     assert_eq!(saved.config.formats.len(), 1);
-    assert!(saved.config.formats[0].property_id.is_none(), "a row rule has no column");
+    assert!(
+        saved.config.formats[0].property_id.is_none(),
+        "a row rule has no column"
+    );
     let saved = save(&mut conn, vec![rule("green", "cell")]).unwrap();
-    assert_eq!(saved.config.formats[0].property_id.as_deref(), Some(pts.id.as_str()));
+    assert_eq!(
+        saved.config.formats[0].property_id.as_deref(),
+        Some(pts.id.as_str())
+    );
     // Deleting the property removes the rules that tested it.
     delete_property(&mut conn, &pts.id).unwrap();
     let after = load_views(&conn, &db.database.id).unwrap();
@@ -5038,9 +5120,16 @@ fn pivot_buckets_date_columns_and_counts_without_a_column() {
         },
     );
     let won = Some(opt(&s.status, "Won"));
-    assert_eq!(cell(&d, won.clone(), Some("2026-01".into())), Some((Some(1.0), 1)));
+    assert_eq!(
+        cell(&d, won.clone(), Some("2026-01".into())),
+        Some((Some(1.0), 1))
+    );
     assert_eq!(cell(&d, won, Some("2026-02".into())), Some((Some(2.0), 2)));
-    let feb = d.column_totals.iter().find(|p| p.x.as_deref() == Some("2026-02")).unwrap();
+    let feb = d
+        .column_totals
+        .iter()
+        .find(|p| p.x.as_deref() == Some("2026-02"))
+        .unwrap();
     assert_eq!(feb.count, 3);
 
     let d = pivot_of(
@@ -5087,7 +5176,9 @@ fn pivot_respects_the_view_filter_and_validates() {
     .unwrap();
     assert_eq!(d.records, 3);
     // Rows and columns must be groupable; sums need a number.
-    let props = &super::service::database_detail(&s.conn, &s.db.database.id).unwrap().properties;
+    let props = &super::service::database_detail(&s.conn, &s.db.database.id)
+        .unwrap()
+        .properties;
     let title = props.iter().find(|p| p.property_type == "title").unwrap();
     let bad_row = PivotSpec {
         row_property_id: Some(title.id.clone()),
@@ -5115,12 +5206,21 @@ fn every_starter_builds_with_and_without_sample_data() {
     for info in &all {
         let sampled = from_template(&mut conn, &ws, info.id, true);
         let bare = from_template(&mut conn, &ws, info.id, false);
-        assert_eq!(sampled.database_page_ids.len(), info.databases.len(), "{}", info.id);
+        assert_eq!(
+            sampled.database_page_ids.len(),
+            info.databases.len(),
+            "{}",
+            info.id
+        );
         for (page, name) in sampled.database_page_ids.iter().zip(info.databases) {
             let d = detail_of(&conn, page);
             assert_eq!(d.page.title, *name, "{}", info.id);
             assert!(!d.views.is_empty());
-            assert!(!all_rows(&conn, &d, &d.views[0]).is_empty(), "{} has sample rows", info.id);
+            assert!(
+                !all_rows(&conn, &d, &d.views[0]).is_empty(),
+                "{} has sample rows",
+                info.id
+            );
             for v in d.views.iter().filter(|v| v.view_type != "chart") {
                 all_rows(&conn, &d, v);
             }
@@ -5132,22 +5232,35 @@ fn every_starter_builds_with_and_without_sample_data() {
             assert!(blocks.len() >= 3, "{} {label} has an overview", info.id);
             for page in &result.database_page_ids {
                 assert!(
-                    blocks.iter().any(|b| b.block_type == "bullet_list" && b.data_json.contains(page.as_str())),
+                    blocks
+                        .iter()
+                        .any(|b| b.block_type == "bullet_list"
+                            && b.data_json.contains(page.as_str())),
                     "{} links to every database",
                     info.id
                 );
             }
-            let embeds: Vec<_> = blocks.iter().filter(|b| b.block_type == "database_view").collect();
+            let embeds: Vec<_> = blocks
+                .iter()
+                .filter(|b| b.block_type == "database_view")
+                .collect();
             assert!(!embeds.is_empty(), "{} shows a live view", info.id);
             for e in embeds {
                 let data: serde_json::Value = serde_json::from_str(&e.data_json).unwrap();
                 let d = detail_of(&conn, data["pageId"].as_str().unwrap());
-                assert!(d.views.iter().any(|v| v.id == data["viewId"].as_str().unwrap()));
+                assert!(d
+                    .views
+                    .iter()
+                    .any(|v| v.id == data["viewId"].as_str().unwrap()));
             }
         }
         for page in &bare.database_page_ids {
             let d = detail_of(&conn, page);
-            assert!(all_rows(&conn, &d, &d.views[0]).is_empty(), "{} is empty without samples", info.id);
+            assert!(
+                all_rows(&conn, &d, &d.views[0]).is_empty(),
+                "{} is empty without samples",
+                info.id
+            );
         }
     }
 }

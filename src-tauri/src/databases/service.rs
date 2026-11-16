@@ -435,7 +435,9 @@ fn normalize_formats(
     database_id: &str,
 ) -> AppResult<Vec<FormatRule>> {
     if rules.len() > MAX_FORMAT_RULES {
-        return bad(format!("at most {MAX_FORMAT_RULES} formatting rules per view"));
+        return bad(format!(
+            "at most {MAX_FORMAT_RULES} formatting rules per view"
+        ));
     }
     let mut out = Vec::new();
     for mut r in rules {
@@ -452,7 +454,13 @@ fn normalize_formats(
             filter: Some(r.filter.clone()),
             ..Default::default()
         };
-        query::build(database_id, props, &probe, chrono::Local::now().date_naive(), &[])?;
+        query::build(
+            database_id,
+            props,
+            &probe,
+            chrono::Local::now().date_naive(),
+            &[],
+        )?;
         out.push(r);
     }
     Ok(out)

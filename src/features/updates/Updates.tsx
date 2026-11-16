@@ -10,7 +10,7 @@ import { useSettingsDialog } from "../settings/store";
 import { isPreparing, startUpdateScheduler, useUpdates, type Release } from "./store";
 import { ChangelogBody, ChangelogHistory, entryLabel } from "./ChangelogHistory";
 import { ChangelogMarkdown } from "./changelogMarkdown";
-import { CHANGELOG } from "./changelogData";
+import { useChangelog } from "./changelogData";
 import "./updates.css";
 
 function releaseDate(value: string) {
@@ -38,7 +38,8 @@ export function UpdatesSection() {
   const tone: "good" | "bad" | "neutral" = error ? "bad" : snapshot?.ready || (!busy && !snapshot?.available && snapshot?.lastCheck) ? "good" : "neutral";
   const glyph = error ? "warning" : tone === "good" ? "check" : snapshot?.available ? "download" : "restore";
   const installed = snapshot?.installed.version;
-  const notes = CHANGELOG.find((e) => e.version === installed) ?? CHANGELOG[0];
+  const changelog = useChangelog();
+  const notes = changelog?.find((e) => e.version === installed) ?? changelog?.[0];
   return (
     <section className="updates-section" aria-labelledby="updates-title">
       <h3 id="updates-title" ref={heading} tabIndex={-1}>Updates</h3>

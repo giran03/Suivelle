@@ -3,9 +3,9 @@
 //! the data so they apply before the page has loaded (a hidden start has no page to ask).
 
 use crate::errors::{AppError, AppResult};
+use crate::tray_popup;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use crate::tray_popup;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;

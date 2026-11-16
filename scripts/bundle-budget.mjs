@@ -9,7 +9,8 @@ const kB = 1000;
 /** Everything loaded before the first render: the entry, the modules main.tsx imports right away, and their static imports. */
 // Calendar/media commands and shell integration; heavy views and dialogs load on demand.
 // Includes the sidebar's Canvases section and the canvas boards store.
-const STARTUP_MAX = 540 * kB;
+// 0.2.0 adds spreadsheet-style tables, the pivot entry points, a resizable sidebar and a richer updates panel to startup; the changelog archive now loads on demand.
+const STARTUP_MAX = 590 * kB;
 const STARTUP_ROOTS = [/^App-.*\.js$/, /^ErrorBoundary-.*\.js$/];
 const BUDGETS = [
   { name: "Editor", match: (file) => /^Editor-.*\.js$/.test(file), max: 720 * kB },
@@ -18,13 +19,13 @@ const BUDGETS = [
   { name: "CanvasView", match: (file) => /^CanvasView-.*\.js$/.test(file), max: 40 * kB },
   { name: "WorkspaceCanvas", match: (file) => /^WorkspaceCanvas-.*\.js$/.test(file), max: 30 * kB },
   { name: "canvas engine", match: (file) => /^useCanvas-.*\.js$/.test(file), max: 80 * kB },
-  { name: "DatabaseView", match: (file) => /^DatabaseView-.*\.js$/.test(file), max: 190 * kB },
+  { name: "DatabaseView", match: (file) => /^DatabaseView-.*\.js$/.test(file), max: 240 * kB },
   { name: "MapCanvas", match: (file) => /^MapCanvas-.*\.js$/.test(file), max: 600 * kB },
   { name: "NodeMap", match: (file) => /^NodeMap-.*\.js$/.test(file), max: 45 * kB },
 ];
 // Includes the calendar views, recurrence/import support, and date/time pickers.
 // Three.js and the map layout worker are lazy-loaded; preserve the startup budget.
-const TOTAL_JS_MAX = (2_840 + 750) * kB;
+const TOTAL_JS_MAX = 3_800 * kB;
 
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const entry = html.match(/<script[^>]+src="\/?assets\/([^"]+\.js)"/)?.[1];

@@ -21,11 +21,11 @@ pub mod repositories;
 pub mod search;
 pub mod services;
 pub mod shell;
+mod startup;
+pub mod transfer;
 pub mod tray_popup;
 #[cfg(windows)]
 pub mod tray_win32;
-mod startup;
-pub mod transfer;
 pub mod updates;
 
 #[cfg(test)]

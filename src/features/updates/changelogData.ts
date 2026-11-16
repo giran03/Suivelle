@@ -1,5 +1,8 @@
 /** The release history, read from the archived changelogs in docs/changelog (one Markdown file per version). */
-const files = import.meta.glob("../../../docs/changelog/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+import { useEffect, useState } from "react";
+
+// Loaded on demand: the archived Markdown is large and is not needed to open the app.
+const files = import.meta.glob("../../../docs/changelog/*.md", { query: "?raw", import: "default" }) as Record<string, () => Promise<string>>;
 
 export interface ChangelogGroup { title: string | null; items: string[] }
 export interface ChangelogEntry {
@@ -42,8 +45,24 @@ export function parseChangelog(text: string): ChangelogEntry | null {
   return { version, released, unreleased, groups: groups.filter((g) => g.items.length) };
 }
 
-/** Every archived release, newest first. */
-export const CHANGELOG: ChangelogEntry[] = Object.values(files)
-  .map(parseChangelog)
-  .filter((e): e is ChangelogEntry => e !== null)
-  .sort((a, b) => compareVersions(b.version, a.version));
+let loaded: Promise<ChangelogEntry[]> | null = null;
+
+/** Every archived release, newest first. Read once, the first time it is asked for. */
+export function loadChangelog(): Promise<ChangelogEntry[]> {
+  loaded ??= Promise.all(Object.values(files).map((load) => load().then(parseChangelog)))
+    .then((entries) => entries.filter((e): e is ChangelogEntry => e !== null).sort((a, b) => compareVersions(b.version, a.version)))
+    .catch(() => []);
+  return loaded;
+}
+
+/** The archived releases once loaded (null until then). Pass `enabled: false` to wait. */
+export function useChangelog(enabled = true): ChangelogEntry[] | null {
+  const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    void loadChangelog().then((list) => { if (live) setEntries(list); });
+    return () => { live = false; };
+  }, [enabled]);
+  return entries;
+}

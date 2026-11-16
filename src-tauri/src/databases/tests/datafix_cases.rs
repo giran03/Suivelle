@@ -32,11 +32,32 @@ fn search_matches_text_and_option_names_on_top_of_the_view_filter() {
     let db = new_db(&mut conn, &ws);
     let notes = add(&mut conn, &db, "Notes", "text", None);
     let n = add(&mut conn, &db, "Size", "number", None);
-    let tags = select(&mut conn, &db, "Labels", "multi_select", &["Urgent", "Later"]);
+    let tags = select(
+        &mut conn,
+        &db,
+        "Labels",
+        "multi_select",
+        &["Urgent", "Later"],
+    );
     let stat = select(&mut conn, &db, "Phase", "select", &["Backlog", "Shipping"]);
-    rec(&mut conn, &db, "Alpha", json!({ notes.id.clone(): "call the plumber", n.id.clone(): 5 }));
-    rec(&mut conn, &db, "Beta", json!({ tags.id.clone(): [opt(&tags, "Urgent")] }));
-    rec(&mut conn, &db, "Gamma", json!({ stat.id.clone(): opt(&stat, "Shipping") }));
+    rec(
+        &mut conn,
+        &db,
+        "Alpha",
+        json!({ notes.id.clone(): "call the plumber", n.id.clone(): 5 }),
+    );
+    rec(
+        &mut conn,
+        &db,
+        "Beta",
+        json!({ tags.id.clone(): [opt(&tags, "Urgent")] }),
+    );
+    rec(
+        &mut conn,
+        &db,
+        "Gamma",
+        json!({ stat.id.clone(): opt(&stat, "Shipping") }),
+    );
     rec(&mut conn, &db, "100% done_", json!({}));
     assert_eq!(search_titles(&conn, &db, "PLUMB"), vec!["Alpha"]);
     assert_eq!(search_titles(&conn, &db, "urgent"), vec!["Beta"]);
@@ -83,7 +104,10 @@ fn data_checks_are_validated_and_defaults_fill_new_records() {
         "text",
         Some(json!({ "validation": { "unique": true, "format": "email", "junk": 1 } })),
     );
-    assert_eq!(mail.config["validation"], json!({ "unique": true, "format": "email" }));
+    assert_eq!(
+        mail.config["validation"],
+        json!({ "unique": true, "format": "email" })
+    );
     let st = select(&mut conn, &db, "Phase", "select", &["Open", "Closed"]);
     let open = opt(&st, "Open");
     let st = update_property(
@@ -137,7 +161,9 @@ fn data_checks_are_validated_and_defaults_fill_new_records() {
         PropertyUpdate {
             id: st.id.clone(),
             name: None,
-            config: Some(json!({ "options": [{ "name": "Closed", "color": "gray" }], "default": open })),
+            config: Some(
+                json!({ "options": [{ "name": "Closed", "color": "gray" }], "default": open }),
+            ),
             position: None,
         },
     )
@@ -151,9 +177,24 @@ fn duplicates_group_by_chosen_properties_keeping_the_oldest() {
     let db = new_db(&mut conn, &ws);
     let mail = add(&mut conn, &db, "Mail", "text", None);
     let city = add(&mut conn, &db, "City", "text", None);
-    let a = rec(&mut conn, &db, "Ann", json!({ mail.id.clone(): "a@x.io", city.id.clone(): "Paris" }));
-    let b = rec(&mut conn, &db, "Ann B", json!({ mail.id.clone(): " A@X.io ", city.id.clone(): "Lyon" }));
-    let c = rec(&mut conn, &db, "Ann C", json!({ mail.id.clone(): "a@x.io", city.id.clone(): "Paris" }));
+    let a = rec(
+        &mut conn,
+        &db,
+        "Ann",
+        json!({ mail.id.clone(): "a@x.io", city.id.clone(): "Paris" }),
+    );
+    let b = rec(
+        &mut conn,
+        &db,
+        "Ann B",
+        json!({ mail.id.clone(): " A@X.io ", city.id.clone(): "Lyon" }),
+    );
+    let c = rec(
+        &mut conn,
+        &db,
+        "Ann C",
+        json!({ mail.id.clone(): "a@x.io", city.id.clone(): "Paris" }),
+    );
     rec(&mut conn, &db, "Zed", json!({}));
     rec(&mut conn, &db, "Zed2", json!({}));
     let query = |ids: &[&Property]| DuplicateQuery {
@@ -163,7 +204,11 @@ fn duplicates_group_by_chosen_properties_keeping_the_oldest() {
     let one = datafix::find_duplicates(&conn, &query(&[&mail])).unwrap();
     assert_eq!(one.group_count, 1);
     assert_eq!(one.extra_count, 2);
-    let ids: Vec<&str> = one.groups[0].records.iter().map(|r| r.id.as_str()).collect();
+    let ids: Vec<&str> = one.groups[0]
+        .records
+        .iter()
+        .map(|r| r.id.as_str())
+        .collect();
     assert_eq!(ids, vec![a.id.as_str(), b.id.as_str(), c.id.as_str()]);
     assert_eq!(one.groups[0].label, "a@x.io");
     // Both properties must match, so only the first and third are duplicates.
@@ -171,7 +216,12 @@ fn duplicates_group_by_chosen_properties_keeping_the_oldest() {
     assert_eq!(both.extra_count, 1);
     assert_eq!(both.groups[0].records[1].id, c.id);
     // Records with nothing in the compared property are not duplicates of each other.
-    assert_eq!(datafix::find_duplicates(&conn, &query(&[&city])).unwrap().group_count, 1);
+    assert_eq!(
+        datafix::find_duplicates(&conn, &query(&[&city]))
+            .unwrap()
+            .group_count,
+        1
+    );
     assert!(datafix::find_duplicates(&conn, &query(&[])).is_err());
     let unknown = DuplicateQuery {
         database_id: db.database.id.clone(),
@@ -202,8 +252,16 @@ fn a_property_can_be_duplicated_with_its_values() {
     assert_eq!(rows[0].values[&copy.id], json!("hello"));
     assert_eq!(rows[0].values[&sel.id], json!(opt(&phase, "Open")));
     let detail = database_detail(&conn, &db.database.id).unwrap();
-    assert!(detail.views[0].config.columns.iter().any(|c| c.property_id == copy.id));
-    let title = detail.properties.iter().find(|p| p.property_type == "title").unwrap();
+    assert!(detail.views[0]
+        .config
+        .columns
+        .iter()
+        .any(|c| c.property_id == copy.id));
+    let title = detail
+        .properties
+        .iter()
+        .find(|p| p.property_type == "title")
+        .unwrap();
     assert!(datafix::duplicate_property(&mut conn, &title.id).is_err());
 }
 
@@ -243,5 +301,7 @@ fn column_options_round_trip_and_old_views_load() {
     let old: ViewConfig = serde_json::from_str(r#"{"columns":[],"sorts":[]}"#).unwrap();
     assert_eq!(old.frozen_columns, 0);
     assert!(old.row_height.is_none() && old.wrap_columns.is_empty());
-    assert!(!serde_json::to_string(&old).unwrap().contains("frozenColumns"));
+    assert!(!serde_json::to_string(&old)
+        .unwrap()
+        .contains("frozenColumns"));
 }

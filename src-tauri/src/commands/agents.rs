@@ -82,11 +82,19 @@ pub async fn agents_save_settings(
             let home = Env::system()?.home;
             // Disable the external route before committing a disabled setting or cleared key.
             // Keep the DB lock through file sync so installation cannot restore stale eligibility.
-            if !settings.jev_enabled || settings.jev_api_key.as_deref().is_some_and(|k| k.trim().is_empty()) {
+            if !settings.jev_enabled
+                || settings
+                    .jev_api_key
+                    .as_deref()
+                    .is_some_and(|k| k.trim().is_empty())
+            {
                 clients::rea_workflow::sync_review(&home, false)?;
             }
             let saved = agents::save_settings(c, &settings)?;
-            clients::rea_workflow::sync_review(&home, saved.jev_enabled && saved.jev_key_hint.is_some())?;
+            clients::rea_workflow::sync_review(
+                &home,
+                saved.jev_enabled && saved.jev_key_hint.is_some(),
+            )?;
             Ok(saved)
         })?;
         if saved.api_enabled {
@@ -101,18 +109,25 @@ pub async fn agents_save_settings(
 pub async fn rea_workflow_status() -> AppResult<clients::rea_workflow::Status> {
     blocking("rea_workflow_status", move || {
         clients::rea_workflow::status(&Env::system()?.home)
-    }).await
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn rea_workflow_install(app: tauri::AppHandle) -> AppResult<clients::rea_workflow::Status> {
+pub async fn rea_workflow_install(
+    app: tauri::AppHandle,
+) -> AppResult<clients::rea_workflow::Status> {
     blocking("rea_workflow_install", move || {
         writable(&app)?;
         run(&app, "rea_workflow_install", |c| {
             let s = agents::settings(c)?;
-            clients::rea_workflow::install(&Env::system()?.home, s.jev_enabled && s.jev_key_hint.is_some())
+            clients::rea_workflow::install(
+                &Env::system()?.home,
+                s.jev_enabled && s.jev_key_hint.is_some(),
+            )
         })
-    }).await
+    })
+    .await
 }
 
 #[tauri::command]

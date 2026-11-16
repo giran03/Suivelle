@@ -173,7 +173,11 @@ pub fn data(conn: &Connection, input: &ChartQuery) -> AppResult<ChartData> {
 }
 
 /// The calculated properties the chart's filter or value depend on.
-pub(super) fn chart_calc<'a>(props: &'a [Property], cfg: &ViewConfig, spec: &ChartSpec) -> Vec<&'a Property> {
+pub(super) fn chart_calc<'a>(
+    props: &'a [Property],
+    cfg: &ViewConfig,
+    spec: &ChartSpec,
+) -> Vec<&'a Property> {
     let mut used = super::calc::used_by(props, cfg);
     if let Some(id) = &spec.y_property_id {
         if let Some(p) = props

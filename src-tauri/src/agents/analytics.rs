@@ -344,9 +344,9 @@ pub fn report(
     let agent_filter = agent_id.map(str::trim).filter(|s| !s.is_empty());
     let now = Utc::now();
     let cutoff = match range {
-        "24h" => Some(
-            (now - Duration::hours(24)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-        ),
+        "24h" => {
+            Some((now - Duration::hours(24)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+        }
         "7d" => {
             Some((now - Duration::days(7)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
         }
@@ -437,7 +437,10 @@ pub fn report(
         by_agent.entry(e.agent_id.clone()).or_default().add(&e);
         by_tool.entry(e.tool.clone()).or_default().add(&e);
 
-        if let Some(b) = hourly_series.iter_mut().find(|b| b.key == e.created_at.get(..13).unwrap_or_default()) {
+        if let Some(b) = hourly_series
+            .iter_mut()
+            .find(|b| b.key == e.created_at.get(..13).unwrap_or_default())
+        {
             b.calls += 1;
             b.input_tokens += e.input_tokens.max(0);
             b.output_tokens += e.output_tokens.max(0);
@@ -560,7 +563,11 @@ pub fn report(
         (b.total_tokens + b.saved_tokens)
             .cmp(&(a.total_tokens + a.saved_tokens))
             .then(b.calls.cmp(&a.calls))
-            .then(a.agent_name.to_lowercase().cmp(&b.agent_name.to_lowercase()))
+            .then(
+                a.agent_name
+                    .to_lowercase()
+                    .cmp(&b.agent_name.to_lowercase()),
+            )
     });
 
     let mut tools_out: Vec<ToolUsage> = by_tool

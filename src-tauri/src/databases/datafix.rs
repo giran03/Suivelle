@@ -90,7 +90,10 @@ fn display(prop: &Property, title: &str, raw: Option<&str>) -> String {
         prop.config
             .get("options")
             .and_then(Value::as_array)
-            .and_then(|a| a.iter().find(|o| o.get("id").and_then(Value::as_str) == Some(id)))
+            .and_then(|a| {
+                a.iter()
+                    .find(|o| o.get("id").and_then(Value::as_str) == Some(id))
+            })
             .and_then(|o| o.get("name").and_then(Value::as_str))
             .unwrap_or("?")
             .to_string()
@@ -139,9 +142,16 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
         "SELECT record_id, property_id, value_json FROM db_value WHERE property_id IN ({marks})"
     ))?;
     let mut stored: HashMap<String, HashMap<String, String>> = HashMap::new();
-    let rows = stmt.query_map(params_from_iter(chosen.iter().map(|p| p.id.as_str())), |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-    })?;
+    let rows = stmt.query_map(
+        params_from_iter(chosen.iter().map(|p| p.id.as_str())),
+        |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        },
+    )?;
     for row in rows {
         let (record, prop, json) = row?;
         stored.entry(record).or_default().insert(prop, json);
@@ -153,7 +163,11 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
     )?;
     let records = stmt
         .query_map(params![db.id], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -163,7 +177,13 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
         let values = stored.get(&id);
         let parts: Vec<String> = chosen
             .iter()
-            .map(|p| key_part(p, &title, values.and_then(|v| v.get(&p.id)).map(String::as_str)))
+            .map(|p| {
+                key_part(
+                    p,
+                    &title,
+                    values.and_then(|v| v.get(&p.id)).map(String::as_str),
+                )
+            })
             .collect();
         // A record with nothing in any compared property is not a duplicate of the next one.
         if parts.iter().all(String::is_empty) {
@@ -174,11 +194,20 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
             order.push(key.clone());
             let label = chosen
                 .iter()
-                .map(|p| display(p, &title, values.and_then(|v| v.get(&p.id)).map(String::as_str)))
+                .map(|p| {
+                    display(
+                        p,
+                        &title,
+                        values.and_then(|v| v.get(&p.id)).map(String::as_str),
+                    )
+                })
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
                 .join(" / ");
-            DuplicateGroup { label, records: Vec::new() }
+            DuplicateGroup {
+                label,
+                records: Vec::new(),
+            }
         });
         entry.records.push(DuplicateRecord { id, page_id, title });
     }
@@ -194,7 +223,12 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
     let extra_count = found.iter().map(|g| g.records.len() - 1).sum();
     let truncated = group_count > MAX_GROUPS;
     found.truncate(MAX_GROUPS);
-    Ok(DuplicateReport { groups: found, group_count, extra_count, truncated })
+    Ok(DuplicateReport {
+        groups: found,
+        group_count,
+        extra_count,
+        truncated,
+    })
 }
 
 /// Adds a copy of a property (same type and settings) to the database, with every value copied.
@@ -239,13 +273,24 @@ pub fn duplicate_property(conn: &mut Connection, id: &str) -> AppResult<Property
             )?;
             let rows = stmt
                 .query_map([&copy.id], |r| {
-                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
             drop(stmt);
             for (record_id, page_id, json) in rows {
                 let value: Value = serde_json::from_str(&json).unwrap_or(Value::Null);
-                service::index_value(&tx, &db.workspace_id, &page_id, &record_id, &copy, Some(&value))?;
+                service::index_value(
+                    &tx,
+                    &db.workspace_id,
+                    &page_id,
+                    &record_id,
+                    &copy,
+                    Some(&value),
+                )?;
             }
         }
     }

@@ -2245,7 +2245,10 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
             let body_str = req_text.split_once("\r\n\r\n").map(|x| x.1).unwrap_or("{}");
             let req_json: Value = serde_json::from_str(body_str).unwrap_or_else(|_| json!({}));
             let state = req_json["state"].as_str().unwrap_or_default();
-            let questions = req_json["questions"].as_object().cloned().unwrap_or_default();
+            let questions = req_json["questions"]
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
 
             let mut answers = Map::new();
             for (qid, q) in questions {
@@ -2259,7 +2262,8 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
                         0.92
                     } else if instr.contains("Releases ship on Tuesdays") {
                         0.55
-                    } else if instr.contains("Office lunch menu") || instr.contains("Social events") {
+                    } else if instr.contains("Office lunch menu") || instr.contains("Social events")
+                    {
                         0.10
                     } else {
                         0.50
@@ -2411,7 +2415,12 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
         "suivelle project",
         "See [[Auth architecture]] and [[Social events]].",
     );
-    page(&mut conn, &ws, "Auth architecture", "Token verification flow.");
+    page(
+        &mut conn,
+        &ws,
+        "Auth architecture",
+        "Token verification flow.",
+    );
     page(&mut conn, &ws, "Social events", "Team picnics.");
 
     let packed = call(
@@ -2424,7 +2433,9 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
     // High-relevance memory (0.92) keeps its body; medium-relevance memory (0.55) is compressed to title-only;
     // low-relevance memory (0.10) and low-relevance connected page ("Social events") are pruned.
     assert!(
-        packed.text.contains("Credentials live in Windows Credential Manager")
+        packed
+            .text
+            .contains("Credentials live in Windows Credential Manager")
             && packed.text.contains("advapi32 CredWriteW"),
         "high-relevance memory keeps body: {}",
         packed.text
@@ -2436,8 +2447,7 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
         packed.text
     );
     assert!(
-        !packed.text.contains("Office lunch menu")
-            && !packed.text.contains("**Social events**"),
+        !packed.text.contains("Office lunch menu") && !packed.text.contains("**Social events**"),
         "low-relevance memory and connected page are pruned: {}",
         packed.text
     );
@@ -2455,7 +2465,9 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
     )
     .unwrap();
     assert!(
-        conflict.text.contains("Conflict with active memory in this scope"),
+        conflict
+            .text
+            .contains("Conflict with active memory in this scope"),
         "expected contradiction warning: {}",
         conflict.text
     );
@@ -2556,7 +2568,10 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
     assert_eq!(agent_row.calls, 3);
     assert_eq!(agent_row.total_tokens, rep.totals.total_tokens);
     assert!(agent_row.top_tools.contains(&"context_pack".to_string()));
-    assert!(rep.tools.iter().any(|t| t.tool == "context_pack" && t.calls == 2));
+    assert!(rep
+        .tools
+        .iter()
+        .any(|t| t.tool == "context_pack" && t.calls == 2));
 
     analytics::clear(&conn, Some(&a.id)).unwrap();
     let cleared = analytics::report(&conn, Some("all"), None).unwrap();
@@ -2579,23 +2594,48 @@ fn jev_settings_and_memory_gates_prune_pack_rescue_recall_and_fail_open() {
     assert!(offline.message.contains("Could not reach TypeSafe AI"));
 }
 
-
 #[test]
 fn hourly_usage_groups_recent_calls_and_respects_agent_filter() {
     let mut conn = open_in_memory().unwrap();
     let ws = workspace(&mut conn, "Hourly usage");
     let a = agent(&mut conn, "First", &ws, "write");
     let other = agent(&mut conn, "Other", &ws, "write");
-    let metrics = analytics::CallMetrics { input_tokens: 13044, output_tokens: 2202, ..Default::default() };
+    let metrics = analytics::CallMetrics {
+        input_tokens: 13044,
+        output_tokens: 2202,
+        ..Default::default()
+    };
     audit_with_metrics(&conn, &a.id, "old", true, 1, metrics);
-    conn.execute("UPDATE agent_audit SET created_at = ?1 WHERE tool = 'old'", [(chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)]).unwrap();
+    conn.execute(
+        "UPDATE agent_audit SET created_at = ?1 WHERE tool = 'old'",
+        [(chrono::Utc::now() - chrono::Duration::days(2))
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)],
+    )
+    .unwrap();
     audit_with_metrics(&conn, &a.id, "recent", true, 1, metrics);
     audit_with_metrics(&conn, &other.id, "recent", true, 1, metrics);
     let report = analytics::report(&conn, Some("7d"), Some(&a.id)).unwrap();
     assert_eq!(report.totals.calls, 2);
     assert_eq!(report.hourly_series.len(), 24);
     assert_eq!(report.hourly_series.iter().map(|b| b.calls).sum::<i64>(), 1);
-    assert_eq!(report.hourly_series.iter().map(|b| b.input_tokens).sum::<i64>(), 13044);
-    assert_eq!(report.hourly_series.iter().map(|b| b.output_tokens).sum::<i64>(), 2202);
-    assert_eq!(report.hourly_series.iter().filter(|b| b.calls == 0).count(), 23);
+    assert_eq!(
+        report
+            .hourly_series
+            .iter()
+            .map(|b| b.input_tokens)
+            .sum::<i64>(),
+        13044
+    );
+    assert_eq!(
+        report
+            .hourly_series
+            .iter()
+            .map(|b| b.output_tokens)
+            .sum::<i64>(),
+        2202
+    );
+    assert_eq!(
+        report.hourly_series.iter().filter(|b| b.calls == 0).count(),
+        23
+    );
 }

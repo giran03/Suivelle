@@ -13,12 +13,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, DrawTextW,
-    GdiFlush, GetMonitorInfoW, MonitorFromPoint, SelectObject, SetBkMode, SetTextColor,
-    AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION,
-    CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS,
-    DT_END_ELLIPSIS, DT_LEFT, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, FF_SWISS, HBITMAP, HDC,
-    HFONT, MONITORINFO, MONITOR_DEFAULTTONEAREST, OUT_DEFAULT_PRECIS, TRANSPARENT,
+    CreateCompatibleDC, CreateDIBSection, CreateFontW, DeleteDC, DeleteObject, DrawTextW, GdiFlush,
+    GetMonitorInfoW, MonitorFromPoint, SelectObject, SetBkMode, SetTextColor, AC_SRC_ALPHA,
+    AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, CLEARTYPE_QUALITY,
+    CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DIB_RGB_COLORS, DT_END_ELLIPSIS, DT_LEFT,
+    DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, FF_SWISS, HBITMAP, HDC, HFONT, MONITORINFO,
+    MONITOR_DEFAULTTONEAREST, OUT_DEFAULT_PRECIS, TRANSPARENT,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
@@ -60,7 +60,12 @@ pub fn notify_refresh() {
     let raw = OPEN_HWND.load(Ordering::SeqCst);
     if raw != 0 {
         unsafe {
-            let _ = PostMessageW(Some(HWND(raw as *mut _)), WM_TRAY_REFRESH, WPARAM(0), LPARAM(0));
+            let _ = PostMessageW(
+                Some(HWND(raw as *mut _)),
+                WM_TRAY_REFRESH,
+                WPARAM(0),
+                LPARAM(0),
+            );
         }
     }
 }
@@ -146,9 +151,15 @@ impl Rgb {
     fn blend(self, other: Self, t: f32) -> Self {
         let inv = 1.0 - t;
         Self {
-            r: (self.r as f32 * inv + other.r as f32 * t).round().clamp(0.0, 255.0) as u8,
-            g: (self.g as f32 * inv + other.g as f32 * t).round().clamp(0.0, 255.0) as u8,
-            b: (self.b as f32 * inv + other.b as f32 * t).round().clamp(0.0, 255.0) as u8,
+            r: (self.r as f32 * inv + other.r as f32 * t)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+            g: (self.g as f32 * inv + other.g as f32 * t)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+            b: (self.b as f32 * inv + other.b as f32 * t)
+                .round()
+                .clamp(0.0, 255.0) as u8,
         }
     }
 
@@ -191,34 +202,82 @@ fn resolve_colors(app: &TrayAppearance) -> ResolvedColors {
     };
     let pal = if is_light { &app.light } else { &app.dark };
     let def_s = if is_light {
-        Rgb { r: 241, g: 243, b: 246 }
+        Rgb {
+            r: 241,
+            g: 243,
+            b: 246,
+        }
     } else {
-        Rgb { r: 28, g: 32, b: 41 }
+        Rgb {
+            r: 28,
+            g: 32,
+            b: 41,
+        }
     };
     let def_tp = if is_light {
-        Rgb { r: 27, g: 31, b: 39 }
+        Rgb {
+            r: 27,
+            g: 31,
+            b: 39,
+        }
     } else {
-        Rgb { r: 227, g: 230, b: 237 }
+        Rgb {
+            r: 227,
+            g: 230,
+            b: 237,
+        }
     };
     let def_ts = if is_light {
-        Rgb { r: 95, g: 104, b: 120 }
+        Rgb {
+            r: 95,
+            g: 104,
+            b: 120,
+        }
     } else {
-        Rgb { r: 148, g: 156, b: 172 }
+        Rgb {
+            r: 148,
+            g: 156,
+            b: 172,
+        }
     };
     let def_bd = if is_light {
-        Rgb { r: 207, g: 212, b: 221 }
+        Rgb {
+            r: 207,
+            g: 212,
+            b: 221,
+        }
     } else {
-        Rgb { r: 52, g: 58, b: 72 }
+        Rgb {
+            r: 52,
+            g: 58,
+            b: 72,
+        }
     };
     let def_ac = if is_light {
-        Rgb { r: 56, g: 91, b: 221 }
+        Rgb {
+            r: 56,
+            g: 91,
+            b: 221,
+        }
     } else {
-        Rgb { r: 121, g: 149, b: 255 }
+        Rgb {
+            r: 121,
+            g: 149,
+            b: 255,
+        }
     };
     let def_dg = if is_light {
-        Rgb { r: 180, g: 58, b: 58 }
+        Rgb {
+            r: 180,
+            g: 58,
+            b: 58,
+        }
     } else {
-        Rgb { r: 241, g: 113, b: 113 }
+        Rgb {
+            r: 241,
+            g: 113,
+            b: 113,
+        }
     };
 
     let surface = Rgb::parse(&pal.surface_1, def_s);
@@ -561,21 +620,12 @@ impl MenuWindowState {
                 colors.text_secondary
             };
             let icon_top = iy0 + (item.rect_h as f32 - icon_size) * 0.5;
-            let drawn = item
-                .picture
-                .as_ref()
-                .is_some_and(|p| draw_picture(pixels, w, h, p, icon_left, icon_top, icon_size, icon_col));
+            let drawn = item.picture.as_ref().is_some_and(|p| {
+                draw_picture(pixels, w, h, p, icon_left, icon_top, icon_size, icon_col)
+            });
             if !drawn {
                 draw_icon(
-                    pixels,
-                    w,
-                    h,
-                    item.icon,
-                    icon_left,
-                    icon_top,
-                    icon_size,
-                    stroke,
-                    icon_col,
+                    pixels, w, h, item.icon, icon_left, icon_top, icon_size, stroke, icon_col,
                 );
             }
         }
@@ -757,7 +807,11 @@ fn draw_picture(
             let col = if pic.tint {
                 tint
             } else {
-                Rgb { r: (r / a).round() as u8, g: (g / a).round() as u8, b: (b / a).round() as u8 }
+                Rgb {
+                    r: (r / a).round() as u8,
+                    g: (g / a).round() as u8,
+                    b: (b / a).round() as u8,
+                }
             };
             blend_pixel(pixels, w, h, x0 + dx, y0 + dy, col, a / count);
         }
@@ -936,8 +990,10 @@ fn resolve_monitor_info(icon: Rect) -> (Rect, f64, Rect) {
     };
     let mut dpi_x: u32 = 96;
     let mut dpi_y: u32 = 96;
-    let dpi_scale = if unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) }
-        .is_ok()
+    let dpi_scale = if unsafe {
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y)
+    }
+    .is_ok()
     {
         (dpi_x as f64 / 96.0).max(1.0)
     } else {
@@ -1075,7 +1131,10 @@ fn move_focus(state: &mut MenuWindowState, delta: isize) {
     if enabled.is_empty() {
         return;
     }
-    let next = match state.kbd_focus.and_then(|cur| enabled.iter().position(|&i| i == cur)) {
+    let next = match state
+        .kbd_focus
+        .and_then(|cur| enabled.iter().position(|&i| i == cur))
+    {
         Some(pos) => {
             let len = enabled.len() as isize;
             let idx = ((pos as isize + delta).rem_euclid(len)) as usize;
@@ -1203,10 +1262,8 @@ unsafe extern "system" fn wnd_proc(
                 let elapsed = state.opened_at.elapsed().as_millis() as u64;
                 if elapsed >= state.fade_duration_ms {
                     state.alpha = 255;
-                    let _ = windows::Win32::UI::WindowsAndMessaging::KillTimer(
-                        Some(hwnd),
-                        TIMER_FADE,
-                    );
+                    let _ =
+                        windows::Win32::UI::WindowsAndMessaging::KillTimer(Some(hwnd), TIMER_FADE);
                 } else {
                     state.alpha = ((elapsed as f32 / state.fade_duration_ms as f32) * 255.0)
                         .round()
@@ -1288,27 +1345,62 @@ mod picture_tests {
     use super::*;
 
     fn icon(tint: bool) -> TrayIcon {
-        TrayIcon { size: 4, rgba: [255, 0, 0, 255].repeat(16), tint }
+        TrayIcon {
+            size: 4,
+            rgba: [255, 0, 0, 255].repeat(16),
+            tint,
+        }
     }
 
     #[test]
     fn picture_keeps_its_own_colours() {
         let mut px = vec![0xFF00_0000u32; 16];
-        assert!(draw_picture(&mut px, 4, 4, &icon(false), 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 255 }));
+        assert!(draw_picture(
+            &mut px,
+            4,
+            4,
+            &icon(false),
+            0.0,
+            0.0,
+            4.0,
+            Rgb { r: 0, g: 0, b: 255 }
+        ));
         assert_eq!(px[5] & 0x00FF_FFFF, 0x00FF_0000);
     }
 
     #[test]
     fn mask_takes_the_tray_colour() {
         let mut px = vec![0xFF00_0000u32; 16];
-        assert!(draw_picture(&mut px, 4, 4, &icon(true), 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 255 }));
+        assert!(draw_picture(
+            &mut px,
+            4,
+            4,
+            &icon(true),
+            0.0,
+            0.0,
+            4.0,
+            Rgb { r: 0, g: 0, b: 255 }
+        ));
         assert_eq!(px[5] & 0x00FF_FFFF, 0x0000_00FF);
     }
 
     #[test]
     fn malformed_data_falls_back() {
         let mut px = vec![0u32; 16];
-        let bad = TrayIcon { size: 4, rgba: vec![0; 3], tint: false };
-        assert!(!draw_picture(&mut px, 4, 4, &bad, 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 0 }));
+        let bad = TrayIcon {
+            size: 4,
+            rgba: vec![0; 3],
+            tint: false,
+        };
+        assert!(!draw_picture(
+            &mut px,
+            4,
+            4,
+            &bad,
+            0.0,
+            0.0,
+            4.0,
+            Rgb { r: 0, g: 0, b: 0 }
+        ));
     }
 }

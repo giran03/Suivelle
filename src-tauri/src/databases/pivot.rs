@@ -88,11 +88,13 @@ pub struct PivotData {
 /// A pivot for a database that has none yet: records per status (or select), split by another.
 pub fn default_spec(props: &[Property]) -> PivotSpec {
     let pick = |skip: Option<&str>| {
-        ["status", "select", "checkbox", "date"].iter().find_map(|t| {
-            props
-                .iter()
-                .find(|p| p.property_type == *t && Some(p.id.as_str()) != skip)
-        })
+        ["status", "select", "checkbox", "date"]
+            .iter()
+            .find_map(|t| {
+                props
+                    .iter()
+                    .find(|p| p.property_type == *t && Some(p.id.as_str()) != skip)
+            })
     };
     let row = pick(None);
     let col = pick(row.map(|p| p.id.as_str()));
@@ -253,21 +255,42 @@ pub fn data(conn: &Connection, input: &PivotQuery) -> AppResult<PivotData> {
     super::calc::prepare(conn, &db.id, &chart_calc(&props, &cfg, &probe))?;
 
     let mut cells = run(conn, &db.id, &props, &cfg, &probe, cb.clone())?;
-    let mut row_totals = run(conn, &db.id, &props, &cfg, &chart_of(&spec, r, rb, &None, false), None)?;
+    let mut row_totals = run(
+        conn,
+        &db.id,
+        &props,
+        &cfg,
+        &chart_of(&spec, r, rb, &None, false),
+        None,
+    )?;
     let mut column_totals = if c.is_some() {
-        run(conn, &db.id, &props, &cfg, &chart_of(&spec, c, cb, &None, false), None)?
+        run(
+            conn,
+            &db.id,
+            &props,
+            &cfg,
+            &chart_of(&spec, c, cb, &None, false),
+            None,
+        )?
     } else {
         Vec::new()
     };
-    let grand = run(conn, &db.id, &props, &cfg, &chart_of(&spec, &None, &None, &None, true), None)?
-        .into_iter()
-        .next()
-        .unwrap_or(ChartPoint {
-            x: None,
-            group: None,
-            value: None,
-            count: 0,
-        });
+    let grand = run(
+        conn,
+        &db.id,
+        &props,
+        &cfg,
+        &chart_of(&spec, &None, &None, &None, true),
+        None,
+    )?
+    .into_iter()
+    .next()
+    .unwrap_or(ChartPoint {
+        x: None,
+        group: None,
+        value: None,
+        count: 0,
+    });
     let truncated = cells.len() > MAX_CHART_ROWS
         || row_totals.len() > MAX_CHART_ROWS
         || column_totals.len() > MAX_CHART_ROWS;
