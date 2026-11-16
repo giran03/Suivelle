@@ -766,6 +766,7 @@ fn blend_pixel(pixels: &mut [u32], w: i32, h: i32, x: i32, y: i32, col: Rgb, cov
 
 /// Draws a page's own icon (box-filtered down from the frontend's raster) into the icon square.
 /// Returns false when the data is malformed so the caller can fall back to the default glyph.
+#[allow(clippy::too_many_arguments)]
 fn draw_picture(
     pixels: &mut [u32],
     w: i32,
@@ -819,6 +820,7 @@ fn draw_picture(
     true
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_segment(
     pixels: &mut [u32],
     w: i32,
@@ -1270,24 +1272,24 @@ unsafe extern "system" fn wnd_proc(
                         .clamp(0.0, 255.0) as u8;
                 }
                 state.render_and_present(hwnd);
-            } else if wparam.0 == TIMER_OUTSIDE {
-                if state.opened_at.elapsed().as_millis() >= OUTSIDE_GRACE_MS {
-                    let fg = GetForegroundWindow();
-                    let ldown = GetAsyncKeyState(VK_LBUTTON.0 as i32) < 0;
-                    let rdown = GetAsyncKeyState(VK_RBUTTON.0 as i32) < 0;
-                    let mut outside_click = false;
-                    if ldown || rdown {
-                        let mut pt = POINT::default();
-                        if GetCursorPos(&mut pt).is_ok() {
-                            outside_click = pt.x < state.win_x
-                                || pt.x >= state.win_x + state.win_w
-                                || pt.y < state.win_y
-                                || pt.y >= state.win_y + state.win_h;
-                        }
+            } else if wparam.0 == TIMER_OUTSIDE
+                && state.opened_at.elapsed().as_millis() >= OUTSIDE_GRACE_MS
+            {
+                let fg = GetForegroundWindow();
+                let ldown = GetAsyncKeyState(VK_LBUTTON.0 as i32) < 0;
+                let rdown = GetAsyncKeyState(VK_RBUTTON.0 as i32) < 0;
+                let mut outside_click = false;
+                if ldown || rdown {
+                    let mut pt = POINT::default();
+                    if GetCursorPos(&mut pt).is_ok() {
+                        outside_click = pt.x < state.win_x
+                            || pt.x >= state.win_x + state.win_w
+                            || pt.y < state.win_y
+                            || pt.y >= state.win_y + state.win_h;
                     }
-                    if fg != hwnd || outside_click {
-                        let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
-                    }
+                }
+                if fg != hwnd || outside_click {
+                    let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
                 }
             }
             LRESULT(0)

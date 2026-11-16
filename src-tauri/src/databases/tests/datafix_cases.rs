@@ -248,7 +248,7 @@ fn a_property_can_be_duplicated_with_its_values() {
     let again = datafix::duplicate_property(&mut conn, &notes.id).unwrap();
     assert_eq!(again.name, "Notes copy 2");
     let sel = datafix::duplicate_property(&mut conn, &phase.id).unwrap();
-    let rows = load_rows(&conn, &[r.id.clone()]).unwrap();
+    let rows = load_rows(&conn, std::slice::from_ref(&r.id)).unwrap();
     assert_eq!(rows[0].values[&copy.id], json!("hello"));
     assert_eq!(rows[0].values[&sel.id], json!(opt(&phase, "Open")));
     let detail = database_detail(&conn, &db.database.id).unwrap();

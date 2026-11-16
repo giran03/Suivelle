@@ -218,7 +218,7 @@ pub fn find_duplicates(conn: &Connection, input: &DuplicateQuery) -> AppResult<D
         .filter(|g| g.records.len() > 1)
         .collect();
     // Biggest groups first; the sort is stable so equal sizes keep their oldest-first order.
-    found.sort_by(|a, b| b.records.len().cmp(&a.records.len()));
+    found.sort_by_key(|g| std::cmp::Reverse(g.records.len()));
     let group_count = found.len();
     let extra_count = found.iter().map(|g| g.records.len() - 1).sum();
     let truncated = group_count > MAX_GROUPS;

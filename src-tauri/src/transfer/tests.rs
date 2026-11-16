@@ -2466,7 +2466,7 @@ fn view_csv_follows_the_views_filter_sort_and_visible_columns() {
     assert_eq!(back.headers, [status.name.clone(), title.name.clone()]);
     let titles: Vec<&String> = back.rows.iter().map(|r| &r[1]).collect();
     let mut sorted = titles.clone();
-    sorted.sort_by(|a, b| b.to_lowercase().cmp(&a.to_lowercase()));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.to_lowercase()));
     assert_eq!(titles, sorted);
     assert!(!back.rows.is_empty());
     assert!(export::view_csv(&conn, &page, "nope").is_err());

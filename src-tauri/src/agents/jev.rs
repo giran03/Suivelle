@@ -753,10 +753,10 @@ pub fn check_write(
             if best_contradiction.is_none_or(|(p, _)| con_p > p) {
                 best_contradiction = Some((con_p, m));
             }
-        } else if (chosen == "exact_duplicate" && dup_p >= 0.65) || dup_p >= 0.70 {
-            if best_similar.is_none_or(|(p, _)| dup_p > p) {
-                best_similar = Some((dup_p, m));
-            }
+        } else if ((chosen == "exact_duplicate" && dup_p >= 0.65) || dup_p >= 0.70)
+            && best_similar.is_none_or(|(p, _)| dup_p > p)
+        {
+            best_similar = Some((dup_p, m));
         }
     }
 

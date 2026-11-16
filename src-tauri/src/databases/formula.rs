@@ -1251,7 +1251,7 @@ impl Check<'_> {
                     }
                 }
                 let mut idx: Vec<usize> = (0..pairs).map(|k| 2 + 2 * k).collect();
-                if args.len() % 2 == 0 {
+                if args.len().is_multiple_of(2) {
                     idx.push(args.len() - 1);
                 }
                 Ok(unify_all(idx))
@@ -1508,7 +1508,7 @@ fn call_more(name: &str, args: &[Expr], env: &Env, depth: usize) -> Result<Val, 
                     return go(&args[2 + 2 * k]);
                 }
             }
-            if args.len() % 2 == 0 {
+            if args.len().is_multiple_of(2) {
                 go(&args[args.len() - 1])?
             } else {
                 Val::Empty
