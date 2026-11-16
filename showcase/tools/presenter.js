@@ -74,8 +74,7 @@ const __filmBoot = () => {
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const BRAND_S = "M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30";
-  const STAR = "M70 13C71.6 23.5 74.5 26.4 85 28C74.5 29.6 71.6 32.5 70 43C68.4 32.5 65.5 29.6 55 28C65.5 26.4 68.4 23.5 70 13Z";
+  const BRAND_S = "M130 46H80A36 36 0 0 0 44 82V174A36 36 0 0 0 80 210H174A36 36 0 0 0 210 174V126";
   const cardHtml = (final) => `
     <div class="film-stack">
       <div class="film-art">
@@ -89,9 +88,9 @@ const __filmBoot = () => {
           <circle class="comet" r="1.6" fill="#cfe0ff" cx="0" cy="0" opacity="0"/>
         </svg>
         <svg class="film-mark" viewBox="0 0 96 96">
-          <g transform="translate(48 48) scale(1.08) translate(-55 -47)">
-            <path class="s" d="${BRAND_S}" pathLength="1" fill="none" stroke="#7fa4f0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-            <path class="k" d="${STAR}" fill="#cfe0ff" style="transform-box:fill-box;transform-origin:50% 50%"/>
+          <g transform="translate(48 48) scale(0.28) translate(-127 -128)">
+            <path class="s" d="${BRAND_S}" pathLength="1" fill="none" stroke="#7fa4f0" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle class="k" cx="184" cy="72" r="28" fill="#cfe0ff" style="transform-box:fill-box;transform-origin:50% 50%"/>
           </g>
         </svg>
       </div>
@@ -115,7 +114,7 @@ const __filmBoot = () => {
     lines.forEach((p, i) => play(p, [{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }], { duration: 1100, delay: 250 + i * 260 }));
     dots.forEach((d, i) => play(d, [{ opacity: 0, transform: "scale(0)" }, { opacity: 1, transform: "scale(1)" }], { duration: 520, delay: 350 + i * 130, easing: "cubic-bezier(0.34,1.4,0.64,1)" }).effect.updateTiming({}) );
     dots.forEach((d) => (d.style.transformBox = "fill-box", d.style.transformOrigin = "center"));
-    // the mark: the S is drawn, then the star arrives
+    // the mark: the frame is drawn, then the dot arrives
     play(s, [{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }], { duration: 950, delay: 700 });
     play(k, [{ opacity: 0, transform: "scale(.2) rotate(-90deg)" }, { opacity: 1, transform: "scale(1) rotate(0deg)" }], { duration: 700, delay: 1450, easing: "cubic-bezier(0.34,1.3,0.64,1)" });
     play(word, [{ opacity: 0, transform: "translateY(14px)", filter: "blur(6px)" }, { opacity: 1, transform: "translateY(0)", filter: "blur(0)" }], { duration: 750, delay: 1500 });

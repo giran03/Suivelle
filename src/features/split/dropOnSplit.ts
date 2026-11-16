@@ -19,8 +19,11 @@ export const useDockHint = create<{ target: DockTarget | null }>(() => ({ target
 
 const SLOT = "[data-split-slot]";
 
+/** The pane being carried by its header, if any: it cannot dock onto itself, so it shows no hint. */
+export const moving: { slot: number | null } = { slot: null };
+
 /** The pane under a point (the middle counts only when `allowCenter` is set, for swapping panes) and which part of it the point is in, with the area that part would take. */
-export function dockTargetAt(x: number, y: number, allowCenter = false): DockTarget | null {
+export function dockTargetAt(x: number, y: number, allowCenter = false, ignoreSlot: number | null = null): DockTarget | null {
   const hits = document.elementsFromPoint(x, y);
   // The tab strip has its own meaning (reorder, or open in a new tab).
   if (hits.some((el) => el.closest(".tabbar"))) return null;
@@ -29,6 +32,7 @@ export function dockTargetAt(x: number, y: number, allowCenter = false): DockTar
     if (!cell) continue;
     const b = cell.getBoundingClientRect();
     if (!b.width || !b.height) continue;
+    if (ignoreSlot !== null && Number(cell.dataset.splitSlot) === ignoreSlot) return null;
     // Only the rim of a pane docks, so the middle stays free for dropping a page onto text to link it.
     const rim = Math.max(40, Math.min(96, Math.min(b.width, b.height) * 0.2));
     const zone = zoneOf((x - b.left) / b.width, (y - b.top) / b.height, rim / b.width, rim / b.height);

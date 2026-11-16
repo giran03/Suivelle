@@ -254,6 +254,19 @@ pub async fn group_counts(
 }
 
 #[tauri::command]
+pub async fn view_aggregates(
+    app: tauri::AppHandle,
+    input: crate::databases::AggregatesQuery,
+) -> AppResult<crate::databases::Aggregates> {
+    blocking("view_aggregates", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::databases::aggregates::compute(&conn, &input)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn record_lookup(
     app: tauri::AppHandle,
     input: crate::databases::RecordLookup,
@@ -319,6 +332,19 @@ pub async fn chart_data(
 }
 
 #[tauri::command]
+pub async fn pivot_data(
+    app: tauri::AppHandle,
+    input: crate::databases::pivot::PivotQuery,
+) -> AppResult<crate::databases::pivot::PivotData> {
+    blocking("pivot_data", move || {
+        let db = app.state::<Db>();
+        let conn = lock(&db)?;
+        crate::databases::pivot::data(&conn, &input)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn record_template_list(
     app: tauri::AppHandle,
     database_id: String,
@@ -372,7 +398,7 @@ pub async fn automation_runs(
 
 #[tauri::command]
 pub fn template_list() -> Vec<crate::databases::templates::TemplateInfo> {
-    crate::databases::templates::TEMPLATES.to_vec()
+    crate::databases::templates::all()
 }
 
 #[tauri::command]

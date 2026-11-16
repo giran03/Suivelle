@@ -1,5 +1,6 @@
 import type { IconName } from "../../components/Icon";
-import type { Property, PropertyType, RecordLink, RollupFunction, SelectOption } from "../../types";
+import type { NumberFormat, Property, PropertyType, RecordLink, RollupFunction, SelectOption } from "../../types";
+import { formatNumberWith } from "./numberFormat";
 
 export interface OperatorDef {
   value: string;
@@ -89,10 +90,18 @@ export const isSortable = (p: Property) => (p.type === "formula" ? ["number", "t
 /** Properties edited in a popover rather than inline. */
 export const isPopoverType = (t: PropertyType) => t === "select" || t === "multi_select" || t === "status" || t === "date" || t === "relation";
 
+/** The display format of a property whose values are plain numbers (number, number rollups and formulas). */
+export function numberFormatOf(p: Property): NumberFormat | undefined {
+  if (p.type === "number") return p.config.format;
+  if (p.type === "rollup") return p.config.function === "percent_checked" || p.config.function === "percent_done" || valueType(p) !== "number" ? undefined : p.config.format;
+  if (p.type === "formula") return p.config.resultType === "number" ? p.config.format : undefined;
+  return undefined;
+}
+
 /** A formula or rollup result as text: numbers, text, dates, true/false, lists and errors. */
-export function formatFormulaValue(v: unknown): string {
+export function formatFormulaValue(v: unknown, fmt?: NumberFormat | null): string {
   if (v === null || v === undefined) return "";
-  if (typeof v === "number") return formatNumber(v);
+  if (typeof v === "number") return formatNumber(v, fmt);
   if (typeof v === "string") return v;
   if (typeof v === "boolean") return v ? "true" : "false";
   if (Array.isArray(v)) return v.map(String).join(", ");
@@ -107,10 +116,10 @@ export function formatFormulaValue(v: unknown): string {
 export const linksOf = (v: unknown): RecordLink[] => (Array.isArray(v) ? (v as RecordLink[]) : []);
 
 /** Rollup results: counts and numbers as numbers, percentages with a sign, dates as dates. */
-export function formatRollup(p: Property, v: unknown): string {
+export function formatRollup(p: Property, v: unknown, formatted = true): string {
   if (v === null || v === undefined) return "";
   if (p.config.function === "percent_checked" || p.config.function === "percent_done") return typeof v === "number" ? `${Math.round(v)}%` : "";
-  if (typeof v === "number") return formatNumber(v);
+  if (typeof v === "number") return formatNumber(v, formatted ? numberFormatOf(p) : undefined);
   if (typeof v === "string") return /^\d{4}-\d{2}-\d{2}/.test(v) ? formatWhen(v) : v;
   return "";
 }
@@ -209,8 +218,8 @@ export function formatDateValue(v: unknown): string {
   return end ? `${formatWhen(start)} → ${formatWhen(end)}` : formatWhen(start);
 }
 
-export function formatNumber(n: unknown): string {
-  return typeof n === "number" && Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 10 }) : "";
+export function formatNumber(n: unknown, fmt?: NumberFormat | null): string {
+  return formatNumberWith(n, fmt);
 }
 
 export function uniqueIdLabel(p: Property, n: number): string {
@@ -218,8 +227,29 @@ export function uniqueIdLabel(p: Property, n: number): string {
   return prefix ? `${prefix}-${n}` : String(n);
 }
 
-/** Plain text for a cell, used for accessibility labels and for the edit field's starting value. */
-export function cellText(p: Property, row: { title: string; uniqueId: number; createdAt: string; updatedAt: string; values: Record<string, unknown> }): string {
+/** What is written back to set a cell to the value it holds now: ids for options and relations. */
+export function rawValue(p: Property, row: { title: string; values: Record<string, unknown> }): unknown {
+  switch (p.type) {
+    case "title":
+      return row.title;
+    case "checkbox":
+      return row.values[p.id] === true;
+    case "relation":
+      return linksOf(row.values[p.id]).map((l) => l.id);
+    default:
+      return row.values[p.id] ?? null;
+  }
+}
+
+type TextRow = { title: string; uniqueId: number; createdAt: string; updatedAt: string; values: Record<string, unknown> };
+
+/** A cell as shown on screen: number formats applied. Used for labels and column sizing. */
+export const cellText = (p: Property, row: TextRow): string => textOf(p, row, true);
+
+/** A cell's plain value as text, without any number format: what is copied, edited, pasted and filled. */
+export const cellPlain = (p: Property, row: TextRow): string => textOf(p, row, false);
+
+function textOf(p: Property, row: TextRow, formatted: boolean): string {
   const v = row.values[p.id];
   switch (p.type) {
     case "title":
@@ -231,7 +261,7 @@ export function cellText(p: Property, row: { title: string; uniqueId: number; cr
     case "updated_time":
       return formatStamp(row.updatedAt);
     case "number":
-      return formatNumber(v);
+      return formatNumber(v, formatted ? numberFormatOf(p) : undefined);
     case "date":
       return formatDateValue(v);
     case "checkbox":
@@ -246,9 +276,9 @@ export function cellText(p: Property, row: { title: string; uniqueId: number; cr
         .map((l) => l.title || "Untitled")
         .join(", ");
     case "rollup":
-      return formatRollup(p, v);
+      return formatRollup(p, v, formatted);
     case "formula":
-      return formatFormulaValue(v);
+      return formatFormulaValue(v, formatted ? numberFormatOf(p) : undefined);
     default:
       return typeof v === "string" ? v : "";
   }

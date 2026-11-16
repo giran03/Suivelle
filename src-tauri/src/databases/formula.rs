@@ -671,7 +671,7 @@ impl Check<'_> {
                 nth(1, &[Ty::Text], "the format of formatDate()")?;
                 Ok(Ty::Text)
             }
-            other => err(format!("there is no function named {other}()"), pos),
+            other => self.call_more(other, args, &tys, pos),
         }
     }
 }
@@ -1079,7 +1079,7 @@ fn call(name: &str, args: &[Expr], env: &Env, depth: usize) -> Result<Val, &'sta
             (Val::Empty, _) => Val::Empty,
             _ => return Err(E_TYPE),
         },
-        _ => return Err(E_ERROR),
+        _ => return call_more(name, args, env, depth),
     })
 }
 
@@ -1157,4 +1157,643 @@ pub fn missing_refs(e: &Expr, known: &HashSet<String>) -> bool {
 
 pub fn missing_ref_value() -> Val {
     Val::Err(E_REF)
+}
+
+// ---------------------------------------------------------------------------------------------
+// more functions: logic, maths, text, dates and lists
+// ---------------------------------------------------------------------------------------------
+
+/// Units accepted by `dateBetween` (plural, as in `dateAdd`) and `startOf`/`endOf`; the singular
+/// form of each is accepted too.
+const BETWEEN_UNITS: [&str; 6] = UNITS;
+const EDGE_UNITS: [&str; 4] = ["days", "weeks", "months", "years"];
+
+fn canon_unit(u: &str, allowed: &[&'static str]) -> Option<&'static str> {
+    allowed
+        .iter()
+        .copied()
+        .find(|a| *a == u || a.strip_suffix('s') == Some(u))
+}
+
+const MAX_PAD: i64 = 10_000;
+
+impl Check<'_> {
+    fn unit(
+        &self,
+        e: &Expr,
+        ty: Ty,
+        allowed: &[&'static str],
+        what: &str,
+        pos: usize,
+    ) -> Result<(), FormulaError> {
+        if let Expr::Str(u) = e {
+            if canon_unit(u, allowed).is_none() {
+                let names: Vec<String> = allowed
+                    .iter()
+                    .map(|a| a.trim_end_matches('s').to_string())
+                    .collect();
+                return err(
+                    format!("the unit of {what}() must be one of {}", names.join(", ")),
+                    pos,
+                );
+            }
+            Ok(())
+        } else {
+            self.want(ty, &[Ty::Text], &format!("the unit of {what}()"), pos)
+        }
+    }
+
+    fn call_more(
+        &self,
+        name: &str,
+        args: &[Expr],
+        tys: &[Ty],
+        pos: usize,
+    ) -> Result<Ty, FormulaError> {
+        let nth = |i: usize, wanted: &[Ty], what: &str| self.want(tys[i], wanted, what, pos);
+        let each = |wanted: &[Ty], what: &str| -> Result<(), FormulaError> {
+            tys.iter()
+                .try_for_each(|t| self.want(*t, wanted, what, pos))
+        };
+        let unify_all = |idx: Vec<usize>| -> Ty {
+            let mut out: Option<Ty> = None;
+            for i in idx {
+                out = Some(out.map_or(tys[i], |o| unify(o, tys[i])));
+            }
+            out.unwrap_or(Ty::Any)
+        };
+        match name {
+            // logic
+            "and" | "or" => {
+                self.arity(name, args, 1, usize::MAX, pos)?;
+                each(&[Ty::Bool], &format!("each argument of {name}()"))?;
+                Ok(Ty::Bool)
+            }
+            "not" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::Bool], "the argument of not()")?;
+                Ok(Ty::Bool)
+            }
+            "switch" => {
+                self.arity(name, args, 3, usize::MAX, pos)?;
+                let pairs = (args.len() - 1) / 2;
+                for k in 0..pairs {
+                    let c = tys[1 + 2 * k];
+                    if tys[0] != Ty::Any && c != Ty::Any && c != tys[0] {
+                        return err(
+                            format!(
+                                "cannot compare {} with {} in switch()",
+                                tys[0].name(),
+                                c.name()
+                            ),
+                            pos,
+                        );
+                    }
+                }
+                let mut idx: Vec<usize> = (0..pairs).map(|k| 2 + 2 * k).collect();
+                if args.len() % 2 == 0 {
+                    idx.push(args.len() - 1);
+                }
+                Ok(unify_all(idx))
+            }
+            "iferror" => {
+                self.arity(name, args, 2, 2, pos)?;
+                Ok(unify(tys[0], tys[1]))
+            }
+            "coalesce" => {
+                self.arity(name, args, 2, usize::MAX, pos)?;
+                Ok(unify_all((0..args.len()).collect()))
+            }
+            // maths
+            "mod" | "pow" => {
+                self.arity(name, args, 2, 2, pos)?;
+                each(&[Ty::Num], &format!("each argument of {name}()"))?;
+                Ok(Ty::Num)
+            }
+            "sqrt" | "ln" | "log10" | "sign" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::Num], &format!("the argument of {name}()"))?;
+                Ok(Ty::Num)
+            }
+            "sum" | "average" | "median" => {
+                self.arity(name, args, 1, usize::MAX, pos)?;
+                each(&[Ty::Num, Ty::List], &format!("each argument of {name}()"))?;
+                Ok(Ty::Num)
+            }
+            // text
+            "lower" | "upper" | "trim" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::Text], &format!("the argument of {name}()"))?;
+                Ok(Ty::Text)
+            }
+            "replace" | "replaceAll" => {
+                self.arity(name, args, 3, 3, pos)?;
+                each(&[Ty::Text], &format!("each argument of {name}()"))?;
+                Ok(Ty::Text)
+            }
+            "left" | "right" => {
+                self.arity(name, args, 2, 2, pos)?;
+                nth(0, &[Ty::Text], &format!("the first argument of {name}()"))?;
+                nth(1, &[Ty::Num], &format!("the length of {name}()"))?;
+                Ok(Ty::Text)
+            }
+            "mid" => {
+                self.arity(name, args, 3, 3, pos)?;
+                nth(0, &[Ty::Text], "the first argument of mid()")?;
+                nth(1, &[Ty::Num], "the start of mid()")?;
+                nth(2, &[Ty::Num], "the length of mid()")?;
+                Ok(Ty::Text)
+            }
+            "split" => {
+                self.arity(name, args, 2, 2, pos)?;
+                each(&[Ty::Text], "each argument of split()")?;
+                Ok(Ty::List)
+            }
+            "join" => {
+                self.arity(name, args, 1, 2, pos)?;
+                nth(0, &[Ty::List], "the first argument of join()")?;
+                if args.len() == 2 {
+                    nth(1, &[Ty::Text], "the separator of join()")?;
+                }
+                Ok(Ty::Text)
+            }
+            "startsWith" | "endsWith" => {
+                self.arity(name, args, 2, 2, pos)?;
+                each(&[Ty::Text], &format!("each argument of {name}()"))?;
+                Ok(Ty::Bool)
+            }
+            "padStart" => {
+                self.arity(name, args, 2, 3, pos)?;
+                nth(0, &[Ty::Text, Ty::Num], "the first argument of padStart()")?;
+                nth(1, &[Ty::Num], "the length of padStart()")?;
+                if args.len() == 3 {
+                    nth(2, &[Ty::Text], "the padding of padStart()")?;
+                }
+                Ok(Ty::Text)
+            }
+            // dates
+            "year" | "month" | "day" | "weekday" | "week" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::Date], &format!("the argument of {name}()"))?;
+                Ok(Ty::Num)
+            }
+            "dateBetween" => {
+                self.arity(name, args, 3, 3, pos)?;
+                nth(0, &[Ty::Date], "the first argument of dateBetween()")?;
+                nth(1, &[Ty::Date], "the second argument of dateBetween()")?;
+                self.unit(&args[2], tys[2], &BETWEEN_UNITS, name, pos)?;
+                Ok(Ty::Num)
+            }
+            "startOf" | "endOf" => {
+                self.arity(name, args, 2, 2, pos)?;
+                nth(0, &[Ty::Date], &format!("the first argument of {name}()"))?;
+                self.unit(&args[1], tys[1], &EDGE_UNITS, name, pos)?;
+                Ok(Ty::Date)
+            }
+            // lists
+            "first" | "last" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::List], &format!("the argument of {name}()"))?;
+                Ok(Ty::Any)
+            }
+            "at" => {
+                self.arity(name, args, 2, 2, pos)?;
+                nth(0, &[Ty::List], "the first argument of at()")?;
+                nth(1, &[Ty::Num], "the index of at()")?;
+                Ok(Ty::Any)
+            }
+            "unique" | "sort" => {
+                self.arity(name, args, 1, 1, pos)?;
+                nth(0, &[Ty::List], &format!("the argument of {name}()"))?;
+                Ok(Ty::List)
+            }
+            other => err(format!("there is no function named {other}()"), pos),
+        }
+    }
+}
+
+fn txt(v: &Val) -> Result<String, &'static str> {
+    match v {
+        Val::Text(s) => Ok(s.clone()),
+        Val::Empty => Ok(String::new()),
+        Val::Err(e) => Err(e),
+        _ => Err(E_TYPE),
+    }
+}
+
+fn int(v: &Val) -> Result<i64, &'static str> {
+    let n = num(v)?;
+    if n.is_finite() {
+        Ok(n.trunc().clamp(-1e9, 1e9) as i64)
+    } else {
+        Err(E_ERROR)
+    }
+}
+
+fn finite(n: f64) -> Result<Val, &'static str> {
+    if n.is_finite() {
+        Ok(Val::Num(n))
+    } else {
+        Err(E_ERROR)
+    }
+}
+
+fn date_of(v: &Val) -> Result<Option<(NaiveDateTime, bool)>, &'static str> {
+    match v {
+        Val::Date(d, t) => Ok(Some((*d, *t))),
+        Val::Empty => Ok(None),
+        Val::Err(e) => Err(e),
+        _ => Err(E_TYPE),
+    }
+}
+
+fn unit_of(v: &Val, allowed: &[&'static str]) -> Result<&'static str, &'static str> {
+    match v {
+        Val::Text(u) => canon_unit(u, allowed).ok_or(E_ERROR),
+        Val::Err(e) => Err(e),
+        _ => Err(E_TYPE),
+    }
+}
+
+/// Numbers from a mix of numbers and lists; empty values and non-numeric list items are skipped.
+fn numbers(vals: &[Val]) -> Result<Vec<f64>, &'static str> {
+    let mut out = Vec::new();
+    for v in vals {
+        match v {
+            Val::Num(n) => out.push(*n),
+            Val::Empty => {}
+            Val::List(l) => {
+                for x in l {
+                    match x {
+                        Val::Num(n) => out.push(*n),
+                        Val::Text(s) => {
+                            if let Some(n) = s
+                                .trim()
+                                .replace(',', "")
+                                .parse::<f64>()
+                                .ok()
+                                .filter(|n| n.is_finite())
+                            {
+                                out.push(n);
+                            }
+                        }
+                        Val::Err(e) => return Err(e),
+                        _ => {}
+                    }
+                }
+            }
+            Val::Err(e) => return Err(e),
+            _ => return Err(E_TYPE),
+        }
+    }
+    Ok(out)
+}
+
+fn start_of(d: &NaiveDateTime, unit: &str) -> Option<NaiveDateTime> {
+    let day = d.date();
+    let start = match unit {
+        "days" => day,
+        "weeks" => {
+            day.checked_sub_signed(Duration::days(day.weekday().num_days_from_monday().into()))?
+        }
+        "months" => day.with_day(1)?,
+        _ => NaiveDate::from_ymd_opt(day.year(), 1, 1)?,
+    };
+    Some(start.and_time(NaiveTime::MIN))
+}
+
+fn months_between(a: &NaiveDateTime, b: &NaiveDateTime) -> i64 {
+    let mut m = (i64::from(a.year()) - i64::from(b.year())) * 12 + i64::from(a.month())
+        - i64::from(b.month());
+    if m > 0 {
+        if b.checked_add_months(Months::new(m as u32))
+            .is_some_and(|x| x > *a)
+        {
+            m -= 1;
+        }
+    } else if m < 0
+        && b.checked_sub_months(Months::new((-m) as u32))
+            .is_some_and(|x| x < *a)
+    {
+        m += 1;
+    }
+    m
+}
+
+fn call_more(name: &str, args: &[Expr], env: &Env, depth: usize) -> Result<Val, &'static str> {
+    let go = |x: &Expr| run(x, env, depth + 1);
+    let all = || args.iter().map(go).collect::<Result<Vec<_>, _>>();
+    Ok(match name {
+        // logic
+        "and" | "or" => {
+            let want = name == "or";
+            for a in args {
+                if truthy(&go(a)?)? == want {
+                    return Ok(Val::Bool(want));
+                }
+            }
+            Val::Bool(!want)
+        }
+        "not" => Val::Bool(!truthy(&go(&args[0])?)?),
+        "switch" => {
+            let v = go(&args[0])?;
+            for k in 0..(args.len() - 1) / 2 {
+                let c = go(&args[1 + 2 * k])?;
+                let same = match (&v, &c) {
+                    (Val::Empty, Val::Empty) => true,
+                    (Val::Empty, o) | (o, Val::Empty) => is_empty(o),
+                    _ => compare(&v, &c) == Some(std::cmp::Ordering::Equal),
+                };
+                if same {
+                    return go(&args[2 + 2 * k]);
+                }
+            }
+            if args.len() % 2 == 0 {
+                go(&args[args.len() - 1])?
+            } else {
+                Val::Empty
+            }
+        }
+        "iferror" => match go(&args[0]) {
+            Ok(Val::Err(_)) | Err(_) => go(&args[1])?,
+            Ok(v) => v,
+        },
+        "coalesce" => {
+            for a in args {
+                let v = go(a)?;
+                if !is_empty(&v) {
+                    return Ok(v);
+                }
+            }
+            Val::Empty
+        }
+        // maths
+        "mod" => {
+            let (x, y) = (num(&go(&args[0])?)?, num(&go(&args[1])?)?);
+            if y == 0.0 {
+                return Err(E_ERROR);
+            }
+            finite(x - y * (x / y).floor())?
+        }
+        "pow" => finite(num(&go(&args[0])?)?.powf(num(&go(&args[1])?)?))?,
+        "sqrt" | "ln" | "log10" => {
+            let x = num(&go(&args[0])?)?;
+            match name {
+                "sqrt" if x >= 0.0 => Val::Num(x.sqrt()),
+                "ln" if x > 0.0 => Val::Num(x.ln()),
+                "log10" if x > 0.0 => Val::Num(x.log10()),
+                _ => return Err(E_ERROR),
+            }
+        }
+        "sign" => {
+            let x = num(&go(&args[0])?)?;
+            Val::Num(if x > 0.0 {
+                1.0
+            } else if x < 0.0 {
+                -1.0
+            } else {
+                0.0
+            })
+        }
+        "sum" | "average" | "median" => {
+            let mut n = numbers(&all()?)?;
+            match name {
+                "sum" => finite(n.iter().sum())?,
+                _ if n.is_empty() => Val::Empty,
+                "average" => finite(n.iter().sum::<f64>() / n.len() as f64)?,
+                _ => {
+                    n.sort_by(|a, b| a.total_cmp(b));
+                    let m = n.len() / 2;
+                    Val::Num(if n.len() % 2 == 1 {
+                        n[m]
+                    } else {
+                        (n[m - 1] + n[m]) / 2.0
+                    })
+                }
+            }
+        }
+        // text
+        "lower" => Val::Text(txt(&go(&args[0])?)?.to_lowercase()),
+        "upper" => Val::Text(txt(&go(&args[0])?)?.to_uppercase()),
+        "trim" => Val::Text(txt(&go(&args[0])?)?.trim().to_string()),
+        "replace" | "replaceAll" => {
+            let (s, find, with) = (
+                txt(&go(&args[0])?)?,
+                txt(&go(&args[1])?)?,
+                txt(&go(&args[2])?)?,
+            );
+            if find.is_empty() {
+                Val::Text(s)
+            } else if name == "replace" {
+                Val::Text(s.replacen(&find, &with, 1))
+            } else {
+                Val::Text(s.replace(&find, &with))
+            }
+        }
+        "left" | "right" => {
+            let (s, n) = (txt(&go(&args[0])?)?, int(&go(&args[1])?)?);
+            if n < 0 {
+                return Err(E_ERROR);
+            }
+            let n = n as usize;
+            let count = s.chars().count();
+            Val::Text(if name == "left" {
+                s.chars().take(n).collect()
+            } else {
+                s.chars().skip(count.saturating_sub(n)).collect()
+            })
+        }
+        "mid" => {
+            let (s, start, n) = (
+                txt(&go(&args[0])?)?,
+                int(&go(&args[1])?)?,
+                int(&go(&args[2])?)?,
+            );
+            if start < 1 || n < 0 {
+                return Err(E_ERROR);
+            }
+            Val::Text(
+                s.chars()
+                    .skip(start as usize - 1)
+                    .take(n as usize)
+                    .collect(),
+            )
+        }
+        "split" => {
+            let (s, sep) = (txt(&go(&args[0])?)?, txt(&go(&args[1])?)?);
+            Val::List(if s.is_empty() {
+                Vec::new()
+            } else if sep.is_empty() {
+                s.chars().map(|c| Val::Text(c.to_string())).collect()
+            } else {
+                s.split(&sep).map(|p| Val::Text(p.to_string())).collect()
+            })
+        }
+        "join" => {
+            let sep = if args.len() == 2 {
+                txt(&go(&args[1])?)?
+            } else {
+                ", ".to_string()
+            };
+            match go(&args[0])? {
+                Val::List(l) => Val::Text(l.iter().map(as_text).collect::<Vec<_>>().join(&sep)),
+                Val::Empty => Val::Text(String::new()),
+                Val::Err(e) => return Err(e),
+                _ => return Err(E_TYPE),
+            }
+        }
+        "startsWith" | "endsWith" => {
+            let (s, p) = (
+                txt(&go(&args[0])?)?.to_lowercase(),
+                txt(&go(&args[1])?)?.to_lowercase(),
+            );
+            Val::Bool(if name == "startsWith" {
+                s.starts_with(&p)
+            } else {
+                s.ends_with(&p)
+            })
+        }
+        "padStart" => {
+            let s = match go(&args[0])? {
+                Val::Num(n) => number_text(n),
+                other => txt(&other)?,
+            };
+            let width = int(&go(&args[1])?)?;
+            let pad = if args.len() == 3 {
+                txt(&go(&args[2])?)?
+            } else {
+                " ".to_string()
+            };
+            if !(0..=MAX_PAD).contains(&width) {
+                return Err(E_ERROR);
+            }
+            let missing = (width as usize).saturating_sub(s.chars().count());
+            if pad.is_empty() || missing == 0 {
+                Val::Text(s)
+            } else {
+                let fill: String = pad.chars().cycle().take(missing).collect();
+                Val::Text(fill + &s)
+            }
+        }
+        // dates
+        "year" | "month" | "day" | "weekday" | "week" => {
+            let Some((d, _)) = date_of(&go(&args[0])?)? else {
+                return Ok(Val::Empty);
+            };
+            Val::Num(match name {
+                "year" => f64::from(d.year()),
+                "month" => f64::from(d.month()),
+                "day" => f64::from(d.day()),
+                // Monday is 1, Sunday is 7.
+                "weekday" => f64::from(d.weekday().number_from_monday()),
+                _ => f64::from(d.iso_week().week()),
+            })
+        }
+        "dateBetween" => {
+            let (a, b, unit) = (go(&args[0])?, go(&args[1])?, go(&args[2])?);
+            let (a, b) = (date_of(&a)?, date_of(&b)?);
+            let unit = unit_of(&unit, &BETWEEN_UNITS)?;
+            let (Some((a, _)), Some((b, _))) = (a, b) else {
+                return Ok(Val::Empty);
+            };
+            let span = a.signed_duration_since(b);
+            Val::Num(match unit {
+                "minutes" => span.num_minutes(),
+                "hours" => span.num_hours(),
+                "days" => span.num_days(),
+                "weeks" => span.num_days() / 7,
+                "months" => months_between(&a, &b),
+                _ => months_between(&a, &b) / 12,
+            } as f64)
+        }
+        "startOf" | "endOf" => {
+            let (d, unit) = (go(&args[0])?, go(&args[1])?);
+            let d = date_of(&d)?;
+            let unit = unit_of(&unit, &EDGE_UNITS)?;
+            let Some((d, time)) = d else {
+                return Ok(Val::Empty);
+            };
+            let start = start_of(&d, unit).ok_or(E_ERROR)?;
+            if name == "startOf" {
+                Val::Date(start, time)
+            } else {
+                let Some(Val::Date(next, _)) = date_add(&start, time, 1.0, unit) else {
+                    return Err(E_ERROR);
+                };
+                let end = if time {
+                    next.checked_sub_signed(Duration::minutes(1))
+                } else {
+                    next.checked_sub_signed(Duration::days(1))
+                };
+                Val::Date(end.ok_or(E_ERROR)?, time)
+            }
+        }
+        // lists
+        "first" | "last" | "at" => {
+            let l = match go(&args[0])? {
+                Val::List(l) => l,
+                Val::Empty => Vec::new(),
+                Val::Err(e) => return Err(e),
+                _ => return Err(E_TYPE),
+            };
+            let i = match name {
+                "first" => 0,
+                "last" => l.len() as i64 - 1,
+                _ => {
+                    let i = int(&go(&args[1])?)?;
+                    if i < 0 {
+                        l.len() as i64 + i
+                    } else {
+                        i
+                    }
+                }
+            };
+            usize::try_from(i)
+                .ok()
+                .and_then(|i| l.get(i))
+                .cloned()
+                .unwrap_or(Val::Empty)
+        }
+        "unique" => match go(&args[0])? {
+            Val::List(l) => {
+                let mut out: Vec<Val> = Vec::new();
+                for v in l {
+                    let dup = out
+                        .iter()
+                        .any(|o| *o == v || compare(o, &v) == Some(std::cmp::Ordering::Equal));
+                    if !dup {
+                        out.push(v);
+                    }
+                }
+                Val::List(out)
+            }
+            Val::Empty => Val::List(Vec::new()),
+            Val::Err(e) => return Err(e),
+            _ => return Err(E_TYPE),
+        },
+        "sort" => match go(&args[0])? {
+            Val::List(mut l) => {
+                l.retain(|v| !matches!(v, Val::Empty));
+                let kind = |v: &Val| match v {
+                    Val::Num(_) => 1,
+                    Val::Text(_) => 2,
+                    Val::Bool(_) => 3,
+                    Val::Date(..) => 4,
+                    _ => 0,
+                };
+                if l.iter().any(|v| kind(v) == 0 || kind(v) != kind(&l[0])) {
+                    return Err(E_TYPE);
+                }
+                l.sort_by(|a, b| match (a, b) {
+                    (Val::Num(x), Val::Num(y)) => x.total_cmp(y),
+                    _ => compare(a, b).unwrap_or(std::cmp::Ordering::Equal),
+                });
+                Val::List(l)
+            }
+            Val::Empty => Val::List(Vec::new()),
+            Val::Err(e) => return Err(e),
+            _ => return Err(E_TYPE),
+        },
+        _ => return Err(E_ERROR),
+    })
 }

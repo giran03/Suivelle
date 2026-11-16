@@ -7,7 +7,7 @@
 
 .dash-grid { position: relative; width: 100%; }
 .dash-grid.stacked { display: flex; flex-direction: column; gap: 12px; height: auto !important; }
-.dw { position: absolute; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-1); overflow: hidden; transition: left var(--resize-dur) var(--ease-smooth-out), top var(--resize-dur) var(--ease-smooth-out), width var(--resize-dur) var(--ease-smooth-out), height var(--resize-dur) var(--ease-smooth-out); }
+.dw { --bg: var(--surface-1); position: absolute; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-1); overflow: hidden; transition: left var(--resize-dur) var(--ease-smooth-out), top var(--resize-dur) var(--ease-smooth-out), width var(--resize-dur) var(--ease-smooth-out), height var(--resize-dur) var(--ease-smooth-out); }
 .dash-grid.stacked .dw { position: relative; }
 .dash-grid.editing .dw { outline: 1px dashed var(--muted); outline-offset: 2px; }
 .dw.lifted { z-index: 5; box-shadow: var(--menu-shadow); transition: none; }

@@ -33,7 +33,7 @@ it("keeps an empty inbox enabled for active agents and updates after disconnecti
   await refresh(["active"]);
   expect(inbox()?.disabled).toBe(false);
   expect(inbox()?.previousElementSibling?.getAttribute("aria-label")).toBe("Node Map");
-  expect(inbox()?.textContent).toBe("Inbox");
+  expect(inbox()?.getAttribute("aria-label")).toBe("Agents inbox");
   expect(inbox()?.querySelector(".agx-badge")).toBeNull();
   await act(async () => inbox()!.click());
   expect(useAgents.getState()).toMatchObject({ open: true, tab: "review" });

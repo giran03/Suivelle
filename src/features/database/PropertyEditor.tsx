@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Icon } from "../../components/Icon";
 import { Popover, type Anchor } from "../../components/Popover";
-import type { Property, SelectOption, Tone } from "../../types";
+import type { NumberFormat, Property, SelectOption, Tone } from "../../types";
 import { FormulaEditor } from "./FormulaEditor";
-import { isOptionType, optionsOf, TYPE_META } from "./model";
+import { isOptionType, numberFormatOf, optionsOf, TYPE_META } from "./model";
+import { cleanFormat } from "./numberFormat";
+import { NumberFormatEditor } from "./NumberFormatEditor";
+import { checksConfig, DataChecks, supportsChecks, type Checks } from "./DataChecks";
 
 const TONES: Tone[] = ["gray", "violet", "red", "orange", "green", "blue"];
 const GROUPS: { id: NonNullable<SelectOption["group"]>; label: string }[] = [
@@ -37,7 +40,11 @@ export function PropertyEditor({
   const [fresh, setFresh] = useState("");
   const [expression, setExpression] = useState(prop.config.expression ?? "");
   const [label, setLabel] = useState(prop.config.label ?? "Run");
+  const [checks, setChecks] = useState<Checks>(() => ({ validation: { ...prop.config?.validation }, default: prop.config?.default }));
   const withOptions = isOptionType(prop.type);
+  const [format, setFormat] = useState<NumberFormat>(() => numberFormatOf(prop) ?? {});
+  // Formulas offer a format once they produce a number; number-like rollups always do.
+  const formattable = prop.type === "number" || prop.type === "rollup" ? numberFormatOf({ ...prop, config: { ...prop.config, format: {} } }) !== undefined : prop.type === "formula" && prop.config.resultType === "number";
 
   const save = async () => {
     const patch: { name?: string; config?: unknown } = {};
@@ -48,7 +55,23 @@ export function PropertyEditor({
     }
     if (prop.type === "unique_id") patch.config = { prefix: prefix.trim() };
     if (prop.type === "button" && label.trim() !== (prop.config.label ?? "Run")) patch.config = { label: label.trim() || "Run" };
-    if (prop.type === "formula" && expression !== (prop.config.expression ?? "")) patch.config = { expression };
+    const nextFormat = formattable ? cleanFormat(format) : undefined;
+    const formatChanged = formattable && JSON.stringify(nextFormat ?? null) !== JSON.stringify(cleanFormat(numberFormatOf(prop) ?? {}) ?? null);
+    if (prop.type === "formula" && (expression !== (prop.config.expression ?? "") || formatChanged)) patch.config = { expression, format: nextFormat };
+    if (prop.type === "number" && formatChanged) patch.config = { format: nextFormat };
+    if (prop.type === "rollup" && formatChanged) {
+      const { relationPropertyId, targetPropertyId, function: fn } = prop.config;
+      patch.config = { relationPropertyId, targetPropertyId, function: fn, format: nextFormat };
+    }
+    // The backend replaces the whole config, so data checks travel with every config change.
+    if (supportsChecks(prop.type)) {
+      const next = checksConfig(checks);
+      const before = checksConfig({ validation: prop.config?.validation ?? {}, default: prop.config?.default });
+      if (patch.config || JSON.stringify(next) !== JSON.stringify(before)) {
+        const base = (patch.config as object | undefined) ?? (prop.type === "number" ? { format: prop.config.format } : withOptions ? { options: prop.config.options } : {});
+        patch.config = { ...base, ...next };
+      }
+    }
     if (Object.keys(patch).length === 0 || (await onSave(patch))) onClose();
   };
 
@@ -68,6 +91,7 @@ export function PropertyEditor({
         </label>
         <p className="picker-muted">{TYPE_META[prop.type].label}</p>
         {prop.type === "formula" && <FormulaEditor databaseId={prop.databaseId} propertyId={prop.id} value={expression} onChange={setExpression} />}
+        {formattable && <NumberFormatEditor value={format} onChange={setFormat} />}
         {prop.type === "button" && (
           <>
             <label className="field">
@@ -136,6 +160,12 @@ export function PropertyEditor({
             />
           </div>
         )}
+        <DataChecks
+          type={prop.type}
+          options={withOptions ? options.flatMap((o) => (o.id ? [{ id: o.id, name: o.name, color: o.color, group: o.group }] : [])) : undefined}
+          value={checks}
+          onChange={setChecks}
+        />
         <div className="picker-actions">
           <button type="button" className="btn" onClick={onClose}>
             Cancel

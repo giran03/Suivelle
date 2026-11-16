@@ -11,7 +11,7 @@ describe("changelog parsing", () => {
     expect(entry.groups[0].items).toEqual(["First **bold** item continued here", "Second"]);
   });
   it("marks a version still in development", () => {
-    const entry = parseChangelog("# Suivelle 0.1.8\n\nUnreleased.\n\n## Improvements\n\n- One\n")!;
+    const entry = parseChangelog("# Suivelle 0.2.0\n\nUnreleased.\n\n## Improvements\n\n- One\n")!;
     expect(entry.unreleased).toBe(true);
     expect(entry.released).toBeNull();
   });

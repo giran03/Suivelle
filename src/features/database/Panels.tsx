@@ -126,8 +126,9 @@ function Condition({ leaf, props, onChange, onRemove }: { leaf: FilterLeaf; prop
   );
 }
 
-export function FilterPanel({ anchor, onClose, props, filter, onChange }: { anchor: Anchor; onClose: () => void; props: Property[]; filter: FilterNode | null; onChange: (f: FilterNode | null) => void }) {
-  const [draft, setDraft] = useState<FilterGroup>(() => rootOf(filter));
+/** The condition builder: used by the filter panel and by conditional-formatting rules. */
+export function FilterEditor({ props, filter, onChange, emptyText, seed }: { props: Property[]; filter: FilterNode | null; onChange: (f: FilterNode | null) => void; emptyText?: string; /** Start with a new condition on this property. */ seed?: Property }) {
+  const [draft, setDraft] = useState<FilterGroup>(() => (seed ? addTo(rootOf(filter), [], newCondition(seed)) : rootOf(filter)));
   const byId = useMemo(() => new Map(props.map((p) => [p.id, p])), [props]);
   const set = (next: FilterGroup) => {
     setDraft(next);
@@ -177,9 +178,17 @@ export function FilterPanel({ anchor, onClose, props, filter, onChange }: { anch
   );
 
   return (
-    <Popover anchor={anchor} onClose={onClose} label="Filter" className="picker filter-panel">
-      {draft.children.length === 0 && <p className="picker-muted">No filters. Add a condition to narrow the records shown.</p>}
+    <>
+      {draft.children.length === 0 && <p className="picker-muted">{emptyText ?? "No filters. Add a condition to narrow the records shown."}</p>}
       {renderGroup(draft, [])}
+    </>
+  );
+}
+
+export function FilterPanel({ anchor, onClose, props, filter, onChange, seed }: { anchor: Anchor; onClose: () => void; props: Property[]; filter: FilterNode | null; seed?: Property; onChange: (f: FilterNode | null) => void }) {
+  return (
+    <Popover anchor={anchor} onClose={onClose} label="Filter" className="picker filter-panel">
+      <FilterEditor props={props} filter={filter} onChange={onChange} seed={seed} />
     </Popover>
   );
 }

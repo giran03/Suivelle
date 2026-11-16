@@ -4,7 +4,7 @@
 .update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8px * var(--density)); margin-block: calc(10px * var(--density)); }
 .update-progress { display: grid; gap: calc(6px * var(--density)); margin-block: calc(12px * var(--density)); font-size: 0.875rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .update-progress progress { width: 100%; height: 8px; accent-color: var(--accent); }
-.palette.changelog { width: min(680px, calc(100vw - 32px)); }
+.palette.changelog { width: min(680px, calc(100vw - 32px)); -webkit-user-select: none; user-select: none; }
 .palette.update-preparing { width: min(420px, calc(100vw - 32px)); }
 .changelog-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: calc(20px * var(--density)) calc(20px * var(--density)) calc(16px * var(--density)) calc(24px * var(--density)); border-bottom: 1px solid var(--border-subtle); }
 .changelog-titles { min-width: 0; display: grid; gap: calc(8px * var(--density)); }
@@ -13,13 +13,29 @@
 .changelog-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
 .changelog-version { padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ui); font-weight: 600; font-variant-numeric: tabular-nums; }
 .changelog-body { overflow-y: auto; min-height: 0; padding: calc(20px * var(--density)) calc(24px * var(--density)) calc(24px * var(--density)); }
-.changelog-notes { max-width: 62ch; font-size: 0.9375rem; line-height: 1.6; overflow-wrap: anywhere; }
-.changelog-notes h3 { margin: calc(24px * var(--density)) 0 calc(8px * var(--density)); font-size: 0.75rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ui); }
+.changelog-notes { max-width: 64ch; font-size: 0.9375rem; line-height: 1.62; color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary)); overflow-wrap: anywhere; }
+.changelog-notes h3 { margin: calc(22px * var(--density)) 0 calc(10px * var(--density)); padding-bottom: 6px; border-bottom: 1px solid var(--border-subtle); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ui); }
 .changelog-notes h3:first-child { margin-top: 0; }
-.changelog-notes p { margin-block: calc(8px * var(--density)); }
+.changelog-notes h4 { margin: calc(18px * var(--density)) 0 calc(6px * var(--density)); font-size: 0.875rem; font-weight: 650; color: var(--text-primary); }
+.changelog-notes h4:first-child { margin-top: 0; }
+.changelog-notes p { margin-block: calc(8px * var(--density)); text-align: justify; text-wrap: pretty; }
 .changelog-notes ul { list-style: none; padding: 0; margin-block: calc(4px * var(--density)); }
-.changelog-notes li { position: relative; padding-inline-start: 18px; margin-block: calc(10px * var(--density)); text-wrap: pretty; }
-.changelog-notes li::before { content: ""; position: absolute; inset-inline-start: 2px; top: 0.7em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ui); opacity: 0.7; }
+.changelog-notes ul > li { position: relative; padding-inline-start: 18px; margin-block: calc(12px * var(--density)); text-align: justify; text-wrap: pretty; }
+.changelog-notes ul > li::before { content: ""; position: absolute; inset-inline-start: 2px; top: 0.68em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ui); opacity: 0.75; }
+.changelog-notes ol { padding-inline-start: 20px; margin-block: calc(4px * var(--density)); }
+.changelog-notes ol > li { padding-inline-start: 4px; margin-block: calc(10px * var(--density)); text-align: justify; text-wrap: pretty; }
+.changelog-notes ol > li::marker { color: var(--accent-ui); font-weight: 600; font-variant-numeric: tabular-nums; }
+.changelog-notes li :is(ul, ol) { margin-top: calc(6px * var(--density)); }
+.changelog-notes ul > li.cl-task { padding-inline-start: 22px; }
+.changelog-notes ul > li.cl-task::before { display: none; }
+.cl-check { position: absolute; inset-inline-start: 0; top: 0.35em; width: 14px; height: 14px; border: 1.5px solid var(--border-strong); border-radius: var(--r-xs); background: var(--surface-1); }
+.cl-check.on { border-color: var(--accent); background: var(--accent); }
+.cl-check.on::after { content: ""; position: absolute; left: 3.5px; top: 1px; width: 4px; height: 7px; border: solid var(--surface-1); border-width: 0 1.75px 1.75px 0; transform: rotate(45deg); }
+.changelog-notes pre { margin-block: calc(10px * var(--density)); padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--editor-background); overflow-x: auto; font: 0.8125rem/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; }
+.changelog-notes pre code { padding: 0; border: 0; background: none; font: inherit; }
+.changelog-notes blockquote { margin-block: calc(10px * var(--density)); margin-inline: 0; padding: 2px 0 2px 12px; border-inline-start: 1px solid var(--border-strong); color: var(--text-secondary); }
+.changelog-notes blockquote p { margin-block: calc(4px * var(--density)); }
+.changelog-notes hr { border: 0; border-top: 1px solid var(--border-subtle); margin-block: calc(16px * var(--density)); }
 .changelog-footer { flex: none; display: flex; justify-content: flex-end; padding: calc(12px * var(--density)) calc(20px * var(--density)); border-top: 1px solid var(--border-subtle); }
 .update-notice { bottom: calc(60px * var(--density)); max-width: calc(100vw - 32px); flex-wrap: wrap; }
 .update-notice .icon-btn { color: var(--text-secondary); }
@@ -46,16 +62,20 @@
 .update-card-plain { margin-top: 8px; padding: 6px 16px 14px; border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-1); }
 .update-whatsnew-meta { margin: 10px 0 0; color: var(--text-muted); font-size: 0.75rem; }
 
+.update-whatsnew { -webkit-user-select: none; user-select: none; }
+
 /* changelog text: group headings in the accent, bullets as dots */
 .cl section { margin-top: 12px; }
 .cl-group { margin: 0 0 4px; color: var(--accent-ui); font-size: 0.75rem; font-weight: 650; letter-spacing: 0.04em; }
-.cl-item { position: relative; margin: 6px 0; padding-inline-start: 16px; font-size: 0.875rem; line-height: 1.55; text-wrap: pretty; overflow-wrap: anywhere; }
+.cl-item { position: relative; margin: 8px 0; padding-inline-start: 16px; font-size: 0.875rem; line-height: 1.58; color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary)); text-align: justify; text-wrap: pretty; overflow-wrap: anywhere; }
 .cl-item::before { content: ""; position: absolute; inset-inline-start: 2px; top: 0.7em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-ui); opacity: 0.7; }
-.cl code { padding: 1px 5px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--editor-background); font: 0.8125em ui-monospace, "Cascadia Code", Consolas, monospace; }
-.cl strong { font-weight: 650; color: var(--text-primary); }
+:is(.cl, .changelog-notes) :not(pre) > code { padding: 1px 5px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--editor-background); font: 0.8125em ui-monospace, "Cascadia Code", Consolas, monospace; }
+:is(.cl, .changelog-notes) strong { font-weight: 650; color: var(--text-primary); }
+:is(.cl, .changelog-notes) del { color: var(--text-muted); text-decoration: line-through; }
+:is(.cl, .changelog-notes) a { color: var(--accent-ui); text-decoration: underline; text-underline-offset: 2px; }
 
 /* all versions, folded */
-.palette.changelog-history { width: min(680px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); display: flex; flex-direction: column; }
+.palette.changelog-history { width: min(680px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); display: flex; flex-direction: column; -webkit-user-select: none; user-select: none; }
 .clh-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 12px 24px; border-bottom: 1px solid var(--border-subtle); }
 .clh-head h2 { margin: 0; font-size: 1.125rem; font-weight: 650; letter-spacing: -0.01em; }
 .clh-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px 16px; }

@@ -38,10 +38,17 @@
 .set-search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--field); padding: 8px; color: var(--text-muted); }
 .set-search input { width: 100%; min-width: 0; border: 0; background: transparent; outline: none; font-size: 0.875rem; }
 .set-search:focus-within { outline: 2px solid var(--focus-ring); }
-.set-nav [role="tablist"] { display: flex; flex-direction: column; gap: 4px; }
-.set-nav [role="tab"] { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); font-size: 0.875rem; text-align: left; color: var(--text-secondary); }
+.set-nav [role="tablist"] { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.set-nav-indicator { position: absolute; left: 0; top: 0; border-radius: var(--r-md); background: var(--accent-soft); pointer-events: none; z-index: 0; will-change: transform, width, height; }
+.set-nav-indicator.anim { transition: transform 220ms var(--ease-out), width 220ms var(--ease-out), height 220ms var(--ease-out), opacity 160ms var(--ease-out); }
+:root[data-motion="reduced"] .set-nav-indicator.anim { transition: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion]) .set-nav-indicator.anim { transition: none; } }
+.set-nav [role="tab"] { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); font-size: 0.875rem; text-align: left; color: var(--text-secondary); transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
+.set-nav [role="tab"] .app-icon { transition: color var(--t-fast) var(--ease-out); }
 .set-nav [role="tab"]:hover { background: var(--surface-hover); }
-.set-nav [role="tab"][aria-selected="true"] { background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.set-nav [role="tab"][aria-selected="true"],
+.set-nav [role="tab"][aria-selected="true"]:hover { background: transparent; color: var(--text-primary); font-weight: 600; }
+.set-nav [role="tab"][aria-selected="true"]:not([data-indicator-target]) { background: var(--accent-soft); }
 .set-nav [aria-selected="true"] .app-icon { color: var(--accent-ui); }
 .set-nav-note { margin-top: auto; padding: 16px 12px 0; color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; }
 .settings .set-body { min-width: 0; padding: 24px 28px 32px; scroll-padding-block: 24px; }

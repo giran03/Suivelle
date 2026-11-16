@@ -13,6 +13,7 @@ import { useBackupsDialog } from "../backup/store";
 import { useFilesDialog } from "../files/store";
 import { syncDialog } from "../../lib/dialog";
 import { installDragScroll } from "../../lib/dragScroll";
+import { useSlidingIndicator } from "../../lib/useSlidingIndicator";
 import "./settings.css";
 import { UpdatesSection } from "../updates/Updates";
 import { ThemeEditor } from "./ThemeEditor";
@@ -231,6 +232,7 @@ function SettingsBody() {
   const content = useRef<HTMLDivElement>(null);
   const nav = useRef<HTMLDivElement>(null);
   const [horizontalTabs, setHorizontalTabs] = useState(false);
+  const tabIndicator = useSlidingIndicator(nav, '[role="tab"][aria-selected="true"]', [page, horizontalTabs], horizontalTabs);
   const dirty = JSON.stringify(draft) !== JSON.stringify(committed) || draftMode !== null;
   const close = (after?: () => void) => useSettingsDialog.getState().requestClose(after);
   const addGettingStarted = async () => {
@@ -307,7 +309,10 @@ function SettingsBody() {
             const index = PAGES.findIndex((item) => item.id === page);
             const next = e.key === "Home" ? 0 : e.key === "End" ? PAGES.length - 1 : (index + (["ArrowDown", "ArrowRight"].includes(e.key) ? 1 : -1) + PAGES.length) % PAGES.length;
             setPage(PAGES[next].id); document.getElementById(`settings-tab-${PAGES[next].id}`)?.focus();
-          }}>{PAGES.map((item) => <button type="button" role="tab" id={`settings-tab-${item.id}`} aria-controls={`settings-panel-${item.id}`} aria-selected={page === item.id} tabIndex={page === item.id ? 0 : -1} key={item.id} onClick={() => { setPage(item.id); setQuery(""); }}><Icon name={item.icon} />{item.title}</button>)}</div>
+          }}>
+            <span className={`set-nav-indicator${tabIndicator.animate ? " anim" : ""}`} aria-hidden="true" style={tabIndicator.style} />
+            {PAGES.map((item) => <button type="button" role="tab" id={`settings-tab-${item.id}`} aria-controls={`settings-panel-${item.id}`} aria-selected={page === item.id} tabIndex={page === item.id ? 0 : -1} key={item.id} onClick={() => { setPage(item.id); setQuery(""); }}><Icon name={item.icon} />{item.title}</button>)}
+          </div>
           <p className="set-nav-note">Your workspace.<br />Your way.</p>
         </aside>
       <div className="set-body" ref={content}>

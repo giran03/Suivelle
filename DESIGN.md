@@ -163,7 +163,7 @@ A dark room built for looking at one thing. The instruments are put away or draw
 
 The system is dark-first and flat at rest. Depth comes from small steps in surface tone (canvas, sidebar, surface, floating) and from hairline borders tinted starlight blue at 7 to 20%, not from shadows or glass. Shadow appears only on layers that float: menus, the command palette, toasts, drag chips. The accent is sapphire, used sparingly: filled on the primary button, as starlight ink on selected icons, links and focus rings, and as a faint navy wash behind the selected row. It stays a signal, never a theme. The light theme is a faithful counterpart with the same structure: warm off-white paper, a cool blue-gray sidebar, and deep sapphire where the dark theme uses starlight.
 
-The sky shows up in exactly three places: the mark (an S whose first stroke ends in a four-point star), the welcome screen (a few stars joined by hairlines around the mark), and the launch splash. Everywhere else the celestial idea is carried by colour and restraint alone. It is a desktop app, so controls are compact, type is 15px, and every spacing value derives from one interface-spacing setting (compact, normal, relaxed).
+The sky shows up in exactly three places: the mark (a rounded frame left open at the top right, with a dot stepping into the gap), the welcome screen (a few stars joined by hairlines around the mark), and the launch splash. Everywhere else the celestial idea is carried by colour and restraint alone. It is a desktop app, so controls are compact, type is 15px, and every spacing value derives from one interface-spacing setting (compact, normal, relaxed).
 
 **Key Characteristics:**
 - Deep navy canvas, a slightly darker sidebar, one tonal step per layer.
@@ -186,7 +186,7 @@ A deep, cool navy with one sapphire accent and quiet status hues. Values below a
 - **Sapphire Wash** (#15224a): the selected row, active footer row, active palette item, chip-on. A tint, never a block. Light theme: #e6edf9.
 
 ### Secondary
-- **Comet Blue** (#7fa4f0) and **Starlight White** (#cfe0ff): the mark only. The S is comet blue and the star starlight white on the midnight tile (#0b1226); on the light tile the S is navy (#16275a) and the star sapphire. They are brand colours, not interface colours.
+- **Comet Blue** (#7fa4f0) and **Starlight White** (#cfe0ff): the mark only. The frame is comet blue and the dot starlight white on the midnight tile (#0b1226); on the light tile the frame is navy (#16275a) and the dot sapphire. They are brand colours, not interface colours.
 
 ### Neutral
 - **Night Canvas** (#0c1329): app and editor background.

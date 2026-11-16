@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLiveData } from "../../lib/liveData";
 import { ipc, toAppError } from "../../lib/ipc";
 import type { ChartData, ChartSpec, DateBucket, DbView, FilterNode, Property } from "../../types";
 import { andFilters, useExtraFilter, useStable } from "../database/extraFilter";
@@ -16,7 +17,8 @@ export function useChartData(input: { databaseId: string; viewId?: string | null
   const chart = useStable(input.chart ?? null);
   const [state, setState] = useState<{ data: ChartData | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true });
   const gen = useRef(0);
-  const { databaseId, viewId, version = 0, enabled = true } = input;
+  const { databaseId, viewId, enabled = true } = input;
+  const version = (input.version ?? 0) + useLiveData();
 
   useEffect(() => {
     if (!enabled) return;

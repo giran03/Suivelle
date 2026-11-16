@@ -140,6 +140,54 @@ pub async fn record_bulk_set(
     .await
 }
 
+/// Writes many cells at once (paste, fill, undo), all or nothing. Automations see each changed
+/// property, but a record that changed several cells is reported as updated once.
+#[tauri::command]
+pub async fn record_set_cells(
+    app: AppHandle,
+    cells: Vec<databases::SetValue>,
+) -> AppResult<Vec<databases::RecordRow>> {
+    blocking("record_set_cells", move || {
+        let db = app.state::<Db>();
+        let t = std::time::Instant::now();
+        let res = lock(&db).and_then(|mut c| {
+            let ids: Vec<String> = cells.iter().map(|x| x.record_id.clone()).collect();
+            let before = dbs::load_rows(&c, &ids).unwrap_or_default();
+            let rows = dbs::set_cells(&mut c, &cells)?;
+            let mut events = Vec::new();
+            for row in &rows {
+                let old = before.iter().find(|b| b.id == row.id);
+                let mut changed = false;
+                let mut seen = std::collections::HashSet::new();
+                for cell in cells.iter().filter(|x| x.record_id == row.id) {
+                    if !seen.insert(cell.property_id.as_str()) {
+                        continue;
+                    }
+                    let was = old.and_then(|o| o.values.get(&cell.property_id));
+                    let now = row.values.get(&cell.property_id);
+                    if was != now {
+                        changed = true;
+                        events.push(crate::automation::engine::Event::PropertyChanged {
+                            record_id: row.id.clone(),
+                            property_id: cell.property_id.clone(),
+                            new: now.cloned(),
+                        });
+                    }
+                }
+                if changed {
+                    events.push(crate::automation::engine::Event::RecordUpdated {
+                        record_id: row.id.clone(),
+                    });
+                }
+            }
+            super::react(&app, &mut c, events);
+            Ok(rows.into_iter().map(|r| super::fresh(&c, r)).collect())
+        });
+        logged("record_set_cells", t, res)
+    })
+    .await
+}
+
 /// Copies a page (and, if asked, the pages inside it): "Duplicate" and "New page from template".
 #[tauri::command]
 pub async fn page_duplicate(app: tauri::AppHandle, input: PageDuplicate) -> AppResult<Duplicated> {

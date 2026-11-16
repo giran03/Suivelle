@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import type { DbView, GroupCount, RecordRow } from "../../types";
 import { cursorFor, pageOf } from "./gridNav";
+import { useLiveData } from "../../lib/liveData";
 import { useExtraFilter, useStable } from "./extraFilter";
 import { buildLayout, locate, type HeaderSegment, type Layout } from "./groups";
 
@@ -32,9 +33,14 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
   const extraFilter = useStable(useExtraFilter());
   const [state, setState] = useState<State>(fresh);
   const requested = useRef(new Set<string>());
+  /** Counts edits to loaded records, so numbers derived from them (totals) can refresh. */
+  const [edits, setEdits] = useState(0);
   const generation = useRef(0);
   const cached = useRef(new Map<string, RecordRow[]>());
   const wanted = useRef(new Set<string>());
+  const argsOf = useRef(new Map<string, [string | null, string | null, number]>());
+  const live = useLiveData();
+  const seenLive = useRef(live);
   const viewId = view?.id;
   const grouped = !!view?.config.group;
 
@@ -48,6 +54,7 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
       const key = keyOf(g, s, page);
       if (requested.current.has(key) || cached.current.has(key)) return;
       requested.current.add(key);
+      argsOf.current.set(key, [g, s, page]);
       const gen = generation.current;
       try {
         const res = await ipc.queryRecords({
@@ -80,6 +87,7 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
     cached.current = new Map();
     wanted.current = new Set();
     setState(fresh());
+    setEdits((n) => n + 1);
     if (!databaseId || !viewId) return;
     if (grouped) {
       const gen = generation.current;
@@ -89,6 +97,53 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
         .catch((e) => fail(gen, e));
     } else void fetchPage(null, null, 0);
   }, [databaseId, viewId, grouped, fetchPage, extraFilter]);
+
+  /** Refetches the pages already loaded and swaps them in place, so rows do not blank while changes elsewhere arrive. */
+  const refresh = useCallback(async () => {
+    if (!databaseId || !viewId) return;
+    const gen = generation.current;
+    const keys = [...cached.current.keys()];
+    try {
+      let groupTotal: number | null = null;
+      let newGroups: GroupCount[] | null = null;
+      if (grouped) {
+        newGroups = await ipc.groupCounts(databaseId, viewId, extraFilter);
+        groupTotal = newGroups.reduce((n, g) => n + g.count, 0);
+      }
+      const results = await Promise.all(
+        keys.map(async (key) => {
+          const [g, s, page] = argsOf.current.get(key) ?? [null, null, 0];
+          const res = await ipc.queryRecords({ databaseId, viewId, groupKey: g, subgroupKey: s, cursor: cursorFor(page, PAGE_SIZE), limit: PAGE_SIZE, skipTotal: grouped || page > 0, extraFilter });
+          return [key, page, res] as const;
+        }),
+      );
+      if (gen !== generation.current) return;
+      const pages = new Map(cached.current);
+      let total: number | null = null;
+      for (const [key, page, res] of results) {
+        pages.set(key, res.rows);
+        if (!grouped && page === 0 && res.total != null) total = res.total;
+      }
+      cached.current = pages;
+      // A record made here is shown below the list until the list itself includes it. Once the server count has
+      // grown by that many, the list has it, so showing it again would duplicate the row.
+      setState((st) => {
+        const before = grouped ? (st.groups?.reduce((n, g) => n + g.count, 0) ?? null) : st.total;
+        const now = grouped ? groupTotal : total;
+        const counted = now !== null && before !== null && now >= before + st.extras.length;
+        return { ...st, total: total ?? st.total, groups: newGroups ?? st.groups, pages, extras: counted ? [] : st.extras, error: null };
+      });
+      setEdits((n) => n + 1);
+    } catch (e) {
+      fail(gen, e);
+    }
+  }, [databaseId, viewId, grouped, extraFilter]);
+
+  useEffect(() => {
+    if (seenLive.current === live) return;
+    seenLive.current = live;
+    void refresh();
+  }, [live, refresh]);
 
   useEffect(() => {
     if (databaseId && viewId) reload();
@@ -163,6 +218,21 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
       cached.current = pages;
       return { ...s, pages, extras: s.extras.map((r) => (r.id === row.id ? row : r)) };
     });
+    setEdits((n) => n + 1);
+  }, []);
+
+  /** Swaps many edited rows into the cache at once. */
+  const replaceRows = useCallback((rows: RecordRow[]) => {
+    if (rows.length === 0) return;
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    setState((s) => {
+      const swap = (list: RecordRow[]) => (list.some((r) => byId.has(r.id)) ? list.map((r) => byId.get(r.id) ?? r) : list);
+      const pages = new Map(s.pages);
+      for (const [k, list] of pages) pages.set(k, swap(list));
+      cached.current = pages;
+      return { ...s, pages, extras: swap(s.extras) };
+    });
+    setEdits((n) => n + 1);
   }, []);
 
   const loadedRows = useCallback((): { index: number; row: RecordRow }[] => {
@@ -183,7 +253,25 @@ export function useRecordTable(databaseId: string | undefined, view: DbView | un
     return out.sort((a, b) => a.index - b.index);
   }, [state.pages, state.extras, layout, base]);
 
-  const addExtra = useCallback((row: RecordRow) => setState((s) => ({ ...s, extras: [...s.extras, row] })), []);
+  /** A loaded record by id, wherever it is held; undefined when it is not in memory. */
+  const findRow = useCallback((id: string): RecordRow | undefined => {
+    for (const rows of state.pages.values()) {
+      const hit = rows.find((r) => r.id === id);
+      if (hit) return hit;
+    }
+    return state.extras.find((r) => r.id === id);
+  }, [state.pages, state.extras]);
 
-  return { total: recordCount, loaded, rowCount, error: state.error, groups: state.groups, itemAt, rowAt, loadedRows, ensureRange, replaceRow, addExtra, reload };
+  const addExtra = useCallback((row: RecordRow) => {
+    setState((s) => ({ ...s, extras: [...s.extras, row] }));
+    setEdits((n) => n + 1);
+  }, []);
+
+  /** Forgets a record that was shown below the loaded rows (it was trashed or undone). */
+  const removeExtra = useCallback((id: string) => {
+    setState((s) => ({ ...s, extras: s.extras.filter((r) => r.id !== id) }));
+    setEdits((n) => n + 1);
+  }, []);
+
+  return { edits, removeExtra, total: recordCount, loaded, rowCount, error: state.error, groups: state.groups, itemAt, rowAt, loadedRows, findRow, ensureRange, replaceRow, replaceRows, addExtra, reload };
 }

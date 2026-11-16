@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod calendar;
 pub mod content;
+pub mod datafix;
 pub mod image;
 pub mod local_file;
 pub mod maintenance;
@@ -1059,6 +1060,52 @@ pub async fn import_pick(
     .await
 }
 
+/// The largest table that can be pasted into the import flow.
+const MAX_PASTED_TABLE: usize = 8 * 1024 * 1024;
+
+/// Stages a table pasted as tab-separated text (what spreadsheets put on the clipboard) the same
+/// way a chosen .tsv file is staged, so the column-mapping preview is identical.
+#[tauri::command]
+pub async fn import_paste_table(
+    app: tauri::AppHandle,
+    text: String,
+    name: Option<String>,
+) -> AppResult<crate::transfer::import::Preview> {
+    blocking("import_paste_table", move || {
+        let sessions = app.state::<ImportSessions>();
+        if text.trim().is_empty() {
+            return Err(AppError::Validation("there is nothing to paste".into()));
+        }
+        if text.len() > MAX_PASTED_TABLE {
+            return Err(AppError::Validation(
+                "that table is too large to paste; save it as a file and import that".into(),
+            ));
+        }
+        let wanted = name.as_deref().unwrap_or("").trim();
+        let title = crate::transfer::export::safe_name(if wanted.is_empty() {
+            "Pasted table"
+        } else {
+            wanted
+        });
+        let dir = std::env::temp_dir().join(format!("suivelle-paste-{}", crate::domain::new_id()));
+        std::fs::create_dir_all(&dir)?;
+        let file = dir.join(format!("{title}.tsv"));
+        let staged = std::fs::write(&file, text.as_bytes())
+            .map_err(AppError::from)
+            .and_then(|()| crate::transfer::import::stage_files(vec![file]));
+        let _ = std::fs::remove_dir_all(&dir);
+        let staged = staged?;
+        let preview = crate::transfer::import::preview(&staged);
+        let mut list = sessions.0.lock().unwrap_or_else(|p| p.into_inner());
+        list.push(staged);
+        while list.len() > MAX_SESSIONS {
+            list.remove(0);
+        }
+        Ok(preview)
+    })
+    .await
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportApply {
@@ -1405,6 +1452,38 @@ pub async fn export_database(app: tauri::AppHandle, page_id: String) -> AppResul
             .map_err(AppError::from)
             .map(|()| Some(bytes.len()));
         logged("export_database", t, res)
+    })
+    .await
+}
+
+/// Exports what one view shows (its filter, sort and visible columns) as CSV.
+#[tauri::command]
+pub async fn export_view(
+    app: tauri::AppHandle,
+    page_id: String,
+    view_id: String,
+) -> AppResult<Option<usize>> {
+    worker::dialog("export_view", move || {
+        let db = app.state::<Db>();
+        use tauri_plugin_dialog::DialogExt;
+        let t = std::time::Instant::now();
+        let (title, bytes) =
+            lock(&db).and_then(|c| crate::transfer::export::view_csv(&c, &page_id, &view_id))?;
+        let Some(file) = app
+            .dialog()
+            .file()
+            .set_file_name(format!(
+                "{}.csv",
+                crate::transfer::export::safe_name(&title)
+            ))
+            .blocking_save_file()
+        else {
+            return Ok(None);
+        };
+        let res = std::fs::write(path_of(file)?, &bytes)
+            .map_err(AppError::from)
+            .map(|()| Some(bytes.len()));
+        logged("export_view", t, res)
     })
     .await
 }

@@ -2372,3 +2372,76 @@ fn canvas_boards_survive_an_archive_round_trip_with_new_page_ids() {
     let new_page = data.items.iter().find_map(|i| i.page_id.clone()).unwrap();
     assert_ne!(new_page, page, "pages are re-created under new ids");
 }
+
+#[test]
+fn tsv_keeps_commas_and_quoted_cells_and_is_not_guessed() {
+    // A table copied from a spreadsheet: commas and semicolons inside cells, a quoted cell with a
+    // line break and a doubled quote.
+    let text = "Name\tNotes\tQty\nBolt, M6; zinc\t\"two\nlines \"\"quoted\"\"\"\t12\nNut\t\t3\n";
+    let t = csvio::read_tsv(text.as_bytes()).unwrap();
+    assert_eq!(t.headers, ["Name", "Notes", "Qty"]);
+    assert_eq!(t.rows.len(), 2);
+    assert_eq!(t.rows[0], ["Bolt, M6; zinc", "two\nlines \"quoted\"", "12"]);
+    assert_eq!(t.rows[1], ["Nut", "", "3"]);
+    let plan = csvio::plan(&t);
+    assert_eq!(plan.len(), 3);
+    assert_eq!(plan[2].kind, "number");
+}
+
+#[test]
+fn a_pasted_tsv_stages_like_a_file_with_the_same_preview() {
+    let dir = temp();
+    let file = dir.join("Pasted table.tsv");
+    std::fs::write(&file, "Item\tPrice\nBolt, M6\t1.5\nNut\t2\n").unwrap();
+    let staged = import::stage_files(vec![file]).unwrap();
+    let preview = import::preview(&staged);
+    let entry = &preview.entries[0];
+    assert_eq!(entry.name, "Pasted table");
+    assert_eq!(entry.columns.as_ref().unwrap().len(), 2);
+}
+
+#[test]
+fn view_csv_follows_the_views_filter_sort_and_visible_columns() {
+    let (mut conn, ws, _store) = workspace();
+    let made = crate::databases::templates::create_from_template(
+        &mut conn,
+        crate::databases::templates::TemplateCreate {
+            workspace_id: ws.clone(),
+            parent_page_id: None,
+            template: "task_tracker".into(),
+            sample_data: true,
+        },
+    )
+    .unwrap();
+    let page = made.database_page_ids[0].clone();
+    let detail = dbs::database_detail_by_page(&conn, &page).unwrap();
+    let view = detail.views[0].clone();
+    let title = detail.properties.iter().find(|p| p.property_type == "title").unwrap();
+    let status = detail.properties.iter().find(|p| p.property_type == "status").unwrap();
+    // Show only the status then the title, hide everything else, sort by title descending.
+    let mut cfg = view.config.clone();
+    let keep = [status.id.clone(), title.id.clone()];
+    cfg.columns = keep
+        .iter()
+        .map(|id| crate::databases::ViewColumn { property_id: id.clone(), ..Default::default() })
+        .chain(detail.properties.iter().filter(|p| !keep.contains(&p.id)).map(|p| {
+            crate::databases::ViewColumn { property_id: p.id.clone(), hidden: true, ..Default::default() }
+        }))
+        .collect();
+    cfg.sorts = vec![crate::databases::ViewSort { property_id: title.id.clone(), direction: "desc".into() }];
+    dbs::update_view(
+        &mut conn,
+        crate::databases::ViewUpdate { view_id: view.id.clone(), name: None, config: cfg },
+    )
+    .unwrap();
+    let (name, bytes) = export::view_csv(&conn, &page, &view.id).unwrap();
+    assert!(name.contains(&detail.page.title));
+    let back = csvio::read(&bytes).unwrap();
+    assert_eq!(back.headers, [status.name.clone(), title.name.clone()]);
+    let titles: Vec<&String> = back.rows.iter().map(|r| &r[1]).collect();
+    let mut sorted = titles.clone();
+    sorted.sort_by(|a, b| b.to_lowercase().cmp(&a.to_lowercase()));
+    assert_eq!(titles, sorted);
+    assert!(!back.rows.is_empty());
+    assert!(export::view_csv(&conn, &page, "nope").is_err());
+}

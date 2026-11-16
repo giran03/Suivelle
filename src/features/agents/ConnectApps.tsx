@@ -201,11 +201,13 @@ function ConnectSheet({ clients, agents, linked, settings, onDone, onCancel }: {
 }
 
 /** Settings > Agents > Connect apps: finds agent apps on this computer and connects them in one step. */
-export function ConnectApps({ scan, agents, settings, usageByAgent, onScan, onChanged }: {
+export function ConnectApps({ scan, agents, settings, usageByAgent, selectedClientId, onScan, onChanged }: {
   scan: ClientScan | null;
   agents: Agent[];
   settings: AgentSettings;
   usageByAgent?: Record<string, AgentUsage>;
+  /** When provided, only renders the matching client card (or none if null). */
+  selectedClientId?: string | null;
   onScan: () => Promise<void>;
   onChanged: () => void;
 }) {
@@ -252,6 +254,11 @@ export function ConnectApps({ scan, agents, settings, usageByAgent, onScan, onCh
   if (!scan) return <p className="picker-muted">{scanning ? "Looking for agent apps…" : ""}</p>;
   const connectable = scan.clients.filter((c) => c.status === "not_connected");
   const open = sheet ? scan.clients.filter((c) => sheet.includes(c.id)) : [];
+  const visibleClients = selectedClientId === undefined
+    ? scan.clients
+    : selectedClientId === null
+      ? []
+      : scan.clients.filter((c) => c.id === selectedClientId);
   return (
     <div className="agx-apps">
       <div className="set-row">
@@ -267,8 +274,9 @@ export function ConnectApps({ scan, agents, settings, usageByAgent, onScan, onCh
       {!scan.bundled && <p className="field-error" role="alert">The suivelle-mcp connector is missing from this copy of Suivelle, so apps cannot be connected. Reinstall Suivelle, or build it with <code>cargo build -p suivelle-mcp</code>.</p>}
       {scan.devBuild && scan.bundled && <p className="picker-muted">Development build: connected apps use this build's connector. After installing a release, choose Repair if an app shows Out of date.</p>}
       {scan.clients.length === 0 && <p className="picker-muted">No agent apps found.</p>}
-      <ul className="agx-cards">
-        {scan.clients.map((c) => {
+      {visibleClients.length > 0 && (
+        <ul className="agx-cards">
+          {visibleClients.map((c) => {
           const s = STATE[c.status];
           const linked = c.connectedAt !== null;
           const usageLine = linked && c.agentId ? formatAgentUsageLine(usageByAgent?.[c.agentId]) : null;
@@ -304,7 +312,8 @@ export function ConnectApps({ scan, agents, settings, usageByAgent, onScan, onCh
             </li>
           );
         })}
-      </ul>
+        </ul>
+      )}
       {open.length > 0 && (
         <ConnectSheet
           key={open.map((c) => c.id).join(",")}

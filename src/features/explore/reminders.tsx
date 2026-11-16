@@ -68,7 +68,7 @@ export function RemindersPanel() {
   if (!items.length) return <p className="picker-muted">No reminders. Use “Remind me about this page…” from the command palette on any page.</p>;
   return <ul className="explore-list">{items.map((r) =>
     <li key={r.id} className={r.firedAt ? "done" : undefined}>
-      <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().selectPage(r.pageId); }}>
+      <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().openPage(r.pageId); }}>
         <Icon name={r.firedAt ? "check" : "clock"} size={14} />
         <span className="explore-row-main">{r.pageTitle || "Untitled"}{r.note && <small>{r.note}</small>}</span>
         <time dateTime={r.remindAt}>{formatWhen(r.remindAt)}</time>

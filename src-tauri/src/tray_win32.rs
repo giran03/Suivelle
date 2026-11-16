@@ -2,7 +2,7 @@
 //! Renders a solid opaque, anti-aliased rounded card directly into a 32-bit premultiplied
 //! BGRA DIB section with ClearType text, presented via `UpdateLayeredWindow` (`ULW_ALPHA`).
 
-use crate::shell::{self, RecentPage};
+use crate::shell::{self, RecentPage, TrayIcon};
 use crate::tray_popup::{
     card_height, place_card, row_height, Rect, ThemeMode, TrayAppearance, TrayAppearanceState,
     TrayRecent, CARD_BORDER, CARD_PADDING, CARD_WIDTH, GAP, SCREEN_MARGIN, SEPARATOR_HEIGHT,
@@ -106,6 +106,8 @@ enum MenuAction {
 struct MenuItem {
     label: String,
     icon: IconKind,
+    /// The page's own icon, when it has one; drawn instead of `icon`.
+    picture: Option<TrayIcon>,
     primary: bool,
     danger: bool,
     disabled: bool,
@@ -339,6 +341,7 @@ impl MenuWindowState {
         items.push(MenuItem {
             label: "Open Suivelle".into(),
             icon: IconKind::Open,
+            picture: None,
             primary: true,
             danger: false,
             disabled: false,
@@ -360,6 +363,7 @@ impl MenuWindowState {
                         title.into()
                     },
                     icon: IconKind::Page,
+                    picture: page.icon,
                     primary: false,
                     danger: false,
                     disabled: false,
@@ -377,6 +381,7 @@ impl MenuWindowState {
         items.push(MenuItem {
             label: "Quit".into(),
             icon: IconKind::Quit,
+            picture: None,
             primary: false,
             danger: true,
             disabled: false,
@@ -556,17 +561,23 @@ impl MenuWindowState {
                 colors.text_secondary
             };
             let icon_top = iy0 + (item.rect_h as f32 - icon_size) * 0.5;
-            draw_icon(
-                pixels,
-                w,
-                h,
-                item.icon,
-                icon_left,
-                icon_top,
-                icon_size,
-                stroke,
-                icon_col,
-            );
+            let drawn = item
+                .picture
+                .as_ref()
+                .is_some_and(|p| draw_picture(pixels, w, h, p, icon_left, icon_top, icon_size, icon_col));
+            if !drawn {
+                draw_icon(
+                    pixels,
+                    w,
+                    h,
+                    item.icon,
+                    icon_left,
+                    icon_top,
+                    icon_size,
+                    stroke,
+                    icon_col,
+                );
+            }
         }
 
         // 4. ClearType text via GDI DrawTextW, then restore alpha=255 on interior pixels.
@@ -701,6 +712,57 @@ fn blend_pixel(pixels: &mut [u32], w: i32, h: i32, x: i32, y: i32, col: Rgb, cov
     let idx = (y * w + x) as usize;
     let base = unpack_rgb(pixels[idx]);
     pixels[idx] = base.blend(col, cov.clamp(0.0, 1.0)).bgra(255);
+}
+
+/// Draws a page's own icon (box-filtered down from the frontend's raster) into the icon square.
+/// Returns false when the data is malformed so the caller can fall back to the default glyph.
+fn draw_picture(
+    pixels: &mut [u32],
+    w: i32,
+    h: i32,
+    pic: &TrayIcon,
+    left: f32,
+    top: f32,
+    size: f32,
+    tint: Rgb,
+) -> bool {
+    let n = pic.size as usize;
+    if n == 0 || pic.rgba.len() != n * n * 4 {
+        return false;
+    }
+    let side = size.round().max(1.0) as i32;
+    let (x0, y0) = (left.round() as i32, top.round() as i32);
+    let ratio = n as f32 / side as f32;
+    for dy in 0..side {
+        for dx in 0..side {
+            let sx0 = ((dx as f32 * ratio).floor() as usize).min(n - 1);
+            let sx1 = (((dx + 1) as f32 * ratio).ceil() as usize).clamp(sx0 + 1, n);
+            let sy0 = ((dy as f32 * ratio).floor() as usize).min(n - 1);
+            let sy1 = (((dy + 1) as f32 * ratio).ceil() as usize).clamp(sy0 + 1, n);
+            let (mut a, mut r, mut g, mut b, mut count) = (0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            for sy in sy0..sy1 {
+                for sx in sx0..sx1 {
+                    let i = (sy * n + sx) * 4;
+                    let pa = pic.rgba[i + 3] as f32 / 255.0;
+                    r += pic.rgba[i] as f32 * pa;
+                    g += pic.rgba[i + 1] as f32 * pa;
+                    b += pic.rgba[i + 2] as f32 * pa;
+                    a += pa;
+                    count += 1.0;
+                }
+            }
+            if a <= 0.0 || count <= 0.0 {
+                continue;
+            }
+            let col = if pic.tint {
+                tint
+            } else {
+                Rgb { r: (r / a).round() as u8, g: (g / a).round() as u8, b: (b / a).round() as u8 }
+            };
+            blend_pixel(pixels, w, h, x0 + dx, y0 + dy, col, a / count);
+        }
+    }
+    true
 }
 
 fn draw_segment(
@@ -1218,5 +1280,35 @@ unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
+#[cfg(test)]
+mod picture_tests {
+    use super::*;
+
+    fn icon(tint: bool) -> TrayIcon {
+        TrayIcon { size: 4, rgba: [255, 0, 0, 255].repeat(16), tint }
+    }
+
+    #[test]
+    fn picture_keeps_its_own_colours() {
+        let mut px = vec![0xFF00_0000u32; 16];
+        assert!(draw_picture(&mut px, 4, 4, &icon(false), 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 255 }));
+        assert_eq!(px[5] & 0x00FF_FFFF, 0x00FF_0000);
+    }
+
+    #[test]
+    fn mask_takes_the_tray_colour() {
+        let mut px = vec![0xFF00_0000u32; 16];
+        assert!(draw_picture(&mut px, 4, 4, &icon(true), 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 255 }));
+        assert_eq!(px[5] & 0x00FF_FFFF, 0x0000_00FF);
+    }
+
+    #[test]
+    fn malformed_data_falls_back() {
+        let mut px = vec![0u32; 16];
+        let bad = TrayIcon { size: 4, rgba: vec![0; 3], tint: false };
+        assert!(!draw_picture(&mut px, 4, 4, &bad, 0.0, 0.0, 4.0, Rgb { r: 0, g: 0, b: 0 }));
     }
 }

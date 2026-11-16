@@ -122,7 +122,7 @@ function AgentCard({ agent, overview, client, usage, onChanged }: { agent: Agent
           <button type="button" className="btn" onClick={() => setEditing(true)}>Edit</button>
           <button type="button" className="btn" onClick={() => void run(async () => { if (agent.tokenHint && !window.confirm(`Replace ${agent.name}'s token? Clients using the old one stop working.`)) return; setToken(await ipc.agentTokenRotate(agent.id)); onChanged(); })}>{agent.tokenHint ? "New token" : "Create token"}</button>
           {agent.tokenHint && <button type="button" className="btn" onClick={() => void run(async () => { await ipc.agentTokenRevoke(agent.id); setToken(null); onChanged(); })}>Revoke token</button>}
-          {agent.instructionsPageId && <button type="button" className="btn" onClick={() => { const id = agent.instructionsPageId!; void import("../settings/store").then((m) => m.useSettingsDialog.getState().hide()); void useWorkspace.getState().selectPage(id); }}>Edit instructions</button>}
+          {agent.instructionsPageId && <button type="button" className="btn" onClick={() => { const id = agent.instructionsPageId!; void import("../settings/store").then((m) => m.useSettingsDialog.getState().hide()); void useWorkspace.getState().openPage(id); }}>Edit instructions</button>}
           <button type="button" className="btn" onClick={() => void exportSubagent(false)} title="Writes .claude/agents/<name>.md into a project folder">Export for Claude Code…</button>
           <button type="button" className="btn ghost" onClick={() => void run(async () => { if (!window.confirm(`Remove ${agent.name}? ${client ? `It is disconnected from ${client.name} first. ` : ""}Its token stops working and pending proposals are rejected. Its pages, memories and history stay.`)) return; await ipc.agentDelete(agent.id); onChanged(); })}>Remove</button>
         </div>
@@ -297,6 +297,7 @@ export function AgentsSettings({ active }: { active: boolean }) {
   const [usage, setUsage] = useState<UsageReport | null>(null);
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("general");
+  const [agentKey, setAgentKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
@@ -315,6 +316,27 @@ export function AgentsSettings({ active }: { active: boolean }) {
     for (const a of usage?.agents ?? []) map[a.agentId] = a;
     return map;
   }, [usage]);
+  const agentEntries = useMemo(() => {
+    const clientList = clients?.clients ?? [];
+    const usedClientIds = new Set<string>();
+    const entries: { key: string; label: string; tone: "on" | "warn" | "off"; agent: Agent | null; client: AgentClient | null }[] = [];
+    for (const a of overview?.agents ?? []) {
+      const c = clientList.find((x) => x.agentId === a.id) ?? null;
+      if (c) usedClientIds.add(c.id);
+      const tone: "on" | "warn" | "off" = a.status === "paused"
+        ? "off"
+        : c
+          ? (c.status === "connected" ? "on" : c.status === "not_connected" ? "off" : "warn")
+          : (a.status === "active" ? "on" : "off");
+      entries.push({ key: `agent:${a.id}`, label: a.name, tone, agent: a, client: c });
+    }
+    for (const c of clientList) {
+      if (usedClientIds.has(c.id)) continue;
+      const tone: "on" | "warn" | "off" = c.status === "connected" ? "on" : c.status === "not_connected" ? "off" : "warn";
+      entries.push({ key: `client:${c.id}`, label: c.name, tone, agent: null, client: c });
+    }
+    return entries;
+  }, [overview?.agents, clients]);
   if (!overview) return error ? <p className="field-error" role="alert">{error}</p> : null;
   const s = overview.settings;
   const save = async (next: typeof s) => {
@@ -343,6 +365,20 @@ export function AgentsSettings({ active }: { active: boolean }) {
     const next = step === "first" ? 0 : step === "last" ? TABS.length - 1 : (i + step + TABS.length) % TABS.length;
     setTab(TABS[next][0]);
     window.requestAnimationFrame(() => document.getElementById(`agx-tab-${TABS[next][0]}`)?.focus());
+  };
+  const subtabIds = agentEntries.length > 1 ? [...agentEntries.map((e) => e.key), "all"] : agentEntries.map((e) => e.key);
+  const activeAgentKey = agentKey && subtabIds.includes(agentKey) ? agentKey : (subtabIds[0] ?? null);
+  const activeEntry = activeAgentKey && activeAgentKey !== "all" ? agentEntries.find((e) => e.key === activeAgentKey) ?? null : null;
+  const onSubtabKey = (e: React.KeyboardEvent) => {
+    if (subtabIds.length === 0) return;
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : e.key === "Home" ? "first" : e.key === "End" ? "last" : 0;
+    if (!step) return;
+    e.preventDefault();
+    const i = subtabIds.indexOf(activeAgentKey ?? subtabIds[0]);
+    const next = step === "first" ? 0 : step === "last" ? subtabIds.length - 1 : (i + step + subtabIds.length) % subtabIds.length;
+    const nextKey = subtabIds[next];
+    setAgentKey(nextKey);
+    window.requestAnimationFrame(() => document.getElementById(`agx-subtab-${nextKey}`)?.focus());
   };
   return (
     <div className="agx-settings">
@@ -381,18 +417,82 @@ export function AgentsSettings({ active }: { active: boolean }) {
         </>}
 
         {tab === "agents" && <>
-          <h4>Connect apps</h4>
-          <ConnectApps scan={clients} agents={overview.agents} settings={s} usageByAgent={usageByAgent} onScan={scan} onChanged={() => { void load(); void scan(); }} />
+          {agentEntries.length > 0 && (
+            <div role="tablist" aria-label="Each agent" className="agx-subtabs" onKeyDown={onSubtabKey}>
+              {agentEntries.map((entry) => (
+                <button
+                  key={entry.key}
+                  id={`agx-subtab-${entry.key}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeAgentKey === entry.key}
+                  aria-controls="agx-subtabpanel"
+                  tabIndex={activeAgentKey === entry.key ? 0 : -1}
+                  onClick={() => setAgentKey(entry.key)}
+                >
+                  <span className={`agx-subtab-dot ${entry.tone}`} aria-hidden="true" />
+                  <span>{entry.label}</span>
+                </button>
+              ))}
+              {agentEntries.length > 1 && (
+                <button
+                  id="agx-subtab-all"
+                  role="tab"
+                  type="button"
+                  aria-selected={activeAgentKey === "all"}
+                  aria-controls="agx-subtabpanel"
+                  tabIndex={activeAgentKey === "all" ? 0 : -1}
+                  onClick={() => setAgentKey("all")}
+                >
+                  <span>All ({agentEntries.length})</span>
+                </button>
+              )}
+            </div>
+          )}
 
-          <h4>Agents</h4>
-          <ul className="agx-cards">
-            {overview.agents.map((a) => <AgentCard key={a.id} agent={a} overview={overview} client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)} usage={usageByAgent[a.id]} onChanged={() => { void load(); void scan(); }} />)}
-          </ul>
-          {overview.agents.length === 0 && !adding && <p className="picker-muted">No agents yet.</p>}
-          {adding
-            ? <AgentForm initial={null} defaultMode={s.defaultMode} onSaved={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />
-            : !READ_ONLY && <div className="agx-actions"><button type="button" className="btn" onClick={() => setAdding(true)}>Add agent…</button></div>}
-          {!READ_ONLY && <SubagentImport defaultMode={s.defaultMode} onImported={() => void load()} />}
+          <div
+            role={agentEntries.length > 0 ? "tabpanel" : undefined}
+            id={agentEntries.length > 0 ? "agx-subtabpanel" : undefined}
+            aria-labelledby={activeAgentKey ? `agx-subtab-${activeAgentKey}` : undefined}
+            className="agx-subtabpanel"
+          >
+            <h4>Connect apps</h4>
+            <ConnectApps
+              scan={clients}
+              agents={overview.agents}
+              settings={s}
+              usageByAgent={usageByAgent}
+              selectedClientId={activeAgentKey === "all" || agentEntries.length === 0 ? undefined : (activeEntry?.client?.id ?? null)}
+              onScan={scan}
+              onChanged={() => { void load(); void scan(); }}
+            />
+
+            {(activeAgentKey === "all" || activeEntry?.agent || overview.agents.length === 0) && (
+              <>
+                <h4>{activeEntry?.agent ? activeEntry.agent.name : "Agents"}</h4>
+                <ul className="agx-cards">
+                  {(activeEntry?.agent ? [activeEntry.agent] : overview.agents).map((a) => (
+                    <AgentCard
+                      key={a.id}
+                      agent={a}
+                      overview={overview}
+                      client={clients?.clients.find((c) => c.agentId === a.id && c.connectedAt)}
+                      usage={usageByAgent[a.id]}
+                      onChanged={() => { void load(); void scan(); }}
+                    />
+                  ))}
+                </ul>
+                {overview.agents.length === 0 && !adding && <p className="picker-muted">No agents yet.</p>}
+              </>
+            )}
+          </div>
+
+          <div className="agx-subtab-footer">
+            {adding
+              ? <AgentForm initial={null} defaultMode={s.defaultMode} onSaved={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />
+              : !READ_ONLY && <div className="agx-actions"><button type="button" className="btn" onClick={() => setAdding(true)}>Add agent…</button></div>}
+            {!READ_ONLY && <SubagentImport defaultMode={s.defaultMode} onImported={() => void load()} />}
+          </div>
         </>}
 
         {tab === "usage" && <>

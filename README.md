@@ -1,104 +1,158 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="brand/suivelle/png/suivelle-dark-128.png">
-    <img src="brand/suivelle/png/suivelle-light-128.png" width="80" height="80" alt="Suivelle">
-  </picture>
-</p>
+<div align="center">
 
-<h1 align="center">Suivelle</h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/suivelle/png/suivelle-dark-128.png">
+  <img src="brand/suivelle/png/suivelle-light-128.png" width="96" height="96" alt="Suivelle logo" />
+</picture>
 
-<p align="center"><strong>Make space for the work that matters.</strong></p>
-<p align="center">A calm desktop workspace for notes, projects, and the plans between them.<br>Write freely. See what comes next. Keep your work close.</p>
-<p align="center"><sub>LOCAL FIRST &nbsp; · &nbsp; OFFLINE READY &nbsp; · &nbsp; NO ACCOUNT REQUIRED</sub></p>
+# Suivelle
 
-<p align="center">
-  <a href="https://github.com/giran03/Suivelle/releases/latest"><strong>Download for Windows</strong></a>
-  &nbsp; · &nbsp;
-  <a href="https://suivelle.cafetako.com/demo/">Try the demo</a>
-  &nbsp; · &nbsp;
-  <a href="https://suivelle.cafetako.com/">Read the guide</a>
-  &nbsp; · &nbsp;
-  <a href="docs/changelog/0.1.5.md">What's new in 0.1.5</a>
-</p>
+**Make space for the work that matters.**<br />
+A calm, local-first desktop workspace for notes, projects, and the plans between them.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme-workspace-dark-v014.png">
-    <img src="docs/images/readme-workspace-light-v014.png" width="100%" alt="Suivelle workspace with a studio home page, weekly checklist, rich notes, and an organized page sidebar">
-  </picture>
-</p>
+<br />
 
-<p align="center"><sub>Screenshots show Suivelle's real interface with a fictional game studio, Hollow Orbit.</sub></p>
+[![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white)](#install)
+[![Tauri + Rust + React](https://img.shields.io/badge/Tauri%20%2B%20Rust%20%2B%20React-3B5BA9?style=for-the-badge)](#build-from-source)
+[![Local-First · Offline](https://img.shields.io/badge/Local--First-Offline%20Ready-1E293B?style=for-the-badge)](#your-data)
+[![MIT License](https://img.shields.io/badge/License-MIT-2EA043?style=for-the-badge)](LICENSE)
 
-## What is Suivelle?
+<br />
 
-Suivelle is a Windows desktop app for notes, wikis, tasks and projects. It is built from a few simple parts: **pages** made of blocks, and **databases** whose records are pages too. Project trackers, calendars, dashboards and forms are all made from those same parts, so everything links to everything else.
+[**Download**](https://github.com/giran03/Suivelle/releases/latest) &nbsp;·&nbsp; [**Live Demo**](https://suivelle.cafetako.com/demo/) &nbsp;·&nbsp; [**User Guide**](https://suivelle.cafetako.com/) &nbsp;·&nbsp; [**Shortcuts**](#%EF%B8%8F-keyboard-shortcuts) &nbsp;·&nbsp; [**Changelog**](docs/changelog/)
 
-Your workspace is stored on your computer. Suivelle works offline, needs no account, and can export everything you put into it.
+<br />
 
-## What you can do
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/workspace-dark.png">
+  <img src="docs/images/workspace-light.png" width="880" alt="Suivelle workspace with a studio home page, weekly checklist, rich notes, and an organized page sidebar" />
+</picture>
 
-**Write.** A block editor with headings, checklists, callouts, tables, code, equations, images, audio, video, PDFs and web embeds. Markdown shortcuts work as you type, and `/` opens every block.
+<sub>Screenshots and clips show Suivelle's real interface with a fictional game studio, Hollow Orbit.</sub>
 
-**Connect.** Link pages with `@` or `[[wikilinks]]`, hover a link to preview it, and see every page that links back. Write `#tags`, find unlinked mentions, and explore it all on the **Node Map**, a 3D or 2D map of every page in every workspace.
+</div>
 
-**Organize.** Keep tasks and projects in databases with relations, rollups and formulas. Show the same records as a table, board, list, gallery, calendar, timeline, feed, chart, form or freeform **canvas**. Start from the Project Manager, Task Tracker or Software Project templates.
+<br />
 
-![A fictional game studio's Sprint Board with tasks grouped by status](docs/images/readme-project-board-v014.png)
+## ✨ Why Suivelle?
 
-**Plan.** Put a calendar on any page, make events with their own notes, repeat them, and drag unscheduled tasks into your day. A Master Calendar brings dates from several projects into one view.
-
-![October studio calendar with focus sessions, reviews, and a multi-day playtest](docs/images/readme-calendar-v014.png)
-
-**See progress.** Build dashboards of charts and summaries, collect entries with forms, and let local automations handle repeating steps.
-
-**Work side by side.** Open pages in tabs or next to each other, jump anywhere with the command palette (<kbd>Ctrl</kbd> <kbd>K</kbd>), and open today's note with <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd>.
-
-![A development journal entry and Tether physics open beside each other in Suivelle's dark theme](docs/images/readme-side-peek-v014.png)
-
-**Work with AI agents, if you want to.** Suivelle can be a shared knowledge base for Claude Code, Codex and other MCP apps on your computer. It never runs a model or starts an agent. Agents get their own token and permissions, their changes wait in a review inbox by default, and anything they change can be reverted. This is off until you turn it on in **Settings › Agents**.
-
-**Make it yours.** Light, dark or system appearance; colors, fonts, page width, spacing and motion; rebindable keyboard and mouse shortcuts; and separate workspaces with their own names and icons.
-
-## Guide
-
-The full user guide lives at **[suivelle.cafetako.com](https://suivelle.cafetako.com/)**.
-
-| Section | Pages |
+| | |
 | :--- | :--- |
-| Start here | [Getting started](https://suivelle.cafetako.com/wiki/getting-started.html) |
-| Write | [Pages and blocks](https://suivelle.cafetako.com/wiki/pages-and-blocks.html) · [Links, tags and backlinks](https://suivelle.cafetako.com/wiki/links-and-tags.html) |
-| Organize | [Databases](https://suivelle.cafetako.com/wiki/databases.html) · [Database views](https://suivelle.cafetako.com/wiki/views.html) · [Canvases](https://suivelle.cafetako.com/wiki/canvases.html) · [Calendar and time](https://suivelle.cafetako.com/wiki/calendar.html) · [Dashboards and automation](https://suivelle.cafetako.com/wiki/dashboards-and-automation.html) |
-| Explore | [Node Map](https://suivelle.cafetako.com/wiki/node-map.html) · [Search and navigation](https://suivelle.cafetako.com/wiki/navigation.html) |
-| Extend | [Local AI agents](https://suivelle.cafetako.com/wiki/agents.html) |
-| Make it yours | [Workspaces and appearance](https://suivelle.cafetako.com/wiki/workspaces-and-appearance.html) · [Keyboard shortcuts](https://suivelle.cafetako.com/wiki/shortcuts.html) |
-| Keep it safe | [Data, backups and import](https://suivelle.cafetako.com/wiki/data-and-safety.html) |
-| Releases | [What's new](https://suivelle.cafetako.com/wiki/whats-new.html) · [Full changelog](docs/changelog/) |
+| 📝 **Calm block editor** | Write with headings, checklists, callouts, tables, code, KaTeX equations, and media embeds — `/` opens every block. |
+| 🗂️ **Connected databases** | Spreadsheet-style editing, Excel-style formulas, rollups, Pivot tables, and 11 views over the same records. |
+| 🕸️ **3D & 2D Node Map** | Link pages with `@` or `[[wikilinks]]`, see backlinks, and explore every workspace on an interactive map. |
+| 🔒 **Local-first & yours** | Stored in SQLite and a local attachments folder on your computer. Offline-ready, no account required, with verified backups. |
 
-## Install
+<br />
 
-1. Download the `_x64-setup.exe` installer from the [latest release](https://github.com/giran03/Suivelle/releases/latest).
-2. Run it. Suivelle installs for your user account and opens on a short *Getting started* checklist.
-3. Installed copies check for updates, download them in the background, and wait for you to choose **Install and restart**. A verified backup of your data is made before every update.
+## 🚀 Feature Highlights
 
-Suivelle currently ships for Windows x64.
+### ⌨️ Fuzzy Command Palette & Quick Navigation
+Press `Ctrl+P` to search pages, records, and commands fuzzily — what you use most rises to the top. Open today's note with `Ctrl+Alt+D`, hover any `@` or `[[wikilink]]` to preview it, and trace every backlink.
 
-## Your data
+<p align="center">
+  <img src="docs/images/readme-palette.gif" width="760" alt="Fuzzy Command Palette jumping to Sprint Board" />
+</p>
 
-- **Local:** your workspaces live in a SQLite database and an attachments folder on your computer. Editing works offline; embeds and update checks need a connection.
-- **History and backups:** page history, automatic daily backups, and an optional second copy on another drive.
-- **Import and export:** Markdown, text, HTML, CSV, folders of notes, supported Notion exports and Suivelle archives in; Markdown, HTML, PDF, CSV and whole-workspace archives out.
-- **Recovery:** a safety copy is saved before database upgrades. If a check or upgrade fails, Suivelle opens the workspace read-only so you can export or restore it.
+### 🗂️ Spreadsheet-Style Databases, Formulas & 11 Views
+View the same records as a **Board**, **Table**, **Calendar**, **Timeline**, **Pivot**, **List**, **Gallery**, **Feed**, **Chart**, **Form**, or freeform **Canvas**. Select cell ranges with `Shift+Arrows`, copy/paste TSV, fill down/right (`Ctrl+D` / `Ctrl+R`), filter with `Ctrl+F` view search, add column totals, conditional formatting, and Excel-style formulas.
 
-Keep independent backups of anything important. Local storage is only as safe as the computer it lives on.
+<p align="center">
+  <img src="docs/images/readme-databases.gif" width="760" alt="Database views switching from Board to Table with Ctrl+F search and Timeline" />
+</p>
 
-## Build from source
+### 🪟 Split Panes, Tabs & Side-by-Side Work
+Dock pages, tabs, or pane headers onto any edge to build side-by-side or tiled layouts. Each pane sits in a raised card with a focused outline, tabs highlight the active page, and middle-button drag scrolls pages and boards smoothly.
 
-You need Windows, [Node.js](https://nodejs.org/) 24, the stable [Rust](https://rustup.rs/) toolchain, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) (WebView2 and the MSVC build tools).
+<p align="center">
+  <img src="docs/images/readme-split-panes.gif" width="760" alt="Opening a linked page beside the current note in a split pane" />
+</p>
 
-```bash
-npm ci
-npm run tauri dev
+### 🕸️ 3D & 2D Node Map
+Explore every page, database, and connection across all your workspaces in 3D or 2D. Search in place, dive into neighbourhoods, switch layouts, and link or nest pages directly on the map.
+
+<p align="center">
+  <img src="docs/images/readme-node-map.gif" width="760" alt="3D Node Map showing connected pages across the workspace" />
+</p>
+
+### 🎨 17 Curated Themes, Material Icons & Custom Chrome
+Choose from 17 grouped themes — led by **Octopolis Midnight** (dark) and **Paper** (light) — plus custom accent colours, Material Symbols (Outlined, Rounded, or Sharp with adjustable weight and fill), Windows or macOS-style titlebar controls, and a native Win32 tray menu.
+
+<p align="center">
+  <img src="docs/images/readme-themes.gif" width="760" alt="Appearance settings and theme customisation" />
+</p>
+
+<br />
+
+## 🧩 Everything Else Built In
+
+| | |
+| :--- | :--- |
+| 📅 **Calendar & Time Blocking** | Put a calendar on any page, create repeating events, bring dates together in a **Master Calendar**, and drag unscheduled tasks onto time slots. |
+| 🎨 **Freeform Canvases** | Workspace canvases and database Canvas views with live embedded pages, notes, images, minimap navigation, and labelled connectors. |
+| 🤖 **Local AI Agents (Optional)** | Share a local MCP knowledge base with Claude Code, Codex, Cursor, or VS Code. Proposals wait in a review inbox, token usage is tracked, and every change is revertible. Off until enabled in **Settings › Agents**. |
+| 🚀 **10 Starter Templates** | Reading List, Contacts & Deals, Content Calendar, Expense Tracker, Job Search, Inventory, Recipe Book, Meeting Notes, Habit Tracker, and Goals & OKRs — each with overview pages and live views. |
+| 💾 **Data Safety & Exports** | Page history, automatic daily backups, an optional second-drive mirror, CSV/Markdown/HTML/PDF exports, and Notion or folder imports. |
+
+<br />
+
+## ⌨️ Keyboard Shortcuts
+
+<details open>
+<summary><b>Navigation & panes</b></summary>
+
+| Action | Keys |
+| :--- | :--- |
+| Command palette (fuzzy search) | `Ctrl+P` |
+| Today's daily note | `Ctrl+Alt+D` |
+| Toggle sidebar | `Ctrl+B` |
+| Search inside current database view | `Ctrl+F` |
+
+</details>
+
+<details open>
+<summary><b>Writing & linking</b></summary>
+
+| Action | Keys |
+| :--- | :--- |
+| Insert any block | `/` |
+| Link a page or mention | `[[` or `@` |
+| Undo / redo | `Ctrl+Z` / `Ctrl+Y` |
+
+</details>
+
+<details>
+<summary><b>Tables & spreadsheets</b></summary>
+
+| Action | Keys |
+| :--- | :--- |
+| Select cell range / all loaded cells | `Shift+Arrows` / `Ctrl+A` |
+| Copy / paste range (TSV) | `Ctrl+C` / `Ctrl+V` |
+| Fill down / fill right | `Ctrl+D` / `Ctrl+R` |
+| Clear selected cells | `Delete` |
+
+</details>
+
+All shortcuts are rebindable in **Settings › Shortcuts and input**. See the full [Keyboard shortcuts guide](https://suivelle.cafetako.com/wiki/shortcuts.html).
+
+<br />
+
+## 📦 Install
+
+1. Download the latest `Suivelle_x.y.z_x64-setup.exe` from [**Releases**](https://github.com/giran03/Suivelle/releases/latest).
+2. Run the installer. Suivelle installs for your user account and opens on a short *Getting started* checklist.
+3. Installed copies check for updates in the background and make a verified backup before every upgrade.
+
+> [!NOTE]
+> Suivelle currently ships for **Windows 10 / 11** (x64).
+
+### Build from Source
+
+Prerequisites: [Node.js](https://nodejs.org/) 24, the stable [Rust](https://rustup.rs/) toolchain, and the [Tauri v2 prerequisites](https://tauri.app/start/prerequisites/) for Windows (WebView2 and MSVC build tools).
+
+```powershell
+npm ci             # install dependencies
+npm run tauri dev  # run the desktop app with hot reload
 ```
 
 | Command | Does |
@@ -108,25 +162,26 @@ npm run tauri dev
 | `npm test` | Run the frontend tests |
 | `npm run lint` | Lint with Biome |
 | `cargo test --manifest-path src-tauri/Cargo.toml --lib` | Run the Rust tests |
-| `npm run showcase:build` | Build the website, guide and read-only demo |
+| `npm run showcase:build` | Build the website, guide, and read-only demo |
 
-More documentation:
+<br />
+
+## 📖 Guide & Documentation
+
+The full 15-page user guide lives at **[suivelle.cafetako.com](https://suivelle.cafetako.com/)**.
 
 - [`docs/`](docs/): feature notes ([agents](docs/agents.md), [calendar](docs/calendar.md), [shortcuts](docs/shortcuts.md), [Smart Paste](docs/smart-paste-and-actions.md), [Node Map](docs/node-map.md))
-- [`showcase/README.md`](showcase/README.md): the website, guide and demo, and how to add a guide page
+- [`showcase/README.md`](showcase/README.md): the website, guide, read-only demo, and screenshot/GIF scripts
 - [`docs/releasing.md`](docs/releasing.md): publishing signed releases
 
-## About this project
+## About & License
 
-Suivelle is a personal app built for everyday use and shared with others. Development, updates and support happen as time allows.
+Suivelle is a personal project built for everyday use and shared with others.
 
 - Bugs and feature requests: [issue tracker](https://github.com/giran03/Suivelle/issues)
 - Suspected vulnerabilities: [security policy](SECURITY.md)
-
-## License
-
-Suivelle is provided "as is," without warranties, under the [MIT License](LICENSE). Third-party dependencies and assets remain subject to their own licenses.
+- License: [MIT License](LICENSE)
 
 ---
 
-<p align="center"><strong>Your ideas. Your rhythm. Your workspace.</strong><br><sub>Suivelle</sub></p>
+<p align="center"><strong>Your ideas. Your rhythm. Your workspace.</strong><br /><sub>Suivelle</sub></p>

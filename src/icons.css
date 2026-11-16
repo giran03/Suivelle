@@ -20,7 +20,7 @@
   font-display: block;
 }
 
-:root { --font-icons: "Material Symbols Outlined"; --icon-weight: 300; --icon-fill: 0; }
+:root { --font-icons: "Material Symbols Rounded"; --icon-weight: 200; --icon-fill: 0; }
 
 .app-icon {
   display: inline-flex;

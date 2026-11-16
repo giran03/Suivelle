@@ -850,16 +850,19 @@ fn multi_select_cannot_be_sorted_and_view_updates_are_normalized() {
                     property_id: tags.id.clone(),
                     width: Some(5000.0),
                     hidden: true,
+                    aggregate: None,
                 },
                 ViewColumn {
                     property_id: title.id.clone(),
                     width: Some(10.0),
                     hidden: true,
+                    aggregate: None,
                 },
                 ViewColumn {
                     property_id: "ghost".into(),
                     width: None,
                     hidden: false,
+                    aggregate: None,
                 },
             ],
             sorts: vec![
@@ -2474,6 +2477,234 @@ fn formula_syntax_errors_carry_positions() {
         formula::rename_refs("prop(\"A b\") + prop(\"a B\") + prop(\"C\")", "a b", "Z\"q"),
         "prop(\"Z\\\"q\") + prop(\"Z\\\"q\") + prop(\"C\")"
     );
+}
+
+const ERR: &str = "#ERROR";
+const TYPE: &str = "#TYPE";
+
+fn ev_err(src: &str) -> Value {
+    ev(src)["error"].clone()
+}
+
+#[test]
+fn formula_logic_functions() {
+    assert_eq!(ev("and(true, 1 < 2, true)"), json!(true));
+    assert_eq!(ev("and(true, false)"), json!(false));
+    assert_eq!(ev("or(false, false, true)"), json!(true));
+    assert_eq!(ev("or(false, false)"), json!(false));
+    assert_eq!(ev("not(false)"), json!(true));
+    assert_eq!(ev("not (true) or true"), json!(true));
+    // Short-circuit: the broken argument is never reached.
+    assert_eq!(ev("and(false, 1 / 0 > 1)"), json!(false));
+    assert_eq!(ev("or(true, 1 / 0 > 1)"), json!(true));
+    assert_eq!(ev("switch(2, 1, \"a\", 2, \"b\", \"z\")"), json!("b"));
+    assert_eq!(ev("switch(9, 1, \"a\", 2, \"b\", \"z\")"), json!("z"));
+    assert_eq!(ev("switch(9, 1, \"a\")"), Value::Null);
+    assert_eq!(ev("switch(\"X\", \"x\", 1, 2)"), json!(1.0));
+    assert_eq!(ev("iferror(1 / 0, \"fallback\")"), json!("fallback"));
+    assert_eq!(ev("iferror(5, \"fallback\")"), json!(5.0));
+    assert_eq!(ev("coalesce(prop(\"x\"), \"\", 7)"), json!(7.0));
+    assert_eq!(ev("coalesce(prop(\"x\"), prop(\"y\"))"), Value::Null);
+}
+
+#[test]
+fn formula_math_functions() {
+    assert_eq!(ev("mod(7, 3)"), json!(1.0));
+    assert_eq!(ev("mod(-1, 3)"), json!(2.0));
+    assert_eq!(ev("pow(2, 10)"), json!(1024.0));
+    assert_eq!(ev("sqrt(9)"), json!(3.0));
+    assert_eq!(ev("ln(1)"), json!(0.0));
+    assert_eq!(ev("log10(100)"), json!(2.0));
+    assert_eq!(ev("sign(-5) + sign(0) + sign(9)"), json!(0.0));
+    assert_eq!(ev("sum(1, 2, 3)"), json!(6.0));
+    assert_eq!(ev("sum(split(\"1,2,3\", \",\"), 4)"), json!(10.0));
+    assert_eq!(ev("sum(split(\"1,x,3\", \",\"))"), json!(4.0));
+    assert_eq!(ev("average(1, 2, 3, 4)"), json!(2.5));
+    assert_eq!(ev("median(5, 1, 3)"), json!(3.0));
+    assert_eq!(ev("median(1, 2, 3, 4)"), json!(2.5));
+    assert_eq!(ev("average(prop(\"none\"))"), Value::Null);
+    assert_eq!(ev("sum(prop(\"none\"))"), json!(0.0));
+    assert_eq!(ev_err("sqrt(-1)"), json!(ERR));
+    assert_eq!(ev_err("ln(0)"), json!(ERR));
+    assert_eq!(ev_err("log10(-3)"), json!(ERR));
+    assert_eq!(ev_err("mod(1, 0)"), json!(ERR));
+    assert_eq!(ev_err("pow(0, -1)"), json!(ERR));
+    assert_eq!(ev_err("sum(\"x\")"), json!(TYPE));
+}
+
+#[test]
+fn formula_text_functions() {
+    assert_eq!(ev("lower(\"AbC\") + upper(\"abc\")"), json!("abcABC"));
+    assert_eq!(ev("trim(\"  x y \")"), json!("x y"));
+    assert_eq!(ev("replace(\"a-a\", \"a\", \"b\")"), json!("b-a"));
+    assert_eq!(ev("replaceAll(\"a-a\", \"a\", \"b\")"), json!("b-b"));
+    assert_eq!(ev("replaceAll(\"abc\", \"\", \"x\")"), json!("abc"));
+    assert_eq!(ev("left(\"héllo\", 2)"), json!("hé"));
+    assert_eq!(ev("right(\"hello\", 3)"), json!("llo"));
+    assert_eq!(ev("right(\"hi\", 9)"), json!("hi"));
+    assert_eq!(ev("mid(\"hello\", 2, 3)"), json!("ell"));
+    assert_eq!(ev("split(\"b,a,b\", \",\")"), json!(["b", "a", "b"]));
+    assert_eq!(ev("split(\"ab\", \"\")"), json!(["a", "b"]));
+    assert_eq!(ev("join(split(\"a,b\", \",\"), \"-\")"), json!("a-b"));
+    assert_eq!(ev("join(split(\"a,b\", \",\"))"), json!("a, b"));
+    assert_eq!(ev("startsWith(\"Hello\", \"he\")"), json!(true));
+    assert_eq!(ev("endsWith(\"Hello\", \"LO\")"), json!(true));
+    assert_eq!(ev("endsWith(\"Hello\", \"he\")"), json!(false));
+    assert_eq!(ev("padStart(7, 3, \"0\")"), json!("007"));
+    assert_eq!(ev("padStart(\"ab\", 5, \"xy\")"), json!("xyxab"));
+    assert_eq!(ev("padStart(\"abc\", 2)"), json!("abc"));
+    assert_eq!(ev("padStart(\"a\", 3)"), json!("  a"));
+    assert_eq!(ev_err("left(\"a\", -1)"), json!(ERR));
+    assert_eq!(ev_err("mid(\"a\", 0, 1)"), json!(ERR));
+    assert_eq!(ev_err("padStart(\"a\", 100000)"), json!(ERR));
+    assert_eq!(ev_err("upper(5)"), json!(TYPE));
+}
+
+#[test]
+fn formula_date_functions() {
+    // The fixed clock is Sunday 15 March 2026, 09:30.
+    assert_eq!(
+        ev("year(today()) * 10000 + month(today()) * 100 + day(today())"),
+        json!(20260315.0)
+    );
+    assert_eq!(ev("weekday(today())"), json!(7.0));
+    assert_eq!(ev("weekday(dateSubtract(today(), 6, \"days\"))"), json!(1.0));
+    assert_eq!(ev("week(today())"), json!(11.0));
+    let between = |a: &str, b: &str, unit: &str| ev(&format!("dateBetween({a}, {b}, \"{unit}\")"));
+    let in3 = "dateAdd(today(), 3, \"days\")";
+    let back45 = "dateSubtract(today(), 45, \"days\")";
+    let back90m = "dateSubtract(now(), 90, \"minutes\")";
+    assert_eq!(between(in3, "today()", "days"), json!(3.0));
+    assert_eq!(between("today()", in3, "day"), json!(-3.0));
+    assert_eq!(between("today()", back45, "weeks"), json!(6.0));
+    assert_eq!(between("today()", back45, "months"), json!(1.0));
+    assert_eq!(
+        between("dateAdd(today(), 25, \"months\")", "today()", "years"),
+        json!(2.0)
+    );
+    assert_eq!(between("now()", back90m, "hours"), json!(1.0));
+    assert_eq!(between("now()", back90m, "minutes"), json!(90.0));
+    let edge = |f: &str, unit: &str| ev(&format!("{f}(today(), \"{unit}\")"));
+    assert_eq!(edge("startOf", "week"), json!({ "start": "2026-03-09" }));
+    assert_eq!(edge("endOf", "week"), json!({ "start": "2026-03-15" }));
+    assert_eq!(edge("startOf", "month"), json!({ "start": "2026-03-01" }));
+    assert_eq!(edge("endOf", "months"), json!({ "start": "2026-03-31" }));
+    assert_eq!(edge("startOf", "year"), json!({ "start": "2026-01-01" }));
+    assert_eq!(edge("endOf", "year"), json!({ "start": "2026-12-31" }));
+    assert_eq!(
+        ev("startOf(now(), \"day\")"),
+        json!({ "start": "2026-03-15T00:00" })
+    );
+    assert_eq!(
+        ev("endOf(now(), \"day\")"),
+        json!({ "start": "2026-03-15T23:59" })
+    );
+    assert_eq!(ev("year(prop(\"none\"))"), Value::Null);
+    assert_eq!(ev_err("year(\"x\")"), json!(TYPE));
+}
+
+#[test]
+fn formula_list_functions() {
+    assert_eq!(ev("first(split(\"x,y,z\", \",\"))"), json!("x"));
+    assert_eq!(ev("last(split(\"x,y,z\", \",\"))"), json!("z"));
+    assert_eq!(ev("at(split(\"x,y,z\", \",\"), 1)"), json!("y"));
+    assert_eq!(ev("at(split(\"x,y,z\", \",\"), -2)"), json!("y"));
+    assert_eq!(ev("at(split(\"x,y,z\", \",\"), 5)"), Value::Null);
+    assert_eq!(ev("first(split(\"\", \",\"))"), Value::Null);
+    assert_eq!(ev("unique(split(\"b,a,B,a\", \",\"))"), json!(["b", "a"]));
+    assert_eq!(ev("sort(split(\"b,A,c\", \",\"))"), json!(["A", "b", "c"]));
+    assert_eq!(ev("length(unique(split(\"a,a\", \",\")))"), json!(1.0));
+    assert_eq!(ev("sort(prop(\"none\"))"), json!([]));
+}
+
+#[test]
+fn formula_new_functions_are_type_checked() {
+    use super::formula::{self, Ty};
+    use std::collections::HashMap;
+    let props: HashMap<String, Ty> = [
+        ("price", Ty::Num),
+        ("tags", Ty::List),
+        ("due", Ty::Date),
+        ("name", Ty::Text),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v))
+    .collect();
+    let ty = |src: &str| formula::check(src, &props, true);
+    for (src, want) in [
+        ("and(prop(\"price\") > 1, true)", Ty::Bool),
+        ("switch(prop(\"price\"), 1, \"a\", \"b\")", Ty::Text),
+        ("iferror(prop(\"price\"), 0)", Ty::Num),
+        ("coalesce(prop(\"price\"), 0)", Ty::Num),
+        ("sum(prop(\"tags\"), prop(\"price\"))", Ty::Num),
+        ("upper(prop(\"name\"))", Ty::Text),
+        ("split(prop(\"name\"), \",\")", Ty::List),
+        ("year(prop(\"due\"))", Ty::Num),
+        ("startOf(prop(\"due\"), \"month\")", Ty::Date),
+        ("sort(prop(\"tags\"))", Ty::List),
+        ("first(prop(\"tags\"))", Ty::Any),
+        ("padStart(prop(\"price\"), 3, \"0\")", Ty::Text),
+    ] {
+        assert_eq!(ty(src).unwrap(), want, "{src}");
+    }
+    for src in [
+        "and()",
+        "and(1, 2)",
+        "not(1)",
+        "switch(1, 2)",
+        "switch(prop(\"price\"), \"a\", 1)",
+        "sqrt(\"a\")",
+        "mod(1)",
+        "sum(prop(\"name\"))",
+        "upper(prop(\"price\"))",
+        "left(prop(\"name\"))",
+        "join(prop(\"name\"))",
+        "year(5)",
+        "weekday(prop(\"name\"))",
+        "dateBetween(today(), today(), \"fortnights\")",
+        "dateBetween(today(), 5, \"days\")",
+        "startOf(today(), \"decade\")",
+        "at(prop(\"tags\"), \"x\")",
+        "first(prop(\"name\"))",
+        "unique()",
+        "padStart()",
+    ] {
+        let e = ty(src).expect_err(src);
+        assert!(!e.message.is_empty());
+    }
+    let e = ty("1 + sqrt(\"a\")").unwrap_err();
+    assert_eq!(e.position, 4, "errors point at the call");
+}
+
+#[test]
+fn property_names_that_match_function_names_still_resolve() {
+    use super::formula::{self, Env, Ty, Val};
+    use std::collections::HashMap;
+    let names = ["mod", "sum", "and", "not", "year", "left", "first", "sort"];
+    let props: HashMap<String, Ty> = names.iter().map(|n| (n.to_string(), Ty::Num)).collect();
+    let src = "prop(\"Mod\") * prop(\"SUM\") + prop(\"and\") + prop(\"Year\") + mod(7, 3)";
+    assert_eq!(formula::check(src, &props, true).unwrap(), Ty::Num);
+    let expr = formula::parse(src).unwrap().unwrap();
+    let now = chrono::NaiveDate::from_ymd_opt(2026, 3, 15)
+        .unwrap()
+        .and_hms_opt(9, 30, 0)
+        .unwrap();
+    let get = |n: &str| {
+        if names.contains(&n) {
+            Val::Num(2.0)
+        } else {
+            Val::Empty
+        }
+    };
+    assert_eq!(
+        formula::eval(&expr, &Env { now, get: &get }),
+        Val::Num(2.0 * 2.0 + 2.0 + 2.0 + 1.0)
+    );
+    // A bare word is still not a property reference.
+    assert!(formula::parse("sum + 1").is_err());
+    // Formulas written before these functions existed parse and evaluate as before.
+    assert_eq!(ev("1 > 2 or not true and true"), json!(false));
+    assert_eq!(ev("round(1.5) + length(\"sum\")"), json!(5.0));
 }
 
 fn formula_prop(
@@ -4139,6 +4370,48 @@ fn bulk_set_changes_every_record_or_none() {
     assert!(bulk_set_value(&mut conn, &qty.id, &many, &json!(1)).is_err());
 }
 
+#[test]
+fn set_cells_writes_everything_in_one_transaction() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let qty = add(&mut conn, &db, "Qty", "number", None);
+    let note = add(&mut conn, &db, "Note", "text", None);
+    let a = rec(&mut conn, &db, "A", json!({}));
+    let b = rec(&mut conn, &db, "B", json!({}));
+    let cell = |r: &RecordRow, p: &Property, v: Value| SetValue {
+        record_id: r.id.clone(),
+        property_id: p.id.clone(),
+        value: v,
+    };
+
+    let rows = set_cells(
+        &mut conn,
+        &[
+            cell(&a, &qty, json!(1)),
+            cell(&a, &note, json!("hi")),
+            cell(&b, &qty, json!(2)),
+        ],
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 2, "each record is returned once");
+    assert_eq!(rows[0].id, a.id);
+    assert_eq!(rows[0].values.get(&note.id), Some(&json!("hi")));
+    assert_eq!(rows[1].values.get(&qty.id), Some(&json!(2.0)));
+
+    // One refused cell leaves every other cell untouched.
+    let bad = set_cells(
+        &mut conn,
+        &[cell(&a, &qty, json!(50)), cell(&b, &qty, json!("not a number"))],
+    );
+    assert!(bad.is_err());
+    let after = load_rows(&conn, std::slice::from_ref(&a.id)).unwrap();
+    assert_eq!(after[0].values.get(&qty.id), Some(&json!(1.0)));
+
+    assert!(set_cells(&mut conn, &[]).unwrap().is_empty());
+    let many: Vec<SetValue> = (0..5001).map(|_| cell(&a, &qty, json!(1))).collect();
+    assert!(set_cells(&mut conn, &many).is_err());
+}
+
 // ---------------------------------------------------------------------------------------------
 // canvas views
 // ---------------------------------------------------------------------------------------------
@@ -4446,4 +4719,435 @@ fn boards_reject_bad_cards_atomically() {
         }]
     )
     .is_err());
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// totals row, number formats and formatting rules (milestone 2)
+// ---------------------------------------------------------------------------------------------
+
+fn totals(
+    conn: &Connection,
+    db: &DatabaseDetail,
+    extra: Option<FilterNode>,
+    by_group: bool,
+) -> Aggregates {
+    aggregates::compute(
+        conn,
+        &AggregatesQuery {
+            database_id: db.database.id.clone(),
+            view_id: Some(db.views[0].id.clone()),
+            extra_filter: extra,
+            by_group,
+        },
+    )
+    .unwrap()
+}
+
+fn col(p: &Property, aggregate: &str) -> ViewColumn {
+    ViewColumn {
+        property_id: p.id.clone(),
+        width: None,
+        hidden: false,
+        aggregate: Some(aggregate.into()),
+    }
+}
+
+fn num(v: &AggregateValue) -> f64 {
+    v.value.as_f64().unwrap()
+}
+
+#[test]
+fn totals_cover_the_whole_filtered_set() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let pts = add(&mut conn, &db, "Points", "number", None);
+    let done = add(&mut conn, &db, "Done", "checkbox", None);
+    let due = add(&mut conn, &db, "Due", "date", None);
+    let notes = add(&mut conn, &db, "Notes", "text", None);
+    let pri = select(&mut conn, &db, "Priority", "select", &["Low", "High"]);
+    let (low, high) = (opt(&pri, "Low"), opt(&pri, "High"));
+    let r = |conn: &mut Connection, t: &str, v: Value| rec(conn, &db, t, v);
+    r(&mut conn, "A", json!({ pts.id.clone(): 1, done.id.clone(): true, due.id.clone(): { "start": "2026-01-01" }, notes.id.clone(): "x", pri.id.clone(): low }));
+    r(&mut conn, "B", json!({ pts.id.clone(): 2, due.id.clone(): { "start": "2026-01-11" }, pri.id.clone(): low }));
+    r(&mut conn, "C", json!({ pts.id.clone(): 9, done.id.clone(): true, pri.id.clone(): high }));
+    r(&mut conn, "D", json!({ notes.id.clone(): "y", pri.id.clone(): high }));
+    // One column carries one summary, so each check saves its own view.
+    let check = |conn: &mut Connection, c: ViewColumn, extra: Option<FilterNode>| {
+        let mut d = db.clone();
+        d.views[0] = view(
+            conn,
+            &db,
+            ViewConfig {
+                columns: vec![c],
+                ..Default::default()
+            },
+        );
+        totals(conn, &d, extra, false)
+    };
+    let t = check(&mut conn, col(&pts, "sum"), None);
+    assert_eq!(t.count, 4);
+    assert_eq!(num(&t.values[0]), 12.0);
+    assert_eq!(num(&check(&mut conn, col(&pts, "average"), None).values[0]), 4.0);
+    assert_eq!(num(&check(&mut conn, col(&notes, "filled"), None).values[0]), 2.0);
+    assert_eq!(num(&check(&mut conn, col(&notes, "empty"), None).values[0]), 2.0);
+    assert_eq!(num(&check(&mut conn, col(&done, "percent_checked"), None).values[0]), 0.5);
+    assert_eq!(
+        check(&mut conn, col(&due, "earliest"), None).values[0].value,
+        json!("2026-01-01")
+    );
+    assert_eq!(num(&check(&mut conn, col(&due, "date_range"), None).values[0]), 10.0);
+    for (agg, want) in [
+        ("median", 2.0),
+        ("min", 1.0),
+        ("max", 9.0),
+        ("range", 8.0),
+        ("percent_filled", 0.75),
+    ] {
+        assert_eq!(num(&check(&mut conn, col(&pts, agg), None).values[0]), want, "{agg}");
+    }
+    // The totals follow the extra filter: only points above 1 (B and C).
+    let t = check(&mut conn, col(&pts, "sum"), Some(filter(&pts, ">", json!(1))));
+    assert_eq!((t.count, num(&t.values[0])), (2, 11.0));
+    let t = check(&mut conn, col(&pts, "median"), Some(filter(&pts, ">", json!(1))));
+    assert_eq!(num(&t.values[0]), 5.5);
+    // Nothing matches: the count is zero, averages and medians are null.
+    let none = Some(filter(&pts, ">", json!(100)));
+    let t = check(&mut conn, col(&pts, "average"), none.clone());
+    assert_eq!((t.count, t.values[0].value.clone()), (0, Value::Null));
+    assert_eq!(check(&mut conn, col(&pts, "median"), none).values[0].value, Value::Null);
+}
+
+#[test]
+fn totals_by_group_and_stale_summaries() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let pts = add(&mut conn, &db, "Points", "number", None);
+    let pri = select(&mut conn, &db, "Priority", "select", &["Low", "High"]);
+    let (low, high) = (opt(&pri, "Low"), opt(&pri, "High"));
+    rec(&mut conn, &db, "A", json!({ pts.id.clone(): 1, pri.id.clone(): low }));
+    rec(&mut conn, &db, "B", json!({ pts.id.clone(): 2, pri.id.clone(): low }));
+    rec(&mut conn, &db, "C", json!({ pts.id.clone(): 9, pri.id.clone(): high }));
+    rec(&mut conn, &db, "D", json!({ pts.id.clone(): 5 }));
+    let mut db = db;
+    db.views[0] = view(
+        &mut conn,
+        &db,
+        ViewConfig {
+            columns: vec![col(&pts, "sum")],
+            group: Some(GroupSpec {
+                property_id: pri.id.clone(),
+                bucket: None,
+            }),
+            ..Default::default()
+        },
+    );
+    let t = totals(&conn, &db, None, true);
+    assert_eq!(num(&t.values[0]), 17.0);
+    let by: std::collections::HashMap<String, (i64, f64)> = t
+        .groups
+        .iter()
+        .map(|g| (g.key.clone(), (g.count, num(&g.values[0]))))
+        .collect();
+    assert_eq!(by[&low], (2, 3.0));
+    assert_eq!(by[&high], (1, 9.0));
+    assert_eq!(by[query::EMPTY_GROUP], (1, 5.0));
+    assert!(totals(&conn, &db, None, false).groups.is_empty());
+
+    // A summary the column cannot have is dropped when the view is saved.
+    let saved = view(
+        &mut conn,
+        &db,
+        ViewConfig {
+            columns: vec![col(&pri, "sum"), col(&pts, "median")],
+            ..Default::default()
+        },
+    );
+    let aggs: Vec<_> = saved
+        .config
+        .columns
+        .iter()
+        .filter(|c| c.aggregate.is_some())
+        .map(|c| (c.property_id.clone(), c.aggregate.clone().unwrap()))
+        .collect();
+    assert_eq!(aggs, vec![(pts.id.clone(), "median".to_string())]);
+    // Old saved views (no aggregate, no formats) still load.
+    let old: ViewConfig =
+        serde_json::from_value(json!({ "columns": [{ "propertyId": "p", "hidden": false }] }))
+            .unwrap();
+    assert!(old.columns[0].aggregate.is_none() && old.formats.is_empty());
+}
+
+#[test]
+fn number_formats_are_validated_and_kept() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let fmt = json!({ "decimals": 2, "thousands": true, "currency": "$", "unit": "", "bar": false });
+    let p = add(&mut conn, &db, "Cost", "number", Some(json!({ "format": fmt })));
+    assert_eq!(
+        p.config["format"],
+        json!({ "decimals": 2, "thousands": true, "currency": "$" })
+    );
+    let bad = |conn: &mut Connection, cfg: Value| {
+        add_property(
+            conn,
+            PropertyCreate {
+                database_id: db.database.id.clone(),
+                name: "Bad".into(),
+                property_type: "number".into(),
+                config: Some(cfg),
+            },
+        )
+        .is_err()
+    };
+    assert!(bad(&mut conn, json!({ "format": { "decimals": 11 } })));
+    assert!(bad(&mut conn, json!({ "format": { "currency": "WAYTOOLONG" } })));
+    let f = add(
+        &mut conn,
+        &db,
+        "Twice",
+        "formula",
+        Some(json!({ "expression": "prop(\"Cost\") * 2", "format": { "percent": true } })),
+    );
+    assert_eq!(f.config["format"], json!({ "percent": true }));
+    assert_eq!(f.config["resultType"], "number");
+}
+
+#[test]
+fn formatting_rules_are_validated_and_pruned() {
+    let (mut conn, ws) = setup();
+    let db = new_db(&mut conn, &ws);
+    let pts = add(&mut conn, &db, "Points", "number", None);
+    let rule = |color: &str, target: &str| FormatRule {
+        id: "r1".into(),
+        filter: filter(&pts, ">", json!(5)),
+        target: target.into(),
+        property_id: Some(pts.id.clone()),
+        color: color.into(),
+    };
+    let save = |conn: &mut Connection, rules: Vec<FormatRule>| {
+        update_view(
+            conn,
+            ViewUpdate {
+                name: None,
+                view_id: db.views[0].id.clone(),
+                config: ViewConfig {
+                    formats: rules,
+                    ..Default::default()
+                },
+            },
+        )
+    };
+    assert!(save(&mut conn, vec![rule("pink", "cell")]).is_err());
+    assert!(save(&mut conn, vec![rule("red", "column")]).is_err());
+    let saved = save(&mut conn, vec![rule("red", "row")]).unwrap();
+    assert_eq!(saved.config.formats.len(), 1);
+    assert!(saved.config.formats[0].property_id.is_none(), "a row rule has no column");
+    let saved = save(&mut conn, vec![rule("green", "cell")]).unwrap();
+    assert_eq!(saved.config.formats[0].property_id.as_deref(), Some(pts.id.as_str()));
+    // Deleting the property removes the rules that tested it.
+    delete_property(&mut conn, &pts.id).unwrap();
+    let after = load_views(&conn, &db.database.id).unwrap();
+    assert!(after[0].config.formats.is_empty());
+}
+
+// ---------------------------------------------------------------------------------------------
+// pivot views
+// ---------------------------------------------------------------------------------------------
+
+use super::pivot::{self, PivotQuery, PivotSpec};
+
+fn pivot_of(s: &Sales, spec: PivotSpec) -> pivot::PivotData {
+    pivot::data(
+        &s.conn,
+        &PivotQuery {
+            database_id: s.db.database.id.clone(),
+            view_id: None,
+            pivot: Some(spec),
+            filter: None,
+        },
+    )
+    .unwrap()
+}
+
+fn cell(d: &pivot::PivotData, x: Option<String>, g: Option<String>) -> Option<(Option<f64>, i64)> {
+    d.cells
+        .iter()
+        .find(|p| p.x == x && p.group == g)
+        .map(|p| (p.value, p.count))
+}
+
+#[test]
+fn pivot_sums_cells_rows_and_columns() {
+    let s = sales();
+    let d = pivot_of(
+        &s,
+        PivotSpec {
+            row_property_id: Some(s.status.id.clone()),
+            column_property_id: Some(s.team.id.clone()),
+            value_property_id: Some(s.amount.id.clone()),
+            aggregation: "sum".into(),
+            ..Default::default()
+        },
+    );
+    let won = Some(opt(&s.status, "Won"));
+    let north = Some(opt(&s.team, "North"));
+    let south = Some(opt(&s.team, "South"));
+    assert_eq!(cell(&d, won.clone(), north.clone()), Some((Some(300.0), 1)));
+    assert_eq!(cell(&d, won.clone(), south.clone()), Some((Some(200.0), 2)));
+    assert_eq!(cell(&d, None, None).map(|c| c.1), Some(1));
+    let row = d.row_totals.iter().find(|p| p.x == won).unwrap();
+    assert_eq!((row.value, row.count), (Some(500.0), 3));
+    let col = d.column_totals.iter().find(|p| p.x == south).unwrap();
+    assert_eq!(col.value, Some(225.0));
+    assert_eq!(d.grand.value, Some(625.0));
+    assert_eq!(d.records, 6);
+    assert!(!d.truncated);
+}
+
+#[test]
+fn pivot_average_totals_are_not_sums_of_cells() {
+    let s = sales();
+    let d = pivot_of(
+        &s,
+        PivotSpec {
+            row_property_id: Some(s.team.id.clone()),
+            column_property_id: Some(s.status.id.clone()),
+            value_property_id: Some(s.amount.id.clone()),
+            aggregation: "average".into(),
+            ..Default::default()
+        },
+    );
+    let south = Some(opt(&s.team, "South"));
+    // (50 + 25 + 150) / 3, not the mean of the cell means.
+    let row = d.row_totals.iter().find(|p| p.x == south).unwrap();
+    assert_eq!(row.value, Some(75.0));
+    assert_eq!(d.grand.value, Some(625.0 / 5.0));
+}
+
+#[test]
+fn pivot_buckets_date_columns_and_counts_without_a_column() {
+    let s = sales();
+    let d = pivot_of(
+        &s,
+        PivotSpec {
+            row_property_id: Some(s.status.id.clone()),
+            column_property_id: Some(s.when.id.clone()),
+            column_bucket: Some("month".into()),
+            ..Default::default()
+        },
+    );
+    let won = Some(opt(&s.status, "Won"));
+    assert_eq!(cell(&d, won.clone(), Some("2026-01".into())), Some((Some(1.0), 1)));
+    assert_eq!(cell(&d, won, Some("2026-02".into())), Some((Some(2.0), 2)));
+    let feb = d.column_totals.iter().find(|p| p.x.as_deref() == Some("2026-02")).unwrap();
+    assert_eq!(feb.count, 3);
+
+    let d = pivot_of(
+        &s,
+        PivotSpec {
+            row_property_id: Some(s.team.id.clone()),
+            ..Default::default()
+        },
+    );
+    assert!(d.column_totals.is_empty());
+    assert_eq!(d.grand.count, 6);
+}
+
+#[test]
+fn pivot_respects_the_view_filter_and_validates() {
+    let mut s = sales();
+    let won = opt(&s.status, "Won");
+    let v = mk_view(
+        &mut s.conn,
+        &s.db,
+        "pivot",
+        Some(ViewConfig {
+            filter: Some(FilterNode::Leaf {
+                property_id: s.status.id.clone(),
+                operator: "=".into(),
+                value: json!(won),
+            }),
+            pivot: Some(PivotSpec {
+                row_property_id: Some(s.team.id.clone()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+    );
+    let d = pivot::data(
+        &s.conn,
+        &PivotQuery {
+            database_id: s.db.database.id.clone(),
+            view_id: Some(v.id.clone()),
+            pivot: None,
+            filter: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(d.records, 3);
+    // Rows and columns must be groupable; sums need a number.
+    let props = &super::service::database_detail(&s.conn, &s.db.database.id).unwrap().properties;
+    let title = props.iter().find(|p| p.property_type == "title").unwrap();
+    let bad_row = PivotSpec {
+        row_property_id: Some(title.id.clone()),
+        ..Default::default()
+    };
+    assert!(pivot::normalize(bad_row, props).is_err());
+    let bad_value = PivotSpec {
+        row_property_id: Some(s.team.id.clone()),
+        value_property_id: Some(s.team.id.clone()),
+        aggregation: "sum".into(),
+        ..Default::default()
+    };
+    assert!(pivot::normalize(bad_value, props).is_err());
+}
+
+mod datafix_cases;
+
+#[test]
+fn every_starter_builds_with_and_without_sample_data() {
+    let (mut conn, ws) = setup();
+    let all = templates::all();
+    assert!(all.len() >= 13, "the everyday starters are listed");
+    let ids: std::collections::HashSet<_> = all.iter().map(|t| t.id).collect();
+    assert_eq!(ids.len(), all.len(), "starter ids are unique");
+    for info in &all {
+        let sampled = from_template(&mut conn, &ws, info.id, true);
+        let bare = from_template(&mut conn, &ws, info.id, false);
+        assert_eq!(sampled.database_page_ids.len(), info.databases.len(), "{}", info.id);
+        for (page, name) in sampled.database_page_ids.iter().zip(info.databases) {
+            let d = detail_of(&conn, page);
+            assert_eq!(d.page.title, *name, "{}", info.id);
+            assert!(!d.views.is_empty());
+            assert!(!all_rows(&conn, &d, &d.views[0]).is_empty(), "{} has sample rows", info.id);
+            for v in d.views.iter().filter(|v| v.view_type != "chart") {
+                all_rows(&conn, &d, v);
+            }
+        }
+        // The page that holds the databases opens with an overview: a link to every database
+        // and at least one live view whose view still exists.
+        for (result, label) in [(&sampled, "sampled"), (&bare, "bare")] {
+            let blocks = repo::block::list(&conn, &result.page_id).unwrap();
+            assert!(blocks.len() >= 3, "{} {label} has an overview", info.id);
+            for page in &result.database_page_ids {
+                assert!(
+                    blocks.iter().any(|b| b.block_type == "bullet_list" && b.data_json.contains(page.as_str())),
+                    "{} links to every database",
+                    info.id
+                );
+            }
+            let embeds: Vec<_> = blocks.iter().filter(|b| b.block_type == "database_view").collect();
+            assert!(!embeds.is_empty(), "{} shows a live view", info.id);
+            for e in embeds {
+                let data: serde_json::Value = serde_json::from_str(&e.data_json).unwrap();
+                let d = detail_of(&conn, data["pageId"].as_str().unwrap());
+                assert!(d.views.iter().any(|v| v.id == data["viewId"].as_str().unwrap()));
+            }
+        }
+        for page in &bare.database_page_ids {
+            let d = detail_of(&conn, page);
+            assert!(all_rows(&conn, &d, &d.views[0]).is_empty(), "{} is empty without samples", info.id);
+        }
+    }
 }

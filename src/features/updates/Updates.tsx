@@ -9,6 +9,7 @@ import { useWorkspace } from "../../stores/workspace";
 import { useSettingsDialog } from "../settings/store";
 import { isPreparing, startUpdateScheduler, useUpdates, type Release } from "./store";
 import { ChangelogBody, ChangelogHistory, entryLabel } from "./ChangelogHistory";
+import { ChangelogMarkdown } from "./changelogMarkdown";
 import { CHANGELOG } from "./changelogData";
 import "./updates.css";
 
@@ -98,22 +99,7 @@ export function UpdatesSection() {
 
 /** Plain, escaped Markdown structure: no release HTML or remotely loaded media. */
 function Notes({ release }: { release: Release }) {
-  const blocks: React.ReactNode[] = [];
-  let items: string[] = [];
-  const finishList = () => {
-    if (!items.length) return;
-    blocks.push(<ul key={blocks.length}>{items.map((item, index) => <li key={index}>{item}</li>)}</ul>);
-    items = [];
-  };
-  for (const line of release.notes.slice(0, 65536).split(/\r?\n/)) {
-    if (/^[-*]\s/.test(line)) { items.push(line.replace(/^[-*]\s+/, "")); continue; }
-    finishList();
-    if (!line.trim()) continue;
-    if (/^#{1,6}\s/.test(line)) blocks.push(<h3 key={blocks.length}>{line.replace(/^#{1,6}\s+/, "")}</h3>);
-    else blocks.push(<p key={blocks.length}>{line}</p>);
-  }
-  finishList();
-  return <div className="changelog-notes">{blocks}</div>;
+  return <div className="changelog-notes"><ChangelogMarkdown text={release.notes} /></div>;
 }
 
 export function UpdatesRoot() {

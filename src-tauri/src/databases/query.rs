@@ -313,6 +313,9 @@ fn node(ctx: &mut Ctx, f: &FilterNode, depth: usize) -> AppResult<Option<String>
             operator,
             value,
         } => {
+            if property_id == SEARCH_ALL && operator == "search" {
+                return search_clause(ctx, value);
+            }
             // A property removed since the filter was saved is ignored rather than failing the view.
             let Some(prop) = ctx.props.get(property_id.as_str()).copied() else {
                 return Ok(None);
@@ -320,6 +323,75 @@ fn node(ctx: &mut Ctx, f: &FilterNode, depth: usize) -> AppResult<Option<String>
             leaf(ctx, prop, operator, value).map(|s| Some(format!("({s})")))
         }
     }
+}
+
+/// The pseudo property id of the "any text property contains" condition: a leaf with this id and
+/// the operator `search` matches records whose title, text, url, email or phone contains the
+/// text, or whose select, status or multi-select option names do. It is never saved in a view; the
+/// app adds it as an extra filter while someone searches inside a view.
+pub const SEARCH_ALL: &str = "*";
+const MAX_SEARCH_LEN: usize = 200;
+
+fn search_clause(ctx: &mut Ctx, value: &Value) -> AppResult<Option<String>> {
+    let term = text_of(value)?;
+    let term = term.trim();
+    if term.is_empty() {
+        return Ok(None);
+    }
+    if term.chars().count() > MAX_SEARCH_LEN {
+        return bad("the search text is too long");
+    }
+    let like = ctx.push(Sql::Text(format!("%{}%", like_escape(term))));
+    let lower = term.to_lowercase();
+    let mut props: Vec<&Property> = ctx.props.values().copied().collect();
+    props.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut parts = Vec::new();
+    for p in props {
+        match p.property_type.as_str() {
+            t if is_text_like(t) => {
+                let sx = scalar(ctx, p);
+                parts.push(format!("{sx} LIKE ?{like} ESCAPE '\\'"));
+            }
+            "select" | "status" | "multi_select" => {
+                let ids: Vec<String> = p
+                    .config
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter(|o| {
+                                o.get("name")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|n| n.to_lowercase().contains(&lower))
+                            })
+                            .filter_map(|o| o.get("id").and_then(Value::as_str).map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if ids.is_empty() {
+                    continue;
+                }
+                let marks: Vec<String> = ids
+                    .into_iter()
+                    .map(|id| format!("?{}", ctx.push(Sql::Text(id))))
+                    .collect();
+                let list = marks.join(", ");
+                let sx = scalar(ctx, p);
+                parts.push(if p.property_type == "multi_select" {
+                    format!("EXISTS (SELECT 1 FROM json_each({sx}) WHERE value IN ({list}))")
+                } else {
+                    format!("{sx} IN ({list})")
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(if parts.is_empty() {
+        // Without a text-like property nothing can match.
+        Some("(0)".into())
+    } else {
+        Some(format!("({})", parts.join(" OR ")))
+    })
 }
 
 pub const EMPTY_GROUP: &str = "__empty";
@@ -520,6 +592,18 @@ pub fn build_chart(
     spec: &super::ChartSpec,
     today: NaiveDate,
 ) -> AppResult<(String, Vec<Sql>)> {
+    build_chart_grouped(database_id, props, cfg, spec, None, today)
+}
+
+/// [`build_chart`] whose series property may be a date, bucketed by `group_bucket` (pivot columns).
+pub fn build_chart_grouped(
+    database_id: &str,
+    props: &[Property],
+    cfg: &ViewConfig,
+    spec: &super::ChartSpec,
+    group_bucket: Option<String>,
+    today: NaiveDate,
+) -> AppResult<(String, Vec<Sql>)> {
     let mut ctx = Ctx {
         props: props.iter().map(|p| (p.id.as_str(), p)).collect(),
         params: vec![Sql::Text(database_id.to_string())],
@@ -555,7 +639,7 @@ pub fn build_chart(
     let g = if kpi {
         "NULL".to_string()
     } else {
-        axis(&mut ctx, &spec.group_property_id, None)?
+        axis(&mut ctx, &spec.group_property_id, group_bucket)?
     };
     let value = if spec.aggregation == "count" {
         "COUNT(*)".to_string()
@@ -590,6 +674,144 @@ pub fn build_chart(
     let sql = format!(
         "SELECT {x} AS xk, {g} AS gk, {value}, COUNT(*) FROM db_record r JOIN page p ON p.id = r.page_id \
          WHERE r.database_id = ?1 AND p.deleted_at IS NULL AND {where_sql}{tail}"
+    );
+    Ok((sql, ctx.params))
+}
+
+/// Whether a summary makes sense for the property (the totals row only offers these).
+pub fn aggregate_ok(p: &Property, aggregate: &str) -> bool {
+    if p.property_type == "button" {
+        return false;
+    }
+    match aggregate {
+        "count" | "empty" | "filled" | "percent_filled" => true,
+        "sum" | "average" | "median" | "min" | "max" | "range" => class_of(p) == Class::Number,
+        "earliest" | "latest" | "date_range" => class_of(p) == Class::Date,
+        "percent_checked" => class_of(p) == Class::Checkbox,
+        _ => false,
+    }
+}
+
+/// One aggregate as a SQL expression over the records in scope.
+fn aggregate_expr(ctx: &mut Ctx, prop: &Property, aggregate: &str) -> AppResult<String> {
+    let cls = class_of(prop);
+    let empty = |ctx: &mut Ctx| -> AppResult<String> {
+        if cls == Class::Checkbox {
+            // A checkbox is never missing: "empty" means unchecked.
+            Ok(format!("{} = 0", scalar(ctx, prop)))
+        } else {
+            leaf(ctx, prop, "is_empty", &Value::Null)
+        }
+    };
+    Ok(match aggregate {
+        "count" => "COUNT(*)".into(),
+        "empty" => format!("COALESCE(SUM(CASE WHEN {} THEN 1 ELSE 0 END), 0)", empty(ctx)?),
+        "filled" => format!("COALESCE(SUM(CASE WHEN {} THEN 0 ELSE 1 END), 0)", empty(ctx)?),
+        "percent_filled" => format!("AVG(CASE WHEN {} THEN 0.0 ELSE 1.0 END)", empty(ctx)?),
+        "sum" => format!("TOTAL({})", scalar(ctx, prop)),
+        "average" => format!("AVG({})", scalar(ctx, prop)),
+        "min" | "earliest" => format!("MIN({})", scalar(ctx, prop)),
+        "max" | "latest" => format!("MAX({})", scalar(ctx, prop)),
+        "range" => {
+            let a = scalar(ctx, prop);
+            let b = scalar(ctx, prop);
+            format!("(MAX({a}) - MIN({b}))")
+        }
+        "date_range" => {
+            let a = scalar(ctx, prop);
+            let b = scalar(ctx, prop);
+            format!("(julianday(MAX(substr({a}, 1, 10))) - julianday(MIN(substr({b}, 1, 10))))")
+        }
+        "percent_checked" => format!("AVG({})", scalar(ctx, prop)),
+        other => return bad(format!("unknown summary '{other}'")),
+    })
+}
+
+fn scoped_ctx<'a>(
+    database_id: &str,
+    props: &'a [Property],
+    cfg: &ViewConfig,
+    today: NaiveDate,
+) -> AppResult<(Ctx<'a>, String)> {
+    let mut ctx = Ctx {
+        props: props.iter().map(|p| (p.id.as_str(), p)).collect(),
+        params: vec![Sql::Text(database_id.to_string())],
+        nodes: 0,
+        today,
+    };
+    let where_sql = match &cfg.filter {
+        Some(f) => node(&mut ctx, f, 0)?.unwrap_or_else(|| "1".into()),
+        None => "1".into(),
+    };
+    Ok((ctx, where_sql))
+}
+
+/// `SELECT` for a totals row. Columns: group key (NULL when ungrouped), record count, then one
+/// column per entry of `specs` that this query can compute (the median is left to
+/// [`build_median`]); the returned indexes say which. With `by_group` there is a row per group.
+pub fn build_aggregates(
+    database_id: &str,
+    props: &[Property],
+    cfg: &ViewConfig,
+    specs: &[(String, String)],
+    by_group: bool,
+    today: NaiveDate,
+) -> AppResult<(String, Vec<Sql>, Vec<usize>)> {
+    let (mut ctx, where_sql) = scoped_ctx(database_id, props, cfg, today)?;
+    let mut key = "NULL".to_string();
+    let mut tail = "";
+    if by_group {
+        let Some(group) = &cfg.group else {
+            return bad("this view has no grouping");
+        };
+        let Some(gp) = ctx.props.get(group.property_id.as_str()).copied() else {
+            return bad("the view groups by a property that no longer exists");
+        };
+        key = group_expr(&mut ctx, gp, group)?;
+        tail = " GROUP BY 1";
+    }
+    let mut exprs = Vec::new();
+    let mut kept = Vec::new();
+    for (i, (pid, agg)) in specs.iter().enumerate() {
+        let Some(prop) = ctx.props.get(pid.as_str()).copied() else {
+            continue;
+        };
+        if agg == "median" || !aggregate_ok(prop, agg) {
+            continue;
+        }
+        exprs.push(aggregate_expr(&mut ctx, prop, agg)?);
+        kept.push(i);
+    }
+    let cols: String = exprs.iter().map(|e| format!(", {e}")).collect();
+    let sql = format!(
+        "SELECT {key}, COUNT(*){cols} FROM db_record r JOIN page p ON p.id = r.page_id \
+         WHERE r.database_id = ?1 AND p.deleted_at IS NULL AND {where_sql}{tail}"
+    );
+    Ok((sql, ctx.params, kept))
+}
+
+/// `SELECT` for the median of one number column over the records in scope (one row, NULL when
+/// no record has a value).
+pub fn build_median(
+    database_id: &str,
+    props: &[Property],
+    cfg: &ViewConfig,
+    property_id: &str,
+    today: NaiveDate,
+) -> AppResult<(String, Vec<Sql>)> {
+    let (mut ctx, where_sql) = scoped_ctx(database_id, props, cfg, today)?;
+    let Some(prop) = ctx.props.get(property_id).copied() else {
+        return bad("that property no longer exists");
+    };
+    if !aggregate_ok(prop, "median") {
+        return bad("a median needs a number property");
+    }
+    let sx = scalar(&mut ctx, prop);
+    let sql = format!(
+        "SELECT AVG(v) FROM (SELECT v, ROW_NUMBER() OVER (ORDER BY v) AS rn, COUNT(*) OVER () AS c \
+         FROM (SELECT {sx} AS v FROM db_record r JOIN page p ON p.id = r.page_id \
+         WHERE r.database_id = ?1 AND p.deleted_at IS NULL AND {where_sql}) WHERE v IS NOT NULL) \
+         WHERE rn IN ((c + 1) / 2, (c + 2) / 2)"
     );
     Ok((sql, ctx.params))
 }

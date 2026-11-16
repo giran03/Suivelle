@@ -12,12 +12,13 @@ export const VIEW_META: Record<ViewType, { label: string; icon: IconName; blurb:
   calendar: { label: "Calendar", icon: "calendar", blurb: "Records placed on a month by date" },
   timeline: { label: "Timeline", icon: "timeline", blurb: "Date ranges as bars over time" },
   chart: { label: "Chart", icon: "chart", blurb: "Bars, lines, pies or a single number" },
+  pivot: { label: "Pivot", icon: "sigma", blurb: "Rows by columns, with totals" },
   form: { label: "Form", icon: "form", blurb: "Fill in fields to add a record" },
   feed: { label: "Feed", icon: "feed", blurb: "Newest records first, by day" },
   canvas: { label: "Canvas", icon: "canvas", blurb: "A freeform board for cards, notes, images and arrows" },
 };
 
-const ORDER: ViewType[] = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed", "canvas"];
+const ORDER: ViewType[] = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "pivot", "form", "feed", "canvas"];
 
 /** The tab strip above the toolbar: one tab per saved view, and a menu to add another. */
 export function ViewTabs({
@@ -28,6 +29,7 @@ export function ViewTabs({
   onRename,
   onDuplicate,
   onDelete,
+  onExport,
 }: {
   views: DbView[];
   activeId: string;
@@ -36,6 +38,8 @@ export function ViewTabs({
   onRename: (id: string, name: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Saves the view as CSV: its filter, sort and visible columns. */
+  onExport?: (id: string) => void;
 }) {
   const [menu, setMenu] = useState<{ x: number; y: number; view: DbView } | null>(null);
   const [adding, setAdding] = useState<Anchor | null>(null);
@@ -52,6 +56,7 @@ export function ViewTabs({
       },
     },
     { label: "Duplicate", onSelect: () => onDuplicate(v.id) },
+    ...(onExport && v.type !== "form" && v.type !== "canvas" ? [{ label: "Export view as CSV…", onSelect: () => onExport(v.id) }] : []),
     { label: "Delete view", danger: true, separated: true, disabled: views.length <= 1, onSelect: () => setConfirm({ view: v, anchor }) },
   ];
 

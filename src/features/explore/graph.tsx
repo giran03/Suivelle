@@ -134,7 +134,7 @@ export function GraphPanel() {
     const up = (e: MouseEvent) => {
       const clicked = drag && !drag.moved ? pick(e) : -1;
       drag = null;
-      if (clicked >= 0) { useExplore.getState().hide(); void useWorkspace.getState().selectPage(points[clicked].id); }
+      if (clicked >= 0) { useExplore.getState().hide(); void useWorkspace.getState().openPage(points[clicked].id); }
     };
     const wheel = (e: WheelEvent) => { e.preventDefault(); view.current.scale = Math.min(4, Math.max(0.2, view.current.scale * (e.deltaY < 0 ? 1.1 : 0.9))); draw(); };
     const resize = new ResizeObserver(draw);
@@ -155,7 +155,7 @@ export function GraphPanel() {
     </div>
     {asList
       ? <ul className="explore-list">{ranked.map((p) => <li key={p.id}>
-          <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().selectPage(p.id); }}>
+          <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().openPage(p.id); }}>
             <span className="explore-row-main">{p.title}</span><small>{p.degree} {p.degree === 1 ? "link" : "links"}</small>
           </button></li>)}</ul>
       : <canvas ref={canvas} className="graph-canvas" role="img" aria-label={`Link graph of ${points.length} pages. Use “Show as list” for a keyboard-friendly view.`} />}

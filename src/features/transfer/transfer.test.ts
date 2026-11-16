@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { COLUMN_KINDS, DEFAULT_EXPORT, columnKinds, defaultTarget, describeOrigin, effectiveOptions, exportWorkspaceArchive, importedWorkspaceName, plural, savesText, summarize } from "./transfer";
+import { COLUMN_KINDS, DEFAULT_EXPORT, columnKinds, defaultTarget, describeOrigin, effectiveOptions, exportWorkspaceArchive, importedWorkspaceName, parseTsv, pastedTableShape, plural, savesText, summarize } from "./transfer";
 import { ipc } from "../../lib/ipc";
 import { registerFlusher } from "../editor/flushRegistry";
 
@@ -74,5 +74,26 @@ describe("Notion transfer", () => {
     expect(columnKinds("relation").map((k) => k.value)).toContain("text");
     expect(columnKinds("text").map((k) => k.value)).not.toContain("relation");
     expect(columnKinds("status")[0].value).toBe("status");
+  });
+});
+
+describe("pasted tables", () => {
+  it("splits tab-separated text the way a spreadsheet writes it", () => {
+    const text = 'Name\tNote\r\n"Bolt, M6"\t"two\nlines ""quoted"""\r\nNut\t\r\n';
+    expect(parseTsv(text)).toEqual([
+      ["Name", "Note"],
+      ["Bolt, M6", 'two\nlines "quoted"'],
+      ["Nut", ""],
+    ]);
+  });
+
+  it("ignores blank lines and keeps a quote inside a cell as text", () => {
+    expect(parseTsv('A\tB\n\n5" pipe\tx\n')).toEqual([["A", "B"], ['5" pipe', "x"]]);
+  });
+
+  it("counts records and columns, the first row being the column names", () => {
+    expect(pastedTableShape("A\tB\tC\n1\t2\t3\n4\t5\t6")).toEqual({ rows: 2, columns: 3 });
+    expect(pastedTableShape("A\tB\n1")).toEqual({ rows: 1, columns: 2 });
+    expect(pastedTableShape("  \n ")).toBeNull();
   });
 });

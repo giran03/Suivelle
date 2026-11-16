@@ -3,11 +3,14 @@
 //! The frontend never sends SQL or filter text. It sends a structured view configuration; this
 //! module validates it and compiles it to parameterized SQL (`query`).
 
+pub mod aggregates;
 pub mod calc;
 pub mod canvas;
 pub mod charts;
+pub mod datafix;
 pub mod forms;
 pub mod formula;
+pub mod pivot;
 pub mod previews;
 pub mod query;
 pub mod record_templates;
@@ -61,7 +64,8 @@ pub const ROLLUP_FUNCTIONS: &[&str] = &[
 ];
 
 pub const VIEW_TYPES: &[&str] = &[
-    "table", "board", "list", "gallery", "calendar", "timeline", "chart", "form", "feed", "canvas",
+    "table", "board", "list", "gallery", "calendar", "timeline", "chart", "pivot", "form", "feed",
+    "canvas",
 ];
 pub const CHART_TYPES: &[&str] = &["bar", "line", "area", "pie", "donut", "kpi"];
 pub const AGGREGATIONS: &[&str] = &["count", "sum", "average", "min", "max"];
@@ -108,6 +112,9 @@ pub struct ViewColumn {
     pub width: Option<f64>,
     #[serde(default)]
     pub hidden: bool,
+    /// The summary shown in the table's totals row (see `query::aggregate_ok`); absent for none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregate: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,12 +180,105 @@ pub struct ViewConfig {
     /// Chart views: what to draw.
     #[serde(default)]
     pub chart: Option<ChartSpec>,
+    /// Pivot views: rows, columns and what each cell calculates.
+    #[serde(default)]
+    pub pivot: Option<pivot::PivotSpec>,
     /// Form views: which fields to ask for.
     #[serde(default)]
     pub form: Option<FormSpec>,
     /// Feed views: order by "created" or "updated" (newest first).
     #[serde(default)]
     pub feed_order: Option<String>,
+    /// Conditional formatting rules, evaluated by the frontend over the loaded rows.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub formats: Vec<FormatRule>,
+    /// Table: how many columns after the title stay in place while scrolling sideways.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub frozen_columns: u8,
+    /// Table: "compact", "medium" or "tall" rows; absent means medium.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_height: Option<String>,
+    /// Table: properties whose text wraps instead of being cut off (best with tall rows).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wrap_columns: Vec<String>,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
+}
+
+pub const MAX_FROZEN_COLUMNS: u8 = 3;
+
+/// Colours cells or whole rows that match a condition. Display only: nothing is stored on records.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatRule {
+    pub id: String,
+    pub filter: FilterNode,
+    /// "cell" or "row".
+    pub target: String,
+    /// Cell rules: the column that is coloured (absent: the property the condition tests).
+    #[serde(default)]
+    pub property_id: Option<String>,
+    /// One of the option tones.
+    pub color: String,
+}
+
+pub const AGGREGATE_KINDS: &[&str] = &[
+    "count",
+    "empty",
+    "filled",
+    "percent_filled",
+    "sum",
+    "average",
+    "median",
+    "min",
+    "max",
+    "range",
+    "earliest",
+    "latest",
+    "date_range",
+    "percent_checked",
+];
+pub const MAX_FORMAT_RULES: usize = 20;
+
+/// Totals for a view. With `by_group` the same summaries are also computed per top-level group.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregatesQuery {
+    pub database_id: String,
+    #[serde(default)]
+    pub view_id: Option<String>,
+    #[serde(default)]
+    pub extra_filter: Option<FilterNode>,
+    #[serde(default)]
+    pub by_group: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateValue {
+    pub property_id: String,
+    pub aggregate: String,
+    /// A number, a date string, or null when there is nothing to summarise.
+    pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupAggregates {
+    pub key: String,
+    pub count: i64,
+    pub values: Vec<AggregateValue>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Aggregates {
+    /// Records in the filtered set.
+    pub count: i64,
+    pub values: Vec<AggregateValue>,
+    pub groups: Vec<GroupAggregates>,
 }
 
 /// What a chart draws. The database engine aggregates; nothing is copied.

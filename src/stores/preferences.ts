@@ -104,20 +104,20 @@ export const CHOICES = {
   iconStyle: {
     title: "Icon style",
     hint: "The Material Symbols family used for every icon.",
-    fallback: "outlined",
+    fallback: "rounded",
     options: [
-      { id: "outlined", label: "Outlined", vars: {} },
-      { id: "rounded", label: "Rounded", vars: { "--font-icons": "\"Material Symbols Rounded\"" } },
+      { id: "outlined", label: "Outlined", vars: { "--font-icons": "\"Material Symbols Outlined\"" } },
+      { id: "rounded", label: "Rounded", vars: {} },
       { id: "sharp", label: "Sharp", vars: { "--font-icons": "\"Material Symbols Sharp\"" } },
     ],
   },
   iconWeight: {
     title: "Icon weight",
     hint: "How heavy icon strokes are.",
-    fallback: "regular",
+    fallback: "light",
     options: [
-      { id: "light", label: "Light", vars: { "--icon-weight": "200" } },
-      { id: "regular", label: "Regular", vars: {} },
+      { id: "light", label: "Light", vars: {} },
+      { id: "regular", label: "Regular", vars: { "--icon-weight": "300" } },
       { id: "strong", label: "Strong", vars: { "--icon-weight": "450" } },
       { id: "bold", label: "Bold", vars: { "--icon-weight": "600" } },
     ],

@@ -21,8 +21,14 @@ export function isNativeBrowserKey(event: Pick<KeyboardEvent, "key" | "ctrlKey" 
 export function installNativeKeyBlock(): () => void {
   const onKey = (event: KeyboardEvent) => { if (isNativeBrowserKey(event)) event.preventDefault(); };
   window.addEventListener("keydown", onKey);
+  // The middle button's circular auto-scroll is a browser feature too: nothing in Suivelle wants it. Pages turn the
+  // button into a drag-scroll hand, the canvas pans with it, and tabs close with it. This only cancels the browser
+  // default on the press, so pointer, click and auxclick handlers still run.
+  const noAutoscroll = (event: MouseEvent) => { if (event.button === 1) event.preventDefault(); };
+  window.addEventListener("mousedown", noAutoscroll, true);
+  window.addEventListener("mouseup", noAutoscroll, true);
   // Printing is also reachable from script and from the browser's own menu: make both do nothing.
   const noPrint = (event: Event) => event.preventDefault();
   window.addEventListener("beforeprint", noPrint);
-  return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("beforeprint", noPrint); };
+  return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("beforeprint", noPrint); window.removeEventListener("mousedown", noAutoscroll, true); window.removeEventListener("mouseup", noAutoscroll, true); };
 }

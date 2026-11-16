@@ -1,27 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { syncDialog } from "../../lib/dialog";
 import { CHANGELOG, type ChangelogEntry } from "./changelogData";
+import { inlineMarkdown } from "./changelogMarkdown";
 
-const INLINE = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`)/g;
-
-/** `**bold**`, `*italic*` and `code` as React nodes; anything else stays plain text (no HTML, no links). */
-export function inline(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let last = 0;
-  let n = 0;
-  for (const m of text.matchAll(INLINE)) {
-    const at = m.index ?? 0;
-    if (at > last) out.push(text.slice(last, at));
-    const t = m[0];
-    if (t.startsWith("**")) out.push(<strong key={n++}>{inline(t.slice(2, -2))}</strong>);
-    else if (t.startsWith("`")) out.push(<code key={n++}>{t.slice(1, -1)}</code>);
-    else out.push(<em key={n++}>{inline(t.slice(1, -1))}</em>);
-    last = at + t.length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
-}
+export { inlineMarkdown as inline };
 
 /** One release's groups and bullets, in the Octopolis changelog style. */
 export function ChangelogBody({ entry }: { entry: ChangelogEntry }) {
@@ -30,7 +13,7 @@ export function ChangelogBody({ entry }: { entry: ChangelogEntry }) {
       {entry.groups.map((g, i) => (
         <section key={i}>
           {g.title && <h5 className="cl-group">{g.title}</h5>}
-          {g.items.map((item, j) => <p className="cl-item" key={j}>{inline(item)}</p>)}
+          {g.items.map((item, j) => <p className="cl-item" key={j}>{inlineMarkdown(item)}</p>)}
         </section>
       ))}
       {!entry.groups.length && <p className="cl-item">No notes were written for this version.</p>}

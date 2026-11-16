@@ -14,5 +14,5 @@ export const READ_ONLY_COMMANDS = new Set([
 ]);
 
 export function readingAction(label: string): boolean {
-  return /^(Open\b|Copy\b|Select all\b|Deselect\b|Expand\b|Collapse\b|Go to\b|Close\b|Sort\b|Clear sort\b|Hide\b|Show\b|Refresh\b|Reload\b)/i.test(label);
+  return /^(Open\b|Copy\b|Select all\b|Deselect\b|Expand\b|Collapse\b|Go to\b|Close\b|Sort\b|Clear sort\b|Filter\b|Exclude\b|Group\b|Remove grouping\b|Hide\b|Show\b|Refresh\b|Reload\b)/i.test(label);
 }

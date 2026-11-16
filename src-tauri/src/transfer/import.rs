@@ -499,8 +499,15 @@ fn doc_node(path: &Path, kind: &str, ctx: &mut Ctx) -> AppResult<Node> {
 
 fn csv_node(path: &Path, ctx: &mut Ctx) -> AppResult<Node> {
     let bytes = read_limited(path, ctx)?;
-    let csv =
-        csvio::read(&bytes).map_err(|e| AppError::Validation(format!("{}: {e}", display(path))))?;
+    let tsv = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("tsv"));
+    let csv = if tsv {
+        csvio::read_tsv(&bytes)
+    } else {
+        csvio::read(&bytes)
+    }
+    .map_err(|e| AppError::Validation(format!("{}: {e}", display(path))))?;
     let plan = csvio::plan(&csv);
     let index = ctx.next();
     Ok(Node::new(index, stem(path), Source::Csv { csv, plan }))

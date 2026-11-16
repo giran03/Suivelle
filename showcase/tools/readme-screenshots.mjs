@@ -55,7 +55,7 @@ async function shot(name, theme, pageId, prepare) {
     if (prepare) await prepare(page);
     await delay(800);
     await page.mouse.move(1438, 958);
-    await page.screenshot({ path: resolve(output, `readme-${name}-v014.png`) });
+    await page.screenshot({ path: resolve(output, `${name}.png`) });
     if (errors.length) throw new Error(`${name}: ${errors.join("; ")}`);
     console.log(`Captured ${name}`);
   } finally { await page.close(); }

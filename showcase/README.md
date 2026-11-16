@@ -69,7 +69,7 @@ npx vite preview --config showcase/vite.config.ts --port 1492 --strictPort
 node showcase/tools/readme-screenshots.mjs
 ```
 
-The script writes seven `readme-*-v014.png` images into `docs/images/`. It captures
+The script writes seven `.png` images (`workspace-dark.png`, `workspace-light.png`, `project-board.png`, `project-table.png`, `calendar.png`, `dashboard.png`, `side-peek.png`) into `docs/images/`. It captures
 the real frontend with fictional data in a fresh headless browser profile, pins
 the sample date to October 14, 2026, and uses the Asia/Manila timezone. It defaults
 to Chrome's Windows installation path; set `CHROME_PATH` for another installation.

@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/core";
 import { useBackupsDialog } from "../backup/store";
 import { READ_ONLY } from "../../lib/access";
+import { useSlidingIndicator } from "../../lib/useSlidingIndicator";
 import { useTransferDialog } from "../transfer/store";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
@@ -28,7 +29,6 @@ import { Icon } from "../../components/Icon";
 import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher";
 import { workspaceOptions } from "../workspaces/model";
 import { dropZone, isInSubtree, resolveDrop, type DropZone } from "../../lib/dnd";
-import { usePalette } from "../palette/store";
 import { ipc } from "../../lib/ipc";
 import { useSettingsDialog } from "../settings/store";
 import { sidebarRail, useLayout } from "../../stores/layout";
@@ -209,6 +209,39 @@ function Recents() {
   );
 }
 
+function RailPageButton({
+  page,
+  current,
+  onClick,
+  onAuxClick,
+  onContextMenu,
+}: {
+  page: Page;
+  current: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onAuxClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onContextMenu: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const drag = useDraggable({ id: page.id });
+  return (
+    <button
+      ref={drag.setNodeRef}
+      type="button"
+      className={`rail-page${drag.isDragging ? " dragging" : ""}`}
+      title={label(page)}
+      aria-label={label(page)}
+      aria-current={current ? "page" : undefined}
+      {...drag.attributes}
+      {...drag.listeners}
+      onClick={onClick}
+      onAuxClick={onAuxClick}
+      onContextMenu={onContextMenu}
+    >
+      <PageGlyph page={page} />
+    </button>
+  );
+}
+
 export function Sidebar() {
   const navigation = useRef<HTMLElement>(null);
   useShortcutScope(navigation, "pages", {
@@ -220,7 +253,6 @@ export function Sidebar() {
   const sidebarAction = compact ? "Close navigation" : rail ? "Expand sidebar" : "Collapse sidebar";
   const settingsShortcut = useShortcut("settings");
   const sidebarShortcut = useShortcut("sidebar");
-  const searchShortcut = useShortcut("search");
   const workspace = useWorkspace((s) => s.workspace);
   const roots = useWorkspace((s) => s.children.root);
   const favorites = useWorkspace((s) => s.favorites);
@@ -228,10 +260,19 @@ export function Sidebar() {
   const agentsPending = useAgents((s) => s.pending);
   const hasActiveAgents = useAgents((s) => s.hasActiveAgents);
   const selectedPageId = useWorkspace((s) => s.selectedPageId);
+  const expanded = useWorkspace((s) => s.expanded);
+  const childrenMap = useWorkspace((s) => s.children);
+  const navIndicator = useSlidingIndicator(
+    navigation,
+    rail ? '.rail-page[aria-current="page"]' : ".node.selected",
+    [view, selectedPageId, favorites, roots, expanded, childrenMap],
+    rail
+  );
   const pickedIds = usePageSelection((s) => s.ids);
   const { createPage, showTrash, toggleFavorite } = useWorkspace.getState();
 
   const [menu, setMenu] = useState<{ x: number; y: number; page: Page } | null>(null);
+  const [toolsMenu, setToolsMenu] = useState<{ x: number; y: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<Drop | null>(null);
   const [dragging, setDragging] = useState<Page | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -273,6 +314,7 @@ export function Sidebar() {
     const onTabs = overTabs(e);
     const end0 = endPoint(e);
     const onSplit = !!end0 && dropOnSplit(String(e.active.id), end0.x, end0.y);
+    clearDockHint();
     if (onSplit) {
       document.body.classList.remove("page-drag");
       setDropTarget(null);
@@ -381,6 +423,32 @@ export function Sidebar() {
     ];
   };
 
+  const onDragStart = (e: { active: { id: string | number } }) => {
+    document.body.classList.add("page-drag");
+    setDragging(lookup(String(e.active.id)) ?? null);
+  };
+  const onDragMove = (e: DragMoveEvent) => {
+    if (!rail) setDropTarget(target(e));
+    const pt = endPoint(e);
+    if (pt) updateDockHint(pt.x, pt.y);
+  };
+  const onDragCancel = () => {
+    document.body.classList.remove("page-drag");
+    clearDockHint();
+    setDropTarget(null);
+    setDragging(null);
+  };
+  const dragOverlay = (
+    <DragOverlay dropAnimation={null}>
+      {dragging && (
+        <div className="drag-chip">
+          <PageGlyph page={dragging} />
+          <span>{label(dragging)}</span>
+        </div>
+      )}
+    </DragOverlay>
+  );
+
   return (
     <aside id="workspace-sidebar" className="sidebar" aria-label="Workspace navigation" data-density={workspaceOptions(workspace).sidebarDensity}>
       <div className="ws-row">
@@ -390,29 +458,28 @@ export function Sidebar() {
         </button>
       </div>
 
-      <button type="button" className="side-search" onClick={() => usePalette.getState().show()} aria-label="Search pages and commands" title={`Search${searchShortcut.label ? ` (${searchShortcut.label})` : ""}`} aria-keyshortcuts={searchShortcut.aria}>
-        <Icon name="search" />
-        <span>Search</span>
-        {searchShortcut.label && <kbd className="kbd">{searchShortcut.label}</kbd>}
-      </button>
-
-      <div className="side-nav">
-        <button type="button" className="foot-btn map-launch" title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}><Icon name="nodeMap" /><span>Node Map</span></button>
-        {(hasActiveAgents || agentsPending > 0) && <button type="button" className="foot-btn map-launch agents-launch" title="Agents: review inbox" aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"} onClick={() => useAgents.getState().show("review")}><Icon name="inbox" /><span>Inbox</span>{agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}</button>}
-      </div>
-
-      {rail ? <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
-        {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (
-          <button key={p.id} type="button" className="rail-page" title={label(p)} aria-label={label(p)} aria-current={view === "page" && selectedPageId === p.id ? "page" : undefined} onClick={e => clickPage(e, p.id)} onAuxClick={e => openFromAuxClick(e, p.id)} onContextMenu={e => { e.preventDefault(); showMenu(e.clientX, e.clientY, p); }}>
-            <PageGlyph page={p} />
-          </button>
-        ))}
-        {!READ_ONLY && <button type="button" className="rail-page" title="New page" aria-label="New page" onClick={() => void createPage(null)}><Icon name="plus" /></button>}
-      </nav> : <nav ref={navigation} tabIndex={0} className="scroll" aria-label="Pages" onMouseDown={e => { if (e.target === e.currentTarget) e.currentTarget.focus(); }} onKeyDown={(e) => {
+      {rail ? <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
+        <nav ref={navigation} tabIndex={0} className="scroll rail-pages" aria-label="Pages">
+          <span className={`sidebar-nav-indicator${navIndicator.animate ? " anim" : ""}`} aria-hidden="true" style={navIndicator.style} />
+          {[...favorites, ...(roots ?? []).filter(p => !favorites.some(f => f.id === p.id))].map(p => (
+            <RailPageButton
+              key={p.id}
+              page={p}
+              current={view === "page" && selectedPageId === p.id}
+              onClick={e => clickPage(e, p.id)}
+              onAuxClick={e => openFromAuxClick(e, p.id)}
+              onContextMenu={e => { e.preventDefault(); showMenu(e.clientX, e.clientY, p); }}
+            />
+          ))}
+          {!READ_ONLY && <button type="button" className="rail-page" title="New page" aria-label="New page" onClick={() => void createPage(null)}><Icon name="plus" /></button>}
+        </nav>
+        {dragOverlay}
+      </DndContext> : <nav ref={navigation} tabIndex={0} className="scroll" aria-label="Pages" onMouseDown={e => { if (e.target === e.currentTarget) e.currentTarget.focus(); }} onKeyDown={(e) => {
         if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && (e.target as Element).matches('[role="treeitem"]')) useLayout.setState({ compactOpen: false });
       }} onClick={(e) => {
         if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && (e.target as Element).closest("button.title")) useLayout.setState({ compactOpen: false });
       }}>
+        <span className={`sidebar-nav-indicator${navIndicator.animate ? " anim" : ""}`} aria-hidden="true" style={navIndicator.style} />
         {favorites.length > 0 && (
           <section>
             <h2>Favorites</h2>
@@ -464,22 +531,10 @@ export function Sidebar() {
             <DndContext
               sensors={sensors}
               collisionDetection={pointerWithin}
-              onDragStart={(e) => {
-                document.body.classList.add("page-drag");
-                setDragging(lookup(String(e.active.id)) ?? null);
-              }}
-              onDragMove={(e) => {
-                setDropTarget(target(e));
-                const pt = endPoint(e);
-                if (pt) updateDockHint(pt.x, pt.y);
-              }}
+              onDragStart={onDragStart}
+              onDragMove={onDragMove}
               onDragEnd={onDragEnd}
-              onDragCancel={() => {
-                document.body.classList.remove("page-drag");
-                clearDockHint();
-                setDropTarget(null);
-                setDragging(null);
-              }}
+              onDragCancel={onDragCancel}
             >
               {roots && roots.length > 0 ? (
                 <PageTree roots={roots} />
@@ -491,34 +546,81 @@ export function Sidebar() {
                   </button>
                 </p>
               ) : null}
-              <DragOverlay dropAnimation={null}>
-                {dragging && (
-                  <div className="drag-chip">
-                    <PageGlyph page={dragging} />
-                    <span>{label(dragging)}</span>
-                  </div>
-                )}
-              </DragOverlay>
+              {dragOverlay}
             </DndContext>
           </Ctx.Provider>
         </section>
       </nav>}
 
       <footer role="toolbar" aria-label="Workspace tools" aria-orientation={rail ? "vertical" : "horizontal"}>
-        <button type="button" aria-label="Trash" title="Trash" aria-pressed={view === "trash"} className={`foot-icon${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
-          <Icon name="trash" />
-        </button>
-        <button type="button" className="foot-icon" aria-label="Backups" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
-          <Icon name="restore" />
-        </button>
-        <button type="button" className="foot-icon" aria-label="Import and export" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
-          <Icon name="download" />
-        </button>
-        <button type="button" className="foot-icon" aria-label="Settings" title={`Settings${settingsShortcut.label ? ` (${settingsShortcut.label})` : ""}`} onClick={() => useSettingsDialog.getState().show()}>
-          <Icon name="gear" />
-        </button>
+        {rail ? (
+          <button
+            type="button"
+            className="foot-icon agents-launch rail-tools-btn"
+            aria-label={agentsPending > 0 ? `Workspace tools (${agentsPending} waiting in inbox)` : "Workspace tools"}
+            title="Workspace tools"
+            aria-haspopup="menu"
+            aria-expanded={toolsMenu !== null}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setToolsMenu((prev) => (prev ? null : { x: rect.right + 6, y: rect.top }));
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" className="app-icon" aria-hidden="true">
+              <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}
+          </button>
+        ) : (
+          <>
+            <button type="button" className={`foot-icon${view === "node-map" ? " active" : ""}`} title="Node Map" aria-label="Node Map" aria-pressed={view === "node-map"} onClick={() => useNodeMap.getState().show()}>
+              <Icon name="nodeMap" />
+            </button>
+            {(hasActiveAgents || agentsPending > 0) && (
+              <button
+                type="button"
+                className="foot-icon agents-launch"
+                title={agentsPending > 0 ? `Agents inbox (${agentsPending} waiting)` : "Agents: review inbox"}
+                aria-label={agentsPending > 0 ? `Agents inbox: ${agentsPending} waiting for review` : "Agents inbox"}
+                onClick={() => useAgents.getState().show("review")}
+              >
+                <Icon name="inbox" />
+                {agentsPending > 0 && <span className="agx-badge" aria-hidden="true">{agentsPending}</span>}
+              </button>
+            )}
+            <button type="button" aria-label="Trash" title="Trash" aria-pressed={view === "trash"} className={`foot-icon${view === "trash" ? " active" : ""}`} onClick={() => void showTrash()}>
+              <Icon name="trash" />
+            </button>
+            <button type="button" className="foot-icon" aria-label="Backups" title="Backups" onClick={() => useBackupsDialog.getState().show()}>
+              <Icon name="restore" />
+            </button>
+            <button type="button" className="foot-icon" aria-label="Import and export" title="Import and export" onClick={() => useTransferDialog.getState().show()}>
+              <Icon name="importExport" />
+            </button>
+            <button type="button" className="foot-icon" aria-label="Settings" title={`Settings${settingsShortcut.label ? ` (${settingsShortcut.label})` : ""}`} onClick={() => useSettingsDialog.getState().show()}>
+              <Icon name="gear" />
+            </button>
+          </>
+        )}
       </footer>
 
+      {toolsMenu && (
+        <ContextMenu
+          x={toolsMenu.x}
+          y={toolsMenu.y}
+          items={[
+            { label: "Node Map", onSelect: () => useNodeMap.getState().show() },
+            ...(hasActiveAgents || agentsPending > 0
+              ? [{ label: agentsPending > 0 ? `Agents inbox (${agentsPending})` : "Agents inbox", onSelect: () => useAgents.getState().show("review") }]
+              : []),
+            { label: "Trash", separated: true, onSelect: () => void showTrash() },
+            { label: "Backups", onSelect: () => useBackupsDialog.getState().show() },
+            { label: "Import and export", onSelect: () => useTransferDialog.getState().show() },
+            { label: "Settings", shortcut: "settings", separated: true, onSelect: () => useSettingsDialog.getState().show() },
+          ]}
+          onClose={() => setToolsMenu(null)}
+        />
+      )}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.page)} onClose={() => setMenu(null)} />}
     </aside>
   );

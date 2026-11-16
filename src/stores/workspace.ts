@@ -612,11 +612,14 @@ export const useWorkspace = create<State>((set, get) => {
 
     bumpEditor: () => set((s) => ({ editorEpoch: s.editorEpoch + 1 })),
 
-    openPage: (id, blockId = null) => guard(async () => {
+    openPage: (rawId, blockId = null) => guard(async () => {
+      const hash = rawId.indexOf("#");
+      const id = hash >= 0 ? rawId.slice(0, hash) : rawId;
+      const targetBlock = blockId ?? (hash >= 0 ? rawId.slice(hash + 1) || null : null);
       const page = await ipc.pageGet(id);
       if (page.workspaceId !== get().workspace?.id) await get().switchWorkspace(page.workspaceId);
       // Scoped to the page so the editor that is still on screen cannot consume it early.
-      set({ focusTarget: blockId ? { pageId: id, blockId } : null });
+      set({ focusTarget: targetBlock ? { pageId: id, blockId: targetBlock } : null });
       if (get().selectedPageId !== id || get().view !== "page") await get().selectPage(id);
     }),
 

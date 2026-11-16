@@ -81,7 +81,7 @@ export function ImageBlock({
         const page = useWorkspace.getState().pageTitles[id];
         if (!page || page.deleted)
           throw Error("The linked page is no longer available.");
-        await useWorkspace.getState().selectPage(id);
+        await useWorkspace.getState().openPage(id);
       } else {
         const href = normalizeHref(p.link);
         if (!href) throw Error("This link cannot be opened.");

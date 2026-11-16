@@ -119,6 +119,18 @@ fn set_background(app: &AppHandle, background: bool) {
 pub struct RecentPage {
     pub id: String,
     pub title: String,
+    /// The page's icon, drawn by the frontend so the tray matches the sidebar.
+    #[serde(default)]
+    pub icon: Option<TrayIcon>,
+}
+
+/// A page icon rasterised as straight-alpha RGBA, `size` pixels square. `tint` marks a mask that the
+/// tray colours itself (built-in line icons) rather than a picture (emoji, uploaded images).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrayIcon {
+    pub size: u32,
+    pub rgba: Vec<u8>,
+    pub tint: bool,
 }
 
 /// Remembers the latest pages for the tray menu so they can be opened straight from the taskbar.

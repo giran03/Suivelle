@@ -11,7 +11,7 @@ import { useTemplateGallery } from "./store";
 export { useTemplateGallery } from "./store";
 
 
-const ICONS: Record<string, IconName> = { project_manager: "timeline", task_tracker: "todo", software_project: "code" };
+const ICONS: Record<string, IconName> = { project_manager: "timeline", task_tracker: "todo", software_project: "code", reading_list: "bullet", crm: "mail", content_calendar: "calendar", expense_tracker: "chart", job_search: "todo", inventory: "layers", recipes: "image", meeting_notes: "clock", habit_tracker: "todo", goals_okrs: "timeline" };
 
 function GalleryBody() {
   const targetPageId = useTemplateGallery(s => s.targetPageId);
@@ -119,7 +119,7 @@ function GalleryBody() {
           </li>
         ))}
       </ul>
-      <h3 className="tpl-section">{targetPageId ? "Create from project template…" : "Project starters"}</h3>
+      <h3 className="tpl-section">{targetPageId ? "Create from a starter…" : "Starters"}</h3>
       <p className="picker-muted">Each starter creates new pages and databases. {targetPageId ? "Your empty page stays where it is." : "You can rename, extend or delete them."}</p>
       <ul className="tpl-list" aria-busy={!templates}>
         {templates?.map((t, i) => (

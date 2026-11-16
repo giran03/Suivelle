@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { MUTATES_DATABASE, notifyDataChanged } from "./liveData";
 import type { CalendarEvent, CalendarOccurrence, CalendarSchedule } from "../features/calendar/model";
 import type {
   AppError,
@@ -23,6 +24,8 @@ import type {
   RunSummary,
   Trigger,
   ChartData,
+  PivotData,
+  PivotSpec,
   ChartSpec,
   DashboardDetail,
   DashboardLayout,
@@ -41,6 +44,7 @@ import type {
   FormulaPreview,
   DbView,
   GroupCount,
+  Aggregates,
   Page,
   PageTitle,
   Property,
@@ -77,6 +81,7 @@ function rawCall<T>(cmd: string, bytes: ArrayBuffer, headers: Record<string, str
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const result = await track(invoke<T>(cmd, args));
+  if (MUTATES_DATABASE.test(cmd)) notifyDataChanged();
   if (/^(?:page_(?:create|update|move|delete|restore|duplicate|transfer)|block_apply_batch|record_(?:create|duplicate|set_value|bulk_set_value)|database_(?:create|add_property|update_property|delete_property)|calendar_(?:create|save|import|delete)|node_map_edit|proposal_approve|changeset_revert|janitor_fix|todo_promote|agent_create|client_connect|subagents_import)/.test(cmd)) window.dispatchEvent(new Event("suivelle:graph-changed"));
   return result;
 }
@@ -154,6 +159,8 @@ export const ipc = {
   }) => call<RecordPage>("query_records", { input }),
   groupCounts: (databaseId: string, viewId: string, extraFilter?: FilterNode | null) =>
     call<GroupCount[]>("group_counts", { input: { databaseId, viewId, extraFilter } }),
+  viewAggregates: (databaseId: string, viewId: string, extraFilter?: FilterNode | null, byGroup = false) =>
+    call<Aggregates>("view_aggregates", { input: { databaseId, viewId, extraFilter, byGroup } }),
   chartData: (input: { databaseId: string; viewId?: string | null; chart?: ChartSpec | null; filter?: FilterNode | null }) =>
     call<ChartData>("chart_data", { input }),
   automationList: (databaseId: string) => call<Automation[]>("automation_list", { databaseId }),
@@ -206,6 +213,8 @@ export const ipc = {
   buttonPress: (recordId: string, propertyId: string) => call<RunSummary[]>("button_press", { recordId, propertyId }),
   /** Opens the native picker, reads the choice and resolves to what importing it would create. */
   importPick: (mode: "files" | "folder" | "workspace") => call<ImportPreview | null>("import_pick", { mode }),
+  /** Stages a table pasted from a spreadsheet (tab-separated text) for the same preview as a chosen file. */
+  importPasteTable: (text: string, name?: string) => call<ImportPreview>("import_paste_table", { text, name: name ?? null }),
   workspaceImport: (sessionId: string, name: string, appearance: boolean) => call<import("../types").WorkspaceImported>("workspace_import", { input: { sessionId, name, appearance } }),
   importApply: (workspaceId: string, sessionId: string, columns: Record<number, string[]>, target: import("../types").ImportTarget = { kind: "container" }) =>
     call<ImportResult>("import_apply", { input: { workspaceId, sessionId, columns, target } }),
@@ -213,6 +222,10 @@ export const ipc = {
   /** Saves through the native dialog: one file, a zip when there is more than one, or a PDF. */
   exportPage: (pageId: string, options: import("../types").ExportOptions) => call<ExportWritten | null>("export_page", { pageId, options }),
   exportShape: (pageId: string, options: import("../types").ExportOptions) => call<import("../types").ExportShape>("export_shape", { pageId, options }),
+  /** Saves one view as CSV: its filter, sort and visible columns. Resolves to the bytes written, or null when cancelled. */
+  exportView: (pageId: string, viewId: string) => call<number | null>("export_view", { pageId, viewId }),
+  pivotData: (input: { databaseId: string; viewId?: string | null; pivot?: PivotSpec | null; filter?: FilterNode | null }) =>
+    call<PivotData>("pivot_data", { input }),
   exportDatabase: (pageId: string) => call<number | null>("export_database", { pageId }),
   exportTheme: (json: string) => call<boolean>("export_theme", { json }),
   exportWorkspace: (workspaceId: string) => call<import("../types").WorkspaceExported | null>("export_workspace", { workspaceId }),
@@ -221,7 +234,14 @@ export const ipc = {
   dashboardSave: (pageId: string, layout: DashboardLayout) => call<DashboardLayout>("dashboard_save", { input: { pageId, layout } }),
   recordSetValue: (recordId: string, propertyId: string, value: unknown) =>
     call<RecordRow>("record_set_value", { input: { recordId, propertyId, value } }),
+  /** Writes many cells in one transaction (paste, fill, undo); returns each touched record once. */
+  recordSetCells: (cells: { recordId: string; propertyId: string; value: unknown }[]) => call<RecordRow[]>("record_set_cells", { cells }),
   recordDuplicate: (id: string) => call<RecordRow>("record_duplicate", { id }),
+  /** Groups of records that share the same values in the given properties (oldest first). */
+  recordDuplicates: (databaseId: string, propertyIds: string[]) =>
+    call<import("../types").DuplicateReport>("record_duplicates", { input: { databaseId, propertyIds } }),
+  /** Adds a copy of a property with its settings and values. */
+  propertyDuplicate: (id: string) => call<Property>("property_duplicate", { id }),
   canvasLoad: (viewId: string) => call<CanvasData>("canvas_load", { viewId }),
   canvasApply: (viewId: string, ops: CanvasOp[]) => call<void>("canvas_apply", { viewId, ops }),
   canvasBoardList: (workspaceId: string) => call<CanvasBoard[]>("canvas_board_list", { workspaceId }),
@@ -285,7 +305,7 @@ export const ipc = {
   nodeMapSnapshot: (input: import("../features/node-map/model").MapQuery) => call<import("../features/node-map/model").MapData>("node_map_snapshot", { input }),
   nodeMapEdit: (input: import("../features/node-map/model").MapEdit) => call<import("../features/node-map/model").MapEdit>("node_map_edit", { input }),
   pageUnlinkedMentions: (pageId: string) => call<Backlink[]>("page_unlinked_mentions", { pageId }),
-  traySetRecent: (pages: { id: string; title: string }[]) => call<void>("tray_set_recent", { pages }),
+  traySetRecent: (pages: { id: string; title: string; icon: import("../features/session/trayIcon").TrayIcon | null }[]) => call<void>("tray_set_recent", { pages }),
   traySetAppearance: (appearance: import("./appearance").TrayAppearancePayload) =>
     call<void>("tray_set_appearance", { appearance }),
   attachmentSaveAs: (id: string) => call<boolean>("attachment_save_as", { id }),

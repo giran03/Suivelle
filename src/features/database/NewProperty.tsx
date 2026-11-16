@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
-import type { DatabaseRef, Property, PropertyType, RollupFunction } from "../../types";
+import type { DatabaseRef, NumberFormat, Property, PropertyType, RollupFunction } from "../../types";
 import { FormulaEditor } from "./FormulaEditor";
 import { ADDABLE_TYPES, ROLLUP_FUNCTIONS, TYPE_META } from "./model";
+import { cleanFormat } from "./numberFormat";
+import { NumberFormatEditor } from "./NumberFormatEditor";
+import { checksConfig, DataChecks, emptyChecks, supportsChecks, type Checks } from "./DataChecks";
 
 /** Name, type and (for relations and rollups) the extra choices needed to add a property. */
 export function NewProperty({
@@ -31,6 +34,8 @@ export function NewProperty({
   const [targetProps, setTargetProps] = useState<Property[]>([]);
   const [targetPropId, setTargetPropId] = useState("");
   const [fn, setFn] = useState<RollupFunction>("count");
+  const [format, setFormat] = useState<NumberFormat>({});
+  const [checks, setChecks] = useState<Checks>(emptyChecks);
 
   const needsDatabases = type === "relation" || type === "rollup";
   useEffect(() => {
@@ -72,18 +77,26 @@ export function NewProperty({
   const functions = ROLLUP_FUNCTIONS.filter((f) => !targetProp || f.accepts(targetProp.type));
   const fnValue = functions.some((f) => f.value === fn) ? fn : (functions[0]?.value ?? "count");
 
+  const numericRollup = !["earliest", "latest", "percent_checked", "percent_done"].includes(fnValue);
   const ready = name.trim() && (type === "relation" ? !!target : type === "rollup" ? !!relation && !!targetProp : true);
 
   const submit = async () => {
     if (!ready) return;
     let config: unknown;
     if (type === "relation") config = { targetDatabaseId: target, twoWay };
+    if (type === "number") config = { format: cleanFormat(format) };
     if (type === "formula") config = { expression };
-    if (type === "rollup" && relation && targetProp) config = { relationPropertyId: relation.id, targetPropertyId: targetProp.id, function: fnValue };
+    if (type === "rollup" && relation && targetProp) config = { relationPropertyId: relation.id, targetPropertyId: targetProp.id, function: fnValue, format: numericRollup ? cleanFormat(format) : undefined };
+    if (supportsChecks(type)) {
+      const extra = checksConfig(checks);
+      if (Object.keys(extra).length) config = { ...(config as object | undefined), ...extra };
+    }
     const added = await onAdd(name.trim(), type, config);
     if (added) {
       setName("");
       setExpression("");
+      setFormat({});
+      setChecks(emptyChecks());
     }
   };
 
@@ -109,6 +122,16 @@ export function NewProperty({
           Add
         </button>
       </div>
+      {type === "number" && (
+        <div className="new-prop-extra">
+          <NumberFormatEditor value={format} onChange={setFormat} />
+        </div>
+      )}
+      {supportsChecks(type) && (
+        <div className="new-prop-extra">
+          <DataChecks type={type} value={checks} onChange={setChecks} />
+        </div>
+      )}
       {type === "formula" && (
         <div className="new-prop-extra">
           <FormulaEditor databaseId={databaseId} value={expression} onChange={setExpression} />
@@ -168,6 +191,7 @@ export function NewProperty({
                 ))}
               </select>
             </label>
+            {numericRollup && <NumberFormatEditor value={format} onChange={setFormat} />}
           </div>
         ))}
     </form>

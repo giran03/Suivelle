@@ -17,7 +17,7 @@ const when = (iso: string) => {
 
 function openPage(id: string) {
   useAgents.getState().hide();
-  void useWorkspace.getState().selectPage(id);
+  void useWorkspace.getState().openPage(id);
 }
 
 function PageLink({ id, title }: { id: string | null; title: string | null }) {

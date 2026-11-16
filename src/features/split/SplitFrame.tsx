@@ -99,13 +99,15 @@ function DockHint() {
   const last = useRef(live);
   if (live) last.current = live;
   const target = live ?? last.current;
-  // The first frame of a drag snaps into place; only moves between zones glide.
+  // Each time the hint appears it is a fresh element born at its final place, so it can never glide in from the
+  // corner; only moves between zones within one drag glide.
   const wasLive = useRef(false);
-  const snap = !wasLive.current && Boolean(live);
+  const shown = useRef(0);
+  if (live && !wasLive.current) shown.current++;
   wasLive.current = Boolean(live);
   const info = target ? HINT[target.zone] : null;
   return (
-    <div className="dock-hint" data-zone={target?.zone} data-on={live ? "" : undefined} data-snap={snap ? "" : undefined} aria-hidden="true" style={target ? { left: target.rect.left, top: target.rect.top, width: target.rect.width, height: target.rect.height } : undefined}>
+    <div key={shown.current} className="dock-hint" data-zone={target?.zone} data-on={live ? "" : undefined} aria-hidden="true" style={target ? { left: target.rect.left, top: target.rect.top, width: target.rect.width, height: target.rect.height } : undefined}>
       <span className="dock-edge" />
       <span className="dock-skel">
         <i className="dock-skel-tab" />

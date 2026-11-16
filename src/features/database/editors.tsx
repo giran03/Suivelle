@@ -123,16 +123,19 @@ export function OptionPicker({
   onChange,
   onCreate,
   onClose,
+  initialQuery = "",
 }: {
   prop: Property;
   current: unknown;
   multi: boolean;
+  /** Text typed on the cell to open the picker; it starts as the search. */
+  initialQuery?: string;
   anchor: Anchor;
   onChange: (value: unknown) => void;
   onCreate: (name: string) => Promise<SelectOption | null>;
   onClose: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [index, setIndex] = useState(0);
   const options = optionsOf(prop);
   const selected = useMemo(() => new Set(multi ? (Array.isArray(current) ? (current as string[]) : []) : typeof current === "string" ? [current] : []), [current, multi]);

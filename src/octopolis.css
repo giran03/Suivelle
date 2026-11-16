@@ -23,8 +23,9 @@ main {
 @media (max-width: 640px) { main { margin-left: 0; border-radius: var(--r-lg); } }
 
 /* sidebar rows: quiet at rest, tonal step on hover, wash when current */
-.sidebar .node:hover, .side-nav > *:hover { background: var(--surface-hover); }
-.node.selected { background: var(--accent-soft); }
+.sidebar .node:hover { background: var(--surface-hover); }
+.node.selected:not([data-indicator-target]) { background: var(--accent-soft); }
+.node.selected[data-indicator-target], .node.selected[data-indicator-target]:hover { background: transparent; }
 
 /* controls: raised neutral button with a strong hairline, filled accent for the primary action */
 .btn { background: var(--surface-active); border-color: var(--border-strong); }

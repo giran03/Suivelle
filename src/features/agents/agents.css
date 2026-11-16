@@ -187,3 +187,15 @@
 .agx-badge.attention { background: var(--accent); color: var(--on-accent); }
 .agx-tabpanel { display: grid; gap: 4px; align-content: start; }
 .agx-tabpanel > h4:first-child { margin-top: 12px; }
+
+/* Per-agent sub-tabs inside Settings > Agents > Agents */
+.agx-subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.agx-subtabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--surface-1); color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.3; }
+.agx-subtabs [role="tab"]:hover { background: var(--surface-hover); color: var(--text-primary); }
+.agx-subtabs [role="tab"][aria-selected="true"] { border-color: var(--accent-ui); background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.agx-subtab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.agx-subtab-dot.on { background: var(--success); }
+.agx-subtab-dot.warn { background: var(--warning); }
+.agx-subtabpanel { display: grid; gap: 4px; align-content: start; }
+.agx-subtabpanel > h4:first-child { margin-top: 10px; }
+.agx-subtab-footer { display: grid; gap: 8px; margin-top: 12px; }

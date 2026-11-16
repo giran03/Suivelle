@@ -2,8 +2,8 @@
 
 ## Release notes
 
-- The current development version is **0.1.8**.
-- Route new changes to `release-notes.json` and `docs/changelog/0.1.8.md`.
+- The current development version is **0.2.0**.
+- Route new changes to `release-notes.json` and `docs/changelog/0.2.0.md`.
   Keep their notes consistent and write entries for readers of the app.
 - Version 0.1.7 is published. Preserve its archived changelog and release tag;
   subsequent features and fixes belong to the next release.

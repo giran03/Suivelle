@@ -14,6 +14,7 @@ import { useExplore } from "../features/explore/store";
 import { installSplit } from "../features/split/store";
 import { installDockHint } from "../features/split/dropOnSplit";
 import { installNativeKeyBlock } from "../lib/nativeKeys";
+import { installDragScroll } from "../lib/dragScroll";
 import { SplitFrame } from "../features/split/SplitFrame";
 import { installReminderToasts } from "../features/explore/events";
 import { installAgentEvents } from "../features/agents/events";
@@ -318,7 +319,12 @@ export function App() {
   useEffect(() => installSessionPersistence(), []);
   useEffect(() => installFileDropGuard(), []);
   useEffect(() => installTabs(), []);
-  useEffect(() => { const a = installSplit(); const b = installDockHint(); const c = installNativeKeyBlock(); return () => { a(); b(); c(); }; }, []);
+  useEffect(() => { const a = installSplit(); const b = installDockHint(); const c = installNativeKeyBlock();
+    // Hold the middle button anywhere in a page and drag to scroll it, with easing and momentum.
+    const d = installDragScroll(undefined, { button: 1, accept: (t) => !!t.closest(".editor, .page-title, .page-cover, .board, .grid-scroll, .tl-scroll, .gallery-wrap, .cal-grid") });
+    // Hold the left button on empty space in a board and drag to scroll it.
+    const e = installDragScroll(undefined, { accept: (t) => !!t.closest(".board") });
+    return () => { a(); b(); c(); d(); e(); }; }, []);
   useEffect(() => installReminderToasts(), []);
   useEffect(() => installAgentEvents(), []);
   useEffect(() => installTrayRecent(), []);
@@ -408,7 +414,7 @@ export function App() {
       style={sidebarWidth ? ({ "--sidebar-w": `min(${sidebarWidth}px, 45vw)` } as React.CSSProperties) : undefined}
     >
       <Sidebar />
-      {!collapsed && !focus && <SidebarResizer />}
+      {!focus && !compact && <SidebarResizer />}
       <main>
         <SafeModeBanner />
         <Topbar />

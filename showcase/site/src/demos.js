@@ -2,7 +2,7 @@
 // patterns and sample data from the demo workspace. Each runs only while it is on screen,
 // and shows its finished state, without movement, when reduced motion is on.
 
-const MARK = `<svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><rect class="mark-tile" x="1" y="1" width="94" height="94" rx="22"/><g transform="translate(48 48) scale(1.08) translate(-55 -47)"><path class="mark-s" d="M66 28H48A12 12 0 0 0 48 52A12 12 0 0 1 48 76H30" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path class="mark-k" d="M70 13C71.6 23.5 74.5 26.4 85 28C74.5 29.6 71.6 32.5 70 43C68.4 32.5 65.5 29.6 55 28C65.5 26.4 68.4 23.5 70 13Z"/></g></svg>`;
+const MARK = `<svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><rect class="mark-tile" x="1" y="1" width="94" height="94" rx="22"/><g transform="translate(48 48) scale(0.28) translate(-127 -128)"><path class="mark-s" d="M130 46H80A36 36 0 0 0 44 82V174A36 36 0 0 0 80 210H174A36 36 0 0 0 210 174V126" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/><circle class="mark-k" cx="184" cy="72" r="28"/></g></svg>`;
 const CURSOR = `<div class="cursor"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#fff" stroke="#0b1226" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
 const SEARCH = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M10.5 18a7.5 7.5 0 1 1 5.3-2.2L21 21"/></svg>`;
 const CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;

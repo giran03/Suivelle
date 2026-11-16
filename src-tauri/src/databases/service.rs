@@ -260,8 +260,14 @@ pub fn normalize_view(
     let mut columns: Vec<ViewColumn> = Vec::new();
     for c in cfg.columns {
         if known.contains_key(c.property_id.as_str()) && seen.insert(c.property_id.clone()) {
+            let aggregate = c.aggregate.clone().filter(|a| {
+                known
+                    .get(c.property_id.as_str())
+                    .is_some_and(|p| query::aggregate_ok(p, a))
+            });
             columns.push(ViewColumn {
                 width: c.width.map(|w| w.clamp(60.0, 800.0)),
+                aggregate,
                 ..c
             });
         }
@@ -272,6 +278,7 @@ pub fn normalize_view(
                 property_id: p.id.clone(),
                 width: None,
                 hidden: false,
+                aggregate: None,
             });
         }
     }
@@ -350,6 +357,13 @@ pub fn normalize_view(
         )?),
         _ => None,
     };
+    let pivot = match view_type {
+        "pivot" => Some(pivot::normalize(
+            cfg.pivot.unwrap_or_else(|| pivot::default_spec(props)),
+            props,
+        )?),
+        _ => None,
+    };
     let form = match view_type {
         "form" => Some(forms::normalize(
             cfg.form.unwrap_or_else(|| forms::default_spec(props)),
@@ -362,6 +376,23 @@ pub fn normalize_view(
         Some(_) => return bad("a feed is ordered by created or updated"),
         None => (view_type == "feed").then(|| "created".to_string()),
     };
+    let formats = normalize_formats(cfg.formats, &known, props, database_id)?;
+    let row_height = match cfg.row_height.as_deref() {
+        Some(v @ ("compact" | "medium" | "tall")) => Some(v.to_string()),
+        Some(_) => return bad("row height must be compact, medium or tall"),
+        None => None,
+    };
+    let mut wrap_columns: Vec<String> = Vec::new();
+    for id in cfg.wrap_columns {
+        if known.contains_key(id.as_str()) && !wrap_columns.contains(&id) {
+            wrap_columns.push(id);
+        }
+    }
+    let frozen_columns = if view_type == "table" {
+        cfg.frozen_columns.min(MAX_FROZEN_COLUMNS)
+    } else {
+        0
+    };
     let out = ViewConfig {
         columns,
         sorts,
@@ -373,8 +404,13 @@ pub fn normalize_view(
         card_size,
         zoom,
         chart,
+        pivot,
         form,
         feed_order,
+        formats,
+        frozen_columns,
+        row_height,
+        wrap_columns,
     };
     // Dry-run the compiler so an invalid filter or grouping is rejected when saved, not when queried.
     query::build(
@@ -386,6 +422,38 @@ pub fn normalize_view(
     )?;
     if out.group.is_some() {
         query::build_group_counts(database_id, props, &out, chrono::Local::now().date_naive())?;
+    }
+    Ok(out)
+}
+
+/// Keeps conditional-formatting rules valid: known tone and target, a filter that compiles, and a
+/// cell column that still exists.
+fn normalize_formats(
+    rules: Vec<FormatRule>,
+    known: &HashMap<&str, &Property>,
+    props: &[Property],
+    database_id: &str,
+) -> AppResult<Vec<FormatRule>> {
+    if rules.len() > MAX_FORMAT_RULES {
+        return bad(format!("at most {MAX_FORMAT_RULES} formatting rules per view"));
+    }
+    let mut out = Vec::new();
+    for mut r in rules {
+        if !matches!(r.target.as_str(), "cell" | "row") {
+            return bad("a formatting rule colours a cell or a row");
+        }
+        if !values::TONES.contains(&r.color.as_str()) {
+            return bad("unknown formatting colour");
+        }
+        r.property_id = r
+            .property_id
+            .filter(|id| r.target == "cell" && known.contains_key(id.as_str()));
+        let probe = ViewConfig {
+            filter: Some(r.filter.clone()),
+            ..Default::default()
+        };
+        query::build(database_id, props, &probe, chrono::Local::now().date_naive(), &[])?;
+        out.push(r);
     }
     Ok(out)
 }
@@ -481,6 +549,7 @@ pub(crate) fn create_view_in(tx: &Connection, input: ViewCreate) -> AppResult<Db
                     property_id: p.id.clone(),
                     width: None,
                     hidden: !show,
+                    aggregate: None,
                 }
             })
             .collect();
@@ -503,6 +572,7 @@ pub(crate) fn create_view_in(tx: &Connection, input: ViewCreate) -> AppResult<Db
         "gallery" => "Gallery",
         "calendar" => "Calendar",
         "chart" => "Chart",
+        "pivot" => "Pivot",
         "form" => "Form",
         "feed" => "Feed",
         "canvas" => "Canvas",
@@ -864,12 +934,14 @@ pub(crate) fn add_property_in(tx: &Connection, input: PropertyCreate) -> AppResu
         }
         _ => {
             let config = match (ptype, &input.config) {
-                ("rollup", c) => {
-                    relations::normalize_rollup(tx, &props, c.as_ref().unwrap_or(&empty))?
-                }
-                ("formula", c) => {
-                    calc::normalize_formula(&props, None, &name, c.as_ref().unwrap_or(&empty))?
-                }
+                ("rollup", c) => values::with_format(
+                    relations::normalize_rollup(tx, &props, c.as_ref().unwrap_or(&empty))?,
+                    c.as_ref().unwrap_or(&empty),
+                )?,
+                ("formula", c) => values::with_format(
+                    calc::normalize_formula(&props, None, &name, c.as_ref().unwrap_or(&empty))?,
+                    c.as_ref().unwrap_or(&empty),
+                )?,
                 (_, Some(c)) => values::normalize_config(ptype, c)?,
                 (_, None) => values::normalize_config(ptype, &values::default_config(ptype))?,
             };
@@ -897,6 +969,7 @@ pub(super) fn attach_columns(
             property_id: prop.id.clone(),
             width: None,
             hidden: view.view_type != "table",
+            aggregate: None,
         });
         save_view(conn, &view.id, &cfg)?;
     }
@@ -927,11 +1000,14 @@ pub fn update_property(conn: &mut Connection, input: PropertyUpdate) -> AppResul
             }
             "rollup" => {
                 let props = load_properties(&tx, &prop.database_id)?;
-                relations::normalize_rollup(&tx, &props, c)?
+                values::with_format(relations::normalize_rollup(&tx, &props, c)?, c)?
             }
             "formula" => {
                 let props = load_properties(&tx, &prop.database_id)?;
-                calc::normalize_formula(&props, Some(&prop.id), &prop.name, c)?
+                values::with_format(
+                    calc::normalize_formula(&props, Some(&prop.id), &prop.name, c)?,
+                    c,
+                )?
             }
             t => values::normalize_config(t, c)?,
         };
@@ -975,6 +1051,18 @@ pub fn delete_property(conn: &mut Connection, id: &str) -> AppResult<()> {
         cfg.columns.retain(|c| c.property_id != id);
         cfg.sorts.retain(|s| s.property_id != id);
         cfg.filter = cfg.filter.and_then(|f| prune_filter(f, id));
+        cfg.formats.retain_mut(|r| {
+            if r.property_id.as_deref() == Some(id) {
+                r.property_id = None;
+            }
+            match prune_filter(r.filter.clone(), id) {
+                Some(f) => {
+                    r.filter = f;
+                    true
+                }
+                None => false,
+            }
+        });
         if cfg.group.as_ref().is_some_and(|g| g.property_id == id) {
             cfg.group = None;
             cfg.subgroup = None;
@@ -1081,7 +1169,7 @@ fn record_info(conn: &Connection, record_id: &str) -> AppResult<(String, String,
     .ok_or_else(|| not_found("record"))
 }
 
-fn index_value(
+pub(super) fn index_value(
     conn: &Connection,
     ws: &str,
     page_id: &str,
@@ -1100,7 +1188,7 @@ fn index_value(
     }
 }
 
-fn write_value(
+pub(super) fn write_value(
     conn: &Connection,
     record_id: &str,
     prop: &Property,
@@ -1160,6 +1248,14 @@ pub(crate) fn create_record_in(tx: &Connection, input: RecordCreate) -> AppResul
     }
     for (pid, v) in &input.values {
         merged.insert(pid.clone(), v.clone());
+    }
+    // A property's default fills whatever neither the template nor the caller set.
+    for p in &props {
+        if !merged.contains_key(&p.id) {
+            if let Some(d) = values::default_of(p) {
+                merged.insert(p.id.clone(), d);
+            }
+        }
     }
     let mut cells: Vec<(&Property, Option<Value>)> = Vec::new();
     for (pid, v) in &merged {
@@ -1253,6 +1349,38 @@ pub fn bulk_set_value(
             },
         )?);
     }
+    tx.commit()?;
+    Ok(rows)
+}
+
+const MAX_CELLS: usize = 5000;
+
+/// Writes many cells (possibly several per record) in one transaction: either every cell is stored
+/// or, if any one is refused, none is. Returns each touched record once, in first-seen order.
+pub fn set_cells(conn: &mut Connection, cells: &[SetValue]) -> AppResult<Vec<RecordRow>> {
+    if cells.is_empty() {
+        return Ok(Vec::new());
+    }
+    if cells.len() > MAX_CELLS {
+        return bad(format!("at most {MAX_CELLS} cells can be changed at once"));
+    }
+    let tx = conn.transaction()?;
+    let mut order: Vec<&str> = Vec::new();
+    for c in cells {
+        set_value_in(
+            &tx,
+            SetValue {
+                record_id: c.record_id.clone(),
+                property_id: c.property_id.clone(),
+                value: c.value.clone(),
+            },
+        )?;
+        if !order.contains(&c.record_id.as_str()) {
+            order.push(&c.record_id);
+        }
+    }
+    let ids: Vec<String> = order.iter().map(|s| s.to_string()).collect();
+    let rows = load_rows(&tx, &ids)?;
     tx.commit()?;
     Ok(rows)
 }

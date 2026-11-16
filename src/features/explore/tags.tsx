@@ -28,7 +28,7 @@ export function TagsPanel() {
     </div>
     {chosen && <ul className="explore-list" aria-label={`Pages tagged #${chosen}`}>
       {(pages ?? []).map((p) => <li key={p.id}>
-        <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().selectPage(p.id); }}>
+        <button type="button" className="explore-row" onClick={() => { useExplore.getState().hide(); void useWorkspace.getState().openPage(p.id); }}>
           <PageGlyph page={{ icon: p.icon, kind: "page" }} size={16} />
           <span className="explore-row-main">{p.title || "Untitled"}</span>
         </button>

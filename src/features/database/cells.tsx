@@ -3,14 +3,28 @@ import { Icon } from "../../components/Icon";
 import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
 import type { Property, RecordRow, SelectOption } from "../../types";
-import { formatDateValue, formatFormulaValue, formatNumber, formatRollup, formatStamp, linksOf, optionById, uniqueIdLabel } from "./model";
+import { formatDateValue, formatFormulaValue, formatNumber, formatRollup, formatStamp, linksOf, numberFormatOf, optionById, uniqueIdLabel } from "./model";
+import { barFraction } from "./numberFormat";
+import { Highlight } from "./Highlight";
+
+/** A number with its format applied; with a progress bar the text sits over a bar filled to the value. */
+function NumberText({ prop, value, text }: { prop: Property; value: number; text: string }) {
+  const frac = barFraction(value, numberFormatOf(prop));
+  if (frac === null) return <span className="cell-num">{text}</span>;
+  return (
+    <span className="num-bar" role="img" aria-label={`${text}, ${Math.round(frac * 100)}% of the maximum`}>
+      <i className="num-bar-fill" style={{ width: `${frac * 100}%` }} aria-hidden="true" />
+      <span className="cell-num num-bar-text" aria-hidden="true">{text}</span>
+    </span>
+  );
+}
 
 export function Tag({ option, status = false }: { option: SelectOption | undefined; status?: boolean }) {
   if (!option) return <span className="tag unknown">Unknown option</span>;
   return (
     <span className="tag" data-tone={option.color}>
       {status && <i className="tag-dot" aria-hidden="true" />}
-      {option.name}
+      <Highlight text={option.name} />
     </span>
   );
 }
@@ -48,9 +62,9 @@ export function CellContent({ prop, row }: { prop: Property; row: RecordRow }) {
   const v = row.values[prop.id];
   switch (prop.type) {
     case "title":
-      return row.title ? <span className="cell-text">{row.title}</span> : <span className="cell-placeholder">Untitled</span>;
+      return row.title ? <span className="cell-text"><Highlight text={row.title} /></span> : <span className="cell-placeholder">Untitled</span>;
     case "number":
-      return typeof v === "number" ? <span className="cell-num">{formatNumber(v)}</span> : null;
+      return typeof v === "number" ? <NumberText prop={prop} value={v} text={formatNumber(v, numberFormatOf(prop))} /> : null;
     case "checkbox":
       return (
         <span className={`check${v === true ? " on" : ""}`} role="img" aria-label={v === true ? "Checked" : "Unchecked"}>
@@ -90,6 +104,7 @@ export function CellContent({ prop, row }: { prop: Property; row: RecordRow }) {
     }
     case "rollup": {
       const text = formatRollup(prop, v);
+      if (typeof v === "number" && text && numberFormatOf(prop)?.bar) return <NumberText prop={prop} value={v} text={text} />;
       return text ? <span className={`cell-text${typeof v === "number" ? " cell-num" : ""}`}>{text}</span> : null;
     }
     case "formula": {
@@ -104,15 +119,16 @@ export function CellContent({ prop, row }: { prop: Property; row: RecordRow }) {
       if (typeof v === "object" && !Array.isArray(v) && (v as { error?: string }).error) {
         return <span className="cell-error" title={`The formula could not be calculated (${(v as { error: string }).error})`}>{(v as { error: string }).error}</span>;
       }
-      const text = formatFormulaValue(v);
+      const text = formatFormulaValue(v, numberFormatOf(prop));
+      if (typeof v === "number" && text && numberFormatOf(prop)?.bar) return <NumberText prop={prop} value={v} text={text} />;
       return text ? <span className={`cell-text${typeof v === "number" ? " cell-num" : ""}`}>{text}</span> : null;
     }
     case "button":
       return <ButtonCell prop={prop} row={row} />;
     case "url":
-      return typeof v === "string" ? <span className="cell-text cell-link">{v}</span> : null;
+      return typeof v === "string" ? <span className="cell-text cell-link"><Highlight text={v} /></span> : null;
     default:
-      return typeof v === "string" ? <span className="cell-text">{v}</span> : null;
+      return typeof v === "string" ? <span className="cell-text"><Highlight text={v} /></span> : null;
   }
 }
 

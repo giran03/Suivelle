@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { Popover, anchorOf, type Anchor } from "../../components/Popover";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { copyText } from "../../components/editingMenu";
 import { useWorkspace } from "../../stores/workspace";
 import { toAppError } from "../../lib/ipc";
+import { installDragScroll } from "../../lib/dragScroll";
 import { useWorkspaceDialog } from "./store";
 import { WorkspaceList } from "./WorkspaceList";
 import { WorkspaceBadge } from "./WorkspaceBadge";
@@ -20,6 +21,11 @@ export function WorkspaceSwitcher({ iconOnly = false }: { iconOnly?: boolean }) 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!anchor || !bodyRef.current) return;
+    return installDragScroll(bodyRef.current, { button: 1 });
+  }, [anchor]);
   const show = (mode: "manage" | "create" | "delete") => { setAnchor(null); useWorkspaceDialog.getState().show(mode); };
   const items: MenuItem[] = [
     { label: "Workspace settings…", shortcut: "workspace-settings", onSelect: () => show("manage") },
@@ -34,9 +40,10 @@ export function WorkspaceSwitcher({ iconOnly = false }: { iconOnly?: boolean }) 
       <WorkspaceBadge workspace={workspace} />{!iconOnly && <><span className="ws-name">{workspace?.name ?? "Workspace"}</span><Icon name="chevron" size={14} /></>}
     </button>
     {anchor && <Popover anchor={anchor} onClose={() => setAnchor(null)} label="Switch workspace" className="ws-switch-popover">
+      <div ref={bodyRef} className="ws-switch-body">
       <p className="ws-switch-heading">Workspaces on this computer</p>
       {workspaces.length > 5 && <SearchField type="search" aria-label="Find workspace" placeholder="Find a workspace…" value={search} onChange={(e) => setSearch(e.target.value)} />}
-      <WorkspaceList className="ws-switch-list" disabled={busy || !!search} workspaces={workspaces.filter((w) => w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))}>{(w) => <button type="button" className="ws-directory-row" aria-current={w.id === workspace?.id ? "true" : undefined} disabled={busy} onClick={async () => { if (w.id === workspace?.id) { setAnchor(null); return; } try { await useWorkspace.getState().switchWorkspace(w.id); setAnchor(null); } catch (e) { setError(toAppError(e).message); } }}><WorkspaceBadge workspace={w} /><span className="ws-directory-name">{w.name}<small>{workspaceOptions(w).description || "Local workspace"}</small></span>{w.id === workspace?.id && <Icon name="check" size={14} />}</button>}</WorkspaceList>
+      <WorkspaceList className="ws-switch-list" disabled={busy || !!search} workspaces={workspaces.filter((w) => w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))}>{(w) => <button type="button" className="ws-directory-row" aria-current={w.id === workspace?.id ? "true" : undefined} disabled={busy} onClick={async () => { if (w.id === workspace?.id) { setAnchor(null); return; } try { await useWorkspace.getState().switchWorkspace(w.id); setAnchor(null); } catch (e) { setError(toAppError(e).message); } }}><WorkspaceBadge workspace={w} /><span className="ws-directory-name"><strong>{w.name}</strong><small>{workspaceOptions(w).description || "Local workspace"}</small></span>{w.id === workspace?.id && <Icon name="check" size={16} />}</button>}</WorkspaceList>
       {workspaces.every((w) => !w.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())) && <p className="picker-muted">No matching workspace.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="ws-switch-actions" role="group" aria-label="Workspace actions">
@@ -45,6 +52,7 @@ export function WorkspaceSwitcher({ iconOnly = false }: { iconOnly?: boolean }) 
         <span className="ws-switch-action-space" aria-hidden="true" />
         <button type="button" className="icon-btn" aria-label="Import workspace" title="Import workspace" disabled={busy} onClick={() => { setAnchor(null); useTransferDialog.getState().show("import", "workspace"); }}><Icon name="download" size={18} /></button>
         <button type="button" className="icon-btn" aria-label="Export workspace" title="Export workspace" disabled={busy} onClick={() => { setAnchor(null); useTransferDialog.getState().show("export", "workspace"); }}><Icon name="upload" size={18} /></button>
+      </div>
       </div>
     </Popover>}
     {menu && <ContextMenu {...menu} items={items} onClose={() => setMenu(null)} />}

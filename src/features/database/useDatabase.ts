@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { registerFlusher } from "../editor/flushRegistry";
 import { ipc, toAppError } from "../../lib/ipc";
 import { useWorkspace } from "../../stores/workspace";
+import { useLiveData } from "../../lib/liveData";
 import type { DatabaseDetail, DbView, Property, PropertyType, ViewColumn, ViewConfig, ViewType } from "../../types";
+import { moveBeside } from "./columnOps";
 
 export interface Column {
   property: Property;
@@ -79,6 +81,31 @@ export function useDatabase(pageId: string, forcedViewId?: string) {
       cancelled = true;
     };
   }, [pageId, forcedViewId]);
+
+  // Another pane changed this database's properties or views: pick up the new schema without touching the
+  // views this one is editing.
+  const live = useLiveData();
+  const seenLive = useRef(live);
+  useEffect(() => {
+    if (seenLive.current === live || !detail) return;
+    seenLive.current = live;
+    let cancelled = false;
+    ipc.databaseGet(pageId).then((d) => {
+      if (cancelled || pendingSave.current) return;
+      setDetail((cur) => {
+        if (!cur) return cur;
+        const sameProps = JSON.stringify(cur.properties) === JSON.stringify(d.properties);
+        const ids = new Set(cur.views.map((v) => v.id));
+        const fresh = new Set(d.views.map((v) => v.id));
+        const sameViews = cur.views.length === d.views.length && d.views.every((v) => ids.has(v.id));
+        if (sameProps && sameViews) return cur;
+        const kept = cur.views.filter((v) => fresh.has(v.id));
+        const added = d.views.filter((v) => !ids.has(v.id));
+        return { ...cur, properties: d.properties, views: sameViews ? cur.views : [...kept, ...added] };
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [live, pageId, detail]);
 
   const views = detail?.views;
   const view: DbView | undefined = useMemo(() => views?.find((v) => v.id === activeId) ?? views?.[0], [views, activeId]);
@@ -268,12 +295,56 @@ export function useDatabase(pageId: string, forcedViewId?: string) {
     [pageId, fail],
   );
 
+  /** Adds a text property right beside another in this view (the other views get it at the end). */
+  const insertProperty = useCallback(
+    async (besideId: string, side: "left" | "right") => {
+      if (!detail || !viewId) return null;
+      try {
+        const taken = new Set(detail.properties.map((p) => p.name.toLowerCase()));
+        let name = "New property";
+        for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New property ${n}`;
+        const prop = await ipc.propertyCreate({ databaseId: detail.database.id, name, type: "text" });
+        const fresh = await ipc.databaseGet(pageId);
+        const current = fresh.views.find((v) => v.id === viewId);
+        if (current) {
+          const saved = await ipc.viewUpdate(viewId, { ...current.config, columns: moveBeside(current.config.columns, prop.id, besideId, side) });
+          setDetail({ ...fresh, views: fresh.views.map((v) => (v.id === saved.id ? saved : v)) });
+        } else setDetail(fresh);
+        return prop;
+      } catch (e) {
+        fail(e);
+        return null;
+      }
+    },
+    [detail, viewId, pageId, fail],
+  );
+
+  /** Copies a property with its settings and values; it appears at the end of every view. */
+  const duplicateProperty = useCallback(
+    async (id: string) => {
+      try {
+        const prop = await ipc.propertyDuplicate(id);
+        setDetail(await ipc.databaseGet(pageId));
+        setQueryVersion((v) => v + 1);
+        return prop;
+      } catch (e) {
+        fail(e);
+        return null;
+      }
+    },
+    [pageId, fail],
+  );
+
   return {
+    insertProperty,
+    duplicateProperty,
     detail,
     error,
     queryVersion,
     /** Reloads the records a view shows (after one was added elsewhere). */
     refreshRows: () => setQueryVersion((v) => v + 1),
+    /** Resolves once pending view edits have been saved. */
+    flushView,
     byId,
     views,
     view,

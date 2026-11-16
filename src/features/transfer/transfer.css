@@ -1,8 +1,15 @@
 .transfer-dialog { width: min(680px, calc(100vw - 32px)); max-height: 88vh; }
 .transfer-dialog .bak { display: flex; flex-direction: column; max-height: calc(88vh - 8px); overflow-y: auto; overflow-x: hidden; }
 .transfer-dialog .bak > * { flex-shrink: 0; }
-.imp { display: flex; flex-direction: column; gap: 10px; }
-.imp-help { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.875rem; display: grid; gap: calc(4px * var(--density)); }
+.transfer-dialog .bak { padding: 22px 26px 24px; gap: calc(18px * var(--density)); }
+.transfer-dialog .tpl-head h2 { font-size: 1.25rem; letter-spacing: -0.01em; }
+.imp { display: flex; flex-direction: column; gap: calc(16px * var(--density)); }
+.imp > .picker-muted { max-inline-size: 62ch; padding: 0; color: var(--text-secondary); line-height: 1.6; text-wrap: pretty; }
+.imp-help { margin: calc(6px * var(--density)) 0 0; border-top: 1px solid var(--border-subtle); font-size: 0.875rem; }
+.imp-help > div { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 4px 16px; padding: calc(var(--row-pad) + 3px) 0; border-bottom: 1px solid var(--border-subtle); }
+.imp-help dt { margin: 0; color: var(--text-primary); font-weight: 600; }
+.imp-help dd { margin: 0; color: var(--text-secondary); line-height: 1.6; text-wrap: pretty; }
+@media (max-width: 520px) { .imp-help > div { grid-template-columns: minmax(0, 1fr); } }
 .imp-done { display: flex; align-items: center; gap: 6px; margin: 0; overflow-wrap: anywhere; }
 .imp-done .app-icon { color: var(--accent-ui); }
 .imp-warn { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--tone-orange) 16%, transparent); font-size: 0.875rem; display: grid; gap: calc(3px * var(--density)); }

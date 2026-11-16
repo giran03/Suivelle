@@ -8,7 +8,8 @@
 .split-grid[data-resizing] .split-cell { transition: none; }
 .split-cell > .main-scroll { flex: 1; }
 .peek-panel.split-pane { flex: 1; width: auto; min-height: 0; border-left: 0; }
-.split-head { cursor: grab; user-select: none; }
+.split-head { cursor: grab; user-select: none; touch-action: none; }
+.split-head img { -webkit-user-drag: none; }
 .split-head .icon-btn { cursor: pointer; }
 body.split-moving, body.split-moving * { cursor: grabbing !important; }
 
@@ -60,7 +61,6 @@ body:is(.split-drag, .page-drag) .dock-cues { display: block; }
 @keyframes dock-pulse { 50% { opacity: 0.18; } }
 
 .dock-hint { position: fixed; z-index: 70; left: 0; top: 0; width: 0; height: 0; opacity: 0; overflow: hidden; pointer-events: none; border: 2px dashed var(--accent-ui); border-radius: var(--r-xl); background: color-mix(in srgb, var(--accent-ui) 16%, var(--editor-background)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-ui) 22%, transparent), 0 12px 36px rgba(0, 0, 0, 0.4); transition: opacity var(--t-fast) ease-out, left 140ms var(--ease-smooth-out, ease-out), top 140ms var(--ease-smooth-out, ease-out), width 140ms var(--ease-smooth-out, ease-out), height 140ms var(--ease-smooth-out, ease-out); }
-.dock-hint[data-snap] { transition: opacity var(--t-fast) ease-out; }
 .dock-hint[data-on] { opacity: 1; animation: dock-in var(--m-base, 180ms) var(--m-out, ease-out); }
 @keyframes dock-in { from { opacity: 0; scale: 0.94; } }
 /* a glow that spreads in from the hovered edge, and a bright bar on it */
@@ -74,7 +74,7 @@ body:is(.split-drag, .page-drag) .dock-cues { display: block; }
 .dock-hint[data-zone="right"] .dock-edge { right: 4px; top: 8%; bottom: 8%; width: 5px; }
 .dock-hint[data-zone="top"] .dock-edge { top: 4px; left: 8%; right: 8%; height: 5px; }
 .dock-hint[data-zone="bottom"] .dock-edge { bottom: 4px; left: 8%; right: 8%; height: 5px; }
-.dock-hint[data-zone="center"] .dock-edge, .dock-hint[data-zone="center"] .dock-skel, .dock-hint[data-zone="center"]::before { display: none; }
+.dock-hint[data-zone="center"] .dock-edge, .dock-hint[data-zone="center"]::before { display: none; }
 .dock-skel { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; }
 .dock-skel i { display: block; flex: none; height: 11px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent-ui) 26%, transparent) 30%, color-mix(in srgb, var(--accent-ui) 48%, transparent) 50%, color-mix(in srgb, var(--accent-ui) 26%, transparent) 70%); background-size: 300% 100%; animation: dock-shimmer 1.6s linear infinite; }
 .dock-skel .dock-skel-tab { width: 96px; height: 22px; border-radius: 6px 6px 0 0; }
@@ -89,3 +89,10 @@ body:is(.split-drag, .page-drag) .dock-cues { display: block; }
 .split-ghost { position: absolute; z-index: 5; padding: 3px; pointer-events: none; animation: split-pane-out 260ms var(--m-in, ease-in) forwards; }
 .split-ghost > div { width: 100%; height: 100%; border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--editor-background); }
 @keyframes split-pane-out { to { opacity: 0; transform: scale(0.94); } }
+
+/* The chip that follows the pointer while a pane is carried by its header. */
+.pane-chip { position: fixed; z-index: 90; left: 0; top: 0; display: flex; align-items: center; gap: 8px; max-width: 260px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface-2); color: var(--text-primary); box-shadow: var(--menu-shadow); font-size: 0.875rem; font-weight: 600; pointer-events: none; opacity: 0.95; }
+.pane-chip .peek-title { flex: 0 1 auto; }
+
+/* While a pane is carried the others jump to their new places, so the drop preview is measured against final geometry. */
+body.split-moving .split-cell { transition: none !important; animation: none !important; }

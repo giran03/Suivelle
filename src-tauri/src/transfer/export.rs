@@ -176,33 +176,42 @@ fn file_name(page: &Page, ext: &str, used: &mut HashSet<String>, with_id: bool) 
     unique(used, &base, ext)
 }
 
+/// The records a view shows (its filter and sort applied; the first view when `view_id` is None).
+fn view_rows(
+    conn: &Connection,
+    database_id: &str,
+    view_id: Option<&str>,
+) -> AppResult<Vec<RecordRow>> {
+    let mut rows = Vec::new();
+    let mut cursor = None;
+    loop {
+        let page = dbs::query_records(
+            conn,
+            &RecordQuery {
+                database_id: database_id.into(),
+                view_id: view_id.map(str::to_string),
+                group_key: None,
+                subgroup_key: None,
+                cursor,
+                limit: Some(500),
+                skip_total: true,
+                extra_filter: None,
+                range: None,
+            },
+        )?;
+        rows.extend(page.rows);
+        match page.next_cursor {
+            Some(c) => cursor = Some(c),
+            None => break,
+        }
+    }
+    Ok(rows)
+}
+
 /// The rows a database exports: all of them, or the ones its first view shows, in that order.
 fn record_rows(conn: &Connection, database_id: &str, view: bool) -> AppResult<Vec<RecordRow>> {
     if view {
-        let mut rows = Vec::new();
-        let mut cursor = None;
-        loop {
-            let page = dbs::query_records(
-                conn,
-                &RecordQuery {
-                    database_id: database_id.into(),
-                    view_id: None,
-                    group_key: None,
-                    subgroup_key: None,
-                    cursor,
-                    limit: Some(500),
-                    skip_total: true,
-                    extra_filter: None,
-                    range: None,
-                },
-            )?;
-            rows.extend(page.rows);
-            match page.next_cursor {
-                Some(c) => cursor = Some(c),
-                None => break,
-            }
-        }
-        return Ok(rows);
+        return view_rows(conn, database_id, None);
     }
     let mut stmt = conn.prepare(
         "SELECT r.id FROM db_record r JOIN page p ON p.id = r.page_id WHERE r.database_id = ?1 AND p.deleted_at IS NULL ORDER BY r.unique_id",
@@ -853,6 +862,41 @@ pub fn database_csv(conn: &Connection, page_id: &str) -> AppResult<(String, Vec<
     let (detail, props) = exported_properties(conn, page_id)?;
     let rows = record_rows(conn, &detail.database.id, false)?;
     Ok((detail.page.title, csv_bytes(&props, &rows, &|_| None)?))
+}
+
+/// What one saved view shows as CSV: its filter and sort, its visible columns in their order,
+/// and the readable text of each value. Buttons have no value and are left out.
+pub fn view_csv(conn: &Connection, page_id: &str, view_id: &str) -> AppResult<(String, Vec<u8>)> {
+    let detail = dbs::database_detail_by_page(conn, page_id)?;
+    let view = detail
+        .views
+        .iter()
+        .find(|v| v.id == view_id)
+        .ok_or_else(|| AppError::NotFound("view".into()))?;
+    let mut props: Vec<Property> = view
+        .config
+        .columns
+        .iter()
+        .filter(|c| !c.hidden)
+        .filter_map(|c| detail.properties.iter().find(|p| p.id == c.property_id))
+        .filter(|p| p.property_type != "button")
+        .cloned()
+        .collect();
+    if props.is_empty() {
+        props = detail
+            .properties
+            .iter()
+            .filter(|p| p.property_type != "button")
+            .cloned()
+            .collect();
+    }
+    let rows = view_rows(conn, &detail.database.id, Some(view_id))?;
+    let name = if view.name.trim().is_empty() {
+        detail.page.title.clone()
+    } else {
+        format!("{} - {}", detail.page.title, view.name)
+    };
+    Ok((name, csv_bytes(&props, &rows, &|_| None)?))
 }
 
 // ---------------------------------------------------------------------------------------------

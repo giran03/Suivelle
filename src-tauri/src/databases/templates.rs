@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
+mod overview;
+mod presets;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateInfo {
@@ -27,7 +30,12 @@ pub struct TemplateInfo {
     pub databases: &'static [&'static str],
 }
 
-pub const TEMPLATES: &[TemplateInfo] = &[
+/// The starters shown in the gallery: the project setups, then the everyday ones.
+pub fn all() -> Vec<TemplateInfo> {
+    TEMPLATES.iter().chain(presets::PRESETS).cloned().collect()
+}
+
+const TEMPLATES: &[TemplateInfo] = &[
     TemplateInfo {
         id: "project_manager",
         name: "Project Manager",
@@ -237,6 +245,7 @@ impl Builder<'_> {
                 property_id: p.id.clone(),
                 width: None,
                 hidden: p.property_type != "title" && !show.contains(&p.name.as_str()),
+                aggregate: None,
             })
             .collect();
         let mut cfg = ViewConfig {
@@ -870,7 +879,8 @@ pub fn create_from_template(
     if let Some(p) = &input.parent_page_id {
         validate_id(p, "parent page")?;
     }
-    let Some(info) = TEMPLATES.iter().find(|t| t.id == input.template) else {
+    let all = all();
+    let Some(info) = all.iter().find(|t| t.id == input.template) else {
         return bad(format!("unknown template '{}'", input.template));
     };
     validate_title(info.name)?;
@@ -922,8 +932,10 @@ pub fn create_from_template(
     let database_page_ids = match info.id {
         "task_tracker" => build_task_tracker(&b)?,
         "project_manager" => build_project_manager(&b, false)?,
-        _ => build_project_manager(&b, true)?,
+        "software_project" => build_project_manager(&b, true)?,
+        other => presets::build_preset(&b, other)?,
     };
+    overview::write(&b, info.id, &database_page_ids)?;
     tx.commit()?;
     Ok(TemplateResult {
         page_id: root.id,

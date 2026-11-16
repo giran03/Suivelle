@@ -341,6 +341,12 @@ export interface Property {
     resultType?: "number" | "text" | "bool" | "date" | "list" | "any";
     /** Button. */
     label?: string;
+    /** Number, rollup, number formula. Display only. */
+    format?: NumberFormat;
+    /** Data checks: cells that break them are marked, never rejected. */
+    validation?: ValidationRules;
+    /** The value a new record starts with (same shape as the cell's stored value). */
+    default?: unknown;
   };
   position: number;
 }
@@ -349,6 +355,66 @@ export interface ViewColumn {
   propertyId: string;
   width?: number | null;
   hidden?: boolean;
+  /** The summary shown for this column in the table's totals row. */
+  aggregate?: AggregateKind | null;
+}
+
+export type AggregateKind =
+  | "count"
+  | "empty"
+  | "filled"
+  | "percent_filled"
+  | "sum"
+  | "average"
+  | "median"
+  | "min"
+  | "max"
+  | "range"
+  | "earliest"
+  | "latest"
+  | "date_range"
+  | "percent_checked";
+
+export interface AggregateValue {
+  propertyId: string;
+  aggregate: AggregateKind;
+  /** A number, a date string, or null when there is nothing to summarise. */
+  value: number | string | null;
+}
+
+export interface GroupAggregates {
+  key: string;
+  count: number;
+  values: AggregateValue[];
+}
+
+export interface Aggregates {
+  /** Records in the filtered set. */
+  count: number;
+  values: AggregateValue[];
+  groups: GroupAggregates[];
+}
+
+/** Display-only number formatting (number, rollup and number-result formula properties). */
+export interface NumberFormat {
+  decimals?: number;
+  thousands?: boolean;
+  /** The value is a fraction: 0.25 shows as 25%. */
+  percent?: boolean;
+  currency?: string;
+  unit?: string;
+  /** Draw a progress bar behind the number, filling toward `barMax` (default 100, or 1 for percent). */
+  bar?: boolean;
+  barMax?: number;
+}
+
+export interface FormatRule {
+  id: string;
+  filter: FilterNode;
+  target: "cell" | "row";
+  /** Cell rules: the coloured column (default: the property the condition tests). */
+  propertyId?: string | null;
+  color: Tone;
 }
 
 export interface ViewSort {
@@ -369,7 +435,7 @@ export interface FilterGroup {
 
 export type FilterNode = FilterGroup | FilterLeaf;
 
-export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "chart" | "form" | "feed" | "canvas";
+export type ViewType = "table" | "board" | "list" | "gallery" | "calendar" | "timeline" | "chart" | "pivot" | "form" | "feed" | "canvas";
 
 export type ChartType = "bar" | "line" | "area" | "pie" | "donut" | "kpi";
 export type Aggregation = "count" | "sum" | "average" | "min" | "max";
@@ -393,6 +459,27 @@ export interface ChartPoint {
 
 export interface ChartData {
   points: ChartPoint[];
+  truncated: boolean;
+  records: number;
+}
+
+/** A pivot view: rows by columns, each cell a calculation over the matching records. */
+export interface PivotSpec {
+  rowPropertyId?: string | null;
+  columnPropertyId?: string | null;
+  valuePropertyId?: string | null;
+  aggregation: Aggregation;
+  rowBucket?: DateBucket | null;
+  columnBucket?: DateBucket | null;
+  showTotals: boolean;
+}
+
+export interface PivotData {
+  /** `x` is the row key, `group` the column key. */
+  cells: ChartPoint[];
+  rowTotals: ChartPoint[];
+  columnTotals: ChartPoint[];
+  grand: ChartPoint;
   truncated: boolean;
   records: number;
 }
@@ -625,8 +712,48 @@ export interface ViewConfig {
   cardSize?: "small" | "medium" | "large" | null;
   zoom?: "week" | "month" | "quarter" | null;
   chart?: ChartSpec | null;
+  pivot?: PivotSpec | null;
   form?: FormSpec | null;
   feedOrder?: "created" | "updated" | null;
+  /** Conditional formatting, evaluated over the loaded rows. */
+  formats?: FormatRule[];
+  /** Table: columns after the title that stay in place while scrolling sideways (0 to 3). */
+  frozenColumns?: number;
+  /** Table: row height; medium when absent. */
+  rowHeight?: RowHeight | null;
+  /** Table: properties whose text wraps instead of being cut off. */
+  wrapColumns?: string[];
+}
+
+export type RowHeight = "compact" | "medium" | "tall";
+
+export interface ValidationRules {
+  required?: boolean;
+  unique?: boolean;
+  /** Text: the fewest characters. Number: the smallest value. */
+  min?: number;
+  max?: number;
+  /** Text properties only. */
+  format?: "email" | "url";
+}
+
+export interface DuplicateRecord {
+  id: string;
+  pageId: string;
+  title: string;
+}
+
+export interface DuplicateGroup {
+  label: string;
+  /** Oldest first: the first is the one kept. */
+  records: DuplicateRecord[];
+}
+
+export interface DuplicateReport {
+  groups: DuplicateGroup[];
+  groupCount: number;
+  extraCount: number;
+  truncated: boolean;
 }
 
 export interface DbView {

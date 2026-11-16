@@ -10,7 +10,7 @@ export function installReminderToasts(): () => void {
   void listen<Reminder>("reminder-due", ({ payload }) => {
     const s = useWorkspace.getState();
     if (s.workspace && s.selectedPageId === payload.pageId) { s.notify(`Reminder: ${payload.note || payload.pageTitle || "this page"}`); return; }
-    s.notify(`Reminder: ${payload.note || payload.pageTitle || "Untitled"}`, () => useWorkspace.getState().selectPage(payload.pageId), "Open");
+    s.notify(`Reminder: ${payload.note || payload.pageTitle || "Untitled"}`, () => useWorkspace.getState().openPage(payload.pageId), "Open");
   }).then((unlisten) => { if (cancelled) unlisten(); else stop = unlisten; });
   return () => { cancelled = true; stop?.(); };
 }

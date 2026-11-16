@@ -41,8 +41,13 @@ pub fn default_config(property_type: &str) -> Value {
     }
 }
 
-/// Validates and normalizes a property's config for its type.
+/// Validates and normalizes a property's config for its type, including data checks and default.
 pub fn normalize_config(property_type: &str, config: &Value) -> AppResult<Value> {
+    let out = normalize_core(property_type, config)?;
+    with_checks(property_type, out, config)
+}
+
+fn normalize_core(property_type: &str, config: &Value) -> AppResult<Value> {
     match property_type {
         "select" | "multi_select" | "status" => {
             let options = config
@@ -119,8 +124,158 @@ pub fn normalize_config(property_type: &str, config: &Value) -> AppResult<Value>
             }
             Ok(json!({ "label": label }))
         }
+        "number" => with_format(json!({}), config),
         _ => Ok(json!({})),
     }
+}
+
+/// Copies a validated `format` (display only: decimals, separators, percent, currency, unit,
+/// progress bar) from `input` into a normalized number, rollup or formula config.
+pub fn with_format(mut out: Value, input: &Value) -> AppResult<Value> {
+    let Some(f) = input.get("format").and_then(Value::as_object) else {
+        return Ok(out);
+    };
+    let mut clean = serde_json::Map::new();
+    if let Some(d) = f.get("decimals").filter(|v| !v.is_null()) {
+        match d.as_u64() {
+            Some(n) if n <= 10 => clean.insert("decimals".into(), json!(n)),
+            _ => return bad("decimals must be a whole number from 0 to 10"),
+        };
+    }
+    for key in ["thousands", "percent", "bar"] {
+        if let Some(b) = f.get(key).filter(|v| !v.is_null()) {
+            let Some(b) = b.as_bool() else {
+                return bad(format!("format option '{key}' must be true or false"));
+            };
+            if b {
+                clean.insert(key.into(), json!(true));
+            }
+        }
+    }
+    for (key, max) in [("currency", 4), ("unit", 12)] {
+        if let Some(t) = f.get(key).and_then(Value::as_str) {
+            let t = t.trim();
+            if t.chars().count() > max {
+                return bad(format!("the {key} text can be at most {max} characters"));
+            }
+            if !t.is_empty() {
+                clean.insert(key.into(), json!(t));
+            }
+        }
+    }
+    if let Some(m) = f.get("barMax").filter(|v| !v.is_null()) {
+        match m.as_f64() {
+            Some(n) if n.is_finite() && n > 0.0 => clean.insert("barMax".into(), json!(n)),
+            _ => return bad("the progress bar maximum must be a positive number"),
+        };
+    }
+    if !clean.is_empty() {
+        out["format"] = Value::Object(clean);
+    }
+    Ok(out)
+}
+
+/// Types whose cells can carry data checks (`validation`) and a default value (`default`).
+pub fn supports_checks(t: &str) -> bool {
+    matches!(
+        t,
+        "title"
+            | "text"
+            | "url"
+            | "email"
+            | "phone"
+            | "number"
+            | "select"
+            | "multi_select"
+            | "status"
+            | "date"
+            | "checkbox"
+    )
+}
+
+/// Copies validated data checks and a default value from `input` into a normalized config.
+/// Checks only mark cells (they never reject a write), so imports and pastes keep working.
+/// The marking itself happens in the app (`validation.ts`); a pattern check is left out because
+/// the backend has no regular-expression engine.
+pub fn with_checks(property_type: &str, mut out: Value, input: &Value) -> AppResult<Value> {
+    if !supports_checks(property_type) {
+        return Ok(out);
+    }
+    let text = matches!(property_type, "title" | "text" | "url" | "email" | "phone");
+    if let Some(v) = input.get("validation").and_then(Value::as_object) {
+        let mut clean = serde_json::Map::new();
+        for key in ["required", "unique"] {
+            match v.get(key).filter(|x| !x.is_null()) {
+                None | Some(Value::Bool(false)) => {}
+                Some(Value::Bool(true)) => {
+                    if key == "unique"
+                        && !(text || matches!(property_type, "number" | "select" | "status"))
+                    {
+                        return bad("this property type cannot be required to be unique");
+                    }
+                    clean.insert(key.into(), json!(true));
+                }
+                Some(_) => return bad(format!("'{key}' must be true or false")),
+            }
+        }
+        for key in ["min", "max"] {
+            if let Some(n) = v.get(key).filter(|x| !x.is_null()) {
+                if !(text || property_type == "number") {
+                    return bad("minimum and maximum apply to text and number properties");
+                }
+                match n.as_f64() {
+                    Some(f) if f.is_finite() && (property_type == "number" || f >= 0.0) => {
+                        clean.insert(key.into(), json!(f));
+                    }
+                    _ => return bad(format!("'{key}' must be a number")),
+                }
+            }
+        }
+        if let (Some(lo), Some(hi)) = (
+            clean.get("min").and_then(Value::as_f64),
+            clean.get("max").and_then(Value::as_f64),
+        ) {
+            if lo > hi {
+                return bad("the minimum is larger than the maximum");
+            }
+        }
+        if let Some(f) = v.get("format").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+            if !matches!(property_type, "text" | "title") || !matches!(f, "email" | "url") {
+                return bad("a format check must be email or url, on a text property");
+            }
+            clean.insert("format".into(), json!(f));
+        }
+        if !clean.is_empty() {
+            out["validation"] = Value::Object(clean);
+        }
+    }
+    if let Some(d) = input.get("default").filter(|d| !d.is_null()) {
+        if property_type == "title" {
+            return bad("a title cannot have a default value");
+        }
+        let probe = Property {
+            id: String::new(),
+            database_id: String::new(),
+            name: String::new(),
+            property_type: property_type.to_string(),
+            config: out.clone(),
+            position: 0.0,
+        };
+        match normalize_value(&probe, d) {
+            Ok(Some(v)) => out["default"] = v,
+            Ok(None) => {}
+            // A default option that was deleted is dropped rather than blocking the edit.
+            Err(_) if matches!(property_type, "select" | "multi_select" | "status") => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(out)
+}
+
+/// The default value a new record gets for this property, if one is set and still valid.
+pub fn default_of(prop: &Property) -> Option<Value> {
+    let d = prop.config.get("default")?;
+    normalize_value(prop, d).ok().flatten()
 }
 
 pub fn option_ids(prop: &Property) -> Vec<String> {

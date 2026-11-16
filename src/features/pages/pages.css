@@ -3,47 +3,39 @@
 /* ---- sidebar resize and collapse ---- */
 .shell { position: relative; }
 .sidebar-resizer { position: absolute; z-index: 20; top: 0; bottom: 0; left: calc(var(--sidebar-w) - 4px); width: 8px; cursor: col-resize; touch-action: none; }
+.shell[data-rail] .sidebar-resizer { left: calc(var(--rail-w) - 4px); }
 .sidebar-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: 1px; background: var(--accent-ui); opacity: 0; transition: opacity var(--t-fast) ease-out; }
-.sidebar-resizer:hover::after, .sidebar-resizer:focus-visible::after, body.resizing .sidebar-resizer::after { opacity: 0.6; }
+.sidebar-resizer:hover::after, .sidebar-resizer:focus-visible::after, .sidebar-resizer.dragging::after, body.resizing .sidebar-resizer::after { opacity: 0.6; }
 .sidebar-resizer:focus-visible { outline: 0; }
 body.resizing { cursor: col-resize; user-select: none; }
-.shell[data-collapsed] { grid-template-columns: minmax(0, 1fr); }
-.shell[data-collapsed] .sidebar { display: none; }
+.shell[data-collapsed] { grid-template-columns: 0px minmax(0, 1fr); }
+.shell[data-collapsed] .sidebar { visibility: hidden; pointer-events: none; overflow: hidden; border-inline-end: 0; }
+.shell[data-collapsed] .sidebar-resizer { left: 0; width: 6px; }
 .sidebar { min-inline-size: 0; }
 .sidebar .pages-tree-tools { flex-wrap: wrap; }
 .sidebar > .ws-row { flex: none; gap: calc(4px * var(--density)); }
 .sidebar .ws-switcher { flex: 1; inline-size: auto; }
-/* Node Map and the agents Inbox share one row; Node Map takes the whole row when the Inbox is hidden.
-   These live here, not in node-map.css, because that file only loads once the map view opens. */
-.sidebar > .side-nav { flex: none; display: flex; gap: calc(var(--row-pad) * 0.4); margin: 0 10px 6px; }
-.side-nav > .map-launch { flex: 1 1 auto; min-width: 0; gap: 6px; padding-inline: 6px 4px; }
-.side-nav > .agents-launch { flex: 0 0 auto; }
-.side-nav > .agents-launch > span:not(.agx-badge) { flex: none; }
-.side-nav > .map-launch > span:not(.agx-badge) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-nav .agx-badge { flex: none; }
-.shell[data-rail] .sidebar > .side-nav { flex-direction: column; align-items: center; margin-inline: 6px; }
-.shell[data-rail] .side-nav > .map-launch { flex: none; justify-content: center; }
-.shell[data-rail] .map-launch > span { display: none; }
 .sidebar-collapse { flex: none; min-width: 28px; min-height: 28px; color: var(--text-muted); }
 .sidebar-collapse:hover { color: var(--text-primary); }
-.sidebar > .side-search, .sidebar > footer { flex-shrink: 0; }
+.sidebar > footer { flex-shrink: 0; }
 
 /* The desktop rail shares the same controls and saved expanded width. */
 .shell[data-rail] { --rail-w: clamp(56px, calc(64px * var(--density)), 76px); grid-template-columns: var(--rail-w) minmax(0, 1fr); }
 .shell[data-rail] .sidebar { overflow-y: auto; overflow-x: hidden; }
 .shell[data-rail] .ws-row { flex-direction: column; margin: 8px 6px 4px; padding: 0; gap: 4px; border: 0; background: none; }
 .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse { flex: none; justify-content: center; inline-size: 40px; block-size: 40px; padding: 0; border-radius: var(--r-md); }
-.shell[data-rail] .side-search { justify-content: center; align-self: center; inline-size: 40px; min-block-size: 40px; margin: 0 0 8px; padding: 0; }
-.shell[data-rail] .side-search > span, .shell[data-rail] .side-search > kbd, .shell[data-rail] .foot-btn > span, .shell[data-rail] .foot-btn > .app-icon:last-child { display: none; }
+.shell[data-rail] .foot-btn > span, .shell[data-rail] .foot-btn > .app-icon:last-child { display: none; }
 .shell[data-rail] .sidebar .rail-pages { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border-subtle); scrollbar-width: thin; }
-.rail-page { display: flex; flex: none; align-items: center; justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; border-radius: var(--r-md); color: var(--text-secondary); }
+.rail-page { position: relative; z-index: 1; display: flex; flex: none; align-items: center; justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; border-radius: var(--r-md); color: var(--text-secondary); transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out); }
+.rail-page.dragging { opacity: 0.4; }
 .rail-page:hover { background: var(--surface-hover); color: var(--fg); }
-.rail-page[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ui); }
+.rail-page[aria-current="page"]:not([data-indicator-target]) { background: var(--accent-soft); color: var(--accent-ui); }
+.rail-page[aria-current="page"][data-indicator-target], .rail-page[aria-current="page"][data-indicator-target]:hover { background: transparent; color: var(--accent-ui); }
 .shell[data-rail] .sidebar footer { flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; padding: 8px 0; }
 .shell[data-rail] .foot-icon { flex: none; inline-size: 40px; min-block-size: 40px; }
 .shell[data-rail] .foot-btn { justify-content: center; inline-size: 40px; min-block-size: 40px; padding: 0; }
 @media (pointer: coarse) {
-  .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse, .shell[data-rail] .side-search, .shell[data-rail] .foot-btn, .shell[data-rail] .foot-icon, .rail-page { inline-size: 44px; min-block-size: 44px; }
+  .shell[data-rail] .ws-switcher, .shell[data-rail] .sidebar-collapse, .shell[data-rail] .foot-btn, .shell[data-rail] .foot-icon, .rail-page { inline-size: 44px; min-block-size: 44px; }
 }
 
 .shell > main { container: workspace-main / inline-size; }
@@ -59,7 +51,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .shell[data-compact] .sidebar { border-inline-end: 0; }
 .shell[data-compact] .sidebar-resizer { display: none; }
 .shell[data-compact] .sidebar-collapse { inline-size: 44px; block-size: 44px; }
-.shell[data-compact] .sidebar .side-search, .shell[data-compact] .sidebar .foot-btn, .shell[data-compact] .sidebar .foot-icon { min-block-size: 44px; }
+.shell[data-compact] .sidebar .foot-btn, .shell[data-compact] .sidebar .foot-icon { min-block-size: 44px; }
 .shell[data-compact] .sidebar .node { min-block-size: 44px; }
 .shell[data-compact] .main-scroll { --page-pad: max(clamp(16px, 5vw, 32px), calc(var(--handle-w) + 8px)); }
 

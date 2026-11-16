@@ -2,8 +2,12 @@ import "../lib/legacy";
 import { create } from "zustand";
 
 const KEY = "suivelle.layout";
-export const SIDEBAR_MIN = 200;
+export const SIDEBAR_MIN = 150;
 export const SIDEBAR_MAX = 420;
+/** Dragging the sidebar to or below this width snaps it collapsed to the icon rail. */
+export const SIDEBAR_COLLAPSE_THRESHOLD = 100;
+/** Dragging the sidebar to or below this width snaps it completely hidden. */
+export const SIDEBAR_HIDE_THRESHOLD = 28;
 
 interface Saved {
   width: number | null;
@@ -16,7 +20,7 @@ interface Saved {
 function read(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Saved>;
-    const width = typeof v.width === "number" ? Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(v.width))) : null;
+    const width = typeof v.width === "number" ? Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_COLLAPSE_THRESHOLD + 1, Math.round(v.width))) : null;
     return { width, collapsed: v.collapsed === true, hidden: v.hidden === true, recentOpen: v.recentOpen !== false, canvasOpen: v.canvasOpen !== false };
   } catch {
     return { width: null, collapsed: false, hidden: false, recentOpen: true, canvasOpen: true };
@@ -43,6 +47,7 @@ interface LayoutState extends Saved {
   toggleSidebar: () => void;
   toggleSidebarVisibility: () => void;
   setCollapsed: (collapsed: boolean) => void;
+  setHidden: (hidden: boolean) => void;
   toggleRecent: () => void;
   toggleCanvases: () => void;
 }
@@ -60,7 +65,7 @@ export const useLayout = create<LayoutState>((set, get) => {
     setCompact: (compact) => set({ compact, compactOpen: false }),
     focus: false,
     toggleFocus: () => set({ focus: !get().focus }),
-    setWidth: (width) => save({ width: width === null ? null : Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(width))) }),
+    setWidth: (width) => save({ width: width === null ? null : Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_COLLAPSE_THRESHOLD + 1, Math.round(width))) }),
     // Asking for the sidebar while focused ends focus mode and shows it.
     toggleSidebar: () => {
       if (get().compact) set({ focus: false, compactOpen: get().focus || !get().compactOpen });
@@ -74,6 +79,7 @@ export const useLayout = create<LayoutState>((set, get) => {
       else save({ hidden: !get().hidden });
     },
     setCollapsed: (collapsed) => save({ collapsed }),
+    setHidden: (hidden) => save({ hidden }),
     toggleRecent: () => save({ recentOpen: !get().recentOpen }),
     toggleCanvases: () => save({ canvasOpen: !get().canvasOpen }),
   };

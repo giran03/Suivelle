@@ -29,7 +29,8 @@ body.file-drag .editor { border-radius: var(--r-md); outline: 2px dashed color-m
 .toc-item:hover, .toc-item:focus-visible { background: var(--surface-hover); color: var(--accent-ui); }
 
 /* ---- database view block ---- */
-.dbv { position: relative; margin: 8px 0; border: 1px solid var(--border-subtle); border-radius: var(--r-xl); background: var(--surface-1); overflow: hidden; }
+/* The embed is a raised card: what normally uses the page colour (sticky headers, footers, group rows) must use the card's, or it shows as a darker band. */
+.dbv { --bg: var(--surface-1); position: relative; margin: 8px 0; border: 1px solid var(--border-subtle); border-radius: var(--r-xl); background: var(--surface-1); overflow: hidden; }
 .dbv.is-selected { outline: none; }
 .dbv-head { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 4px 8px 4px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); }
 .dbv-title { max-width: 50%; padding: 2px 6px; border-radius: var(--r-sm); overflow: hidden; color: var(--fg); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

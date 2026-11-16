@@ -251,6 +251,10 @@
     "name": "upload",
     "codepoint": 61595
   },
+  "importExport": {
+    "name": "swap_vert",
+    "codepoint": 59605
+  },
   "play": {
     "name": "play_arrow",
     "codepoint": 57399

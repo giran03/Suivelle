@@ -68,12 +68,22 @@ pub fn read(bytes: &[u8]) -> AppResult<Csv> {
 
 /// [`read`] with a different limit on each cell's length (Notion relation cells hold long paths).
 pub fn read_with(bytes: &[u8], max_cell: usize) -> AppResult<Csv> {
+    read_delimited(bytes, max_cell, None)
+}
+
+/// Tab-separated text (a .tsv file, or a table pasted from a spreadsheet). The delimiter is not
+/// guessed, so commas and semicolons inside cells cannot confuse it.
+pub fn read_tsv(bytes: &[u8]) -> AppResult<Csv> {
+    read_delimited(bytes, MAX_CELL, Some(b'\t'))
+}
+
+fn read_delimited(bytes: &[u8], max_cell: usize, delimiter: Option<u8>) -> AppResult<Csv> {
     let text = decode_text(bytes);
     if text.trim().is_empty() {
         return Err(AppError::Validation("the file is empty".into()));
     }
     let mut reader = csv::ReaderBuilder::new()
-        .delimiter(sniff(&text))
+        .delimiter(delimiter.unwrap_or_else(|| sniff(&text)))
         .has_headers(false)
         .flexible(true)
         .from_reader(text.as_bytes());

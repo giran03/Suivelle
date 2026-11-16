@@ -7,7 +7,7 @@ import { flushAllEditors } from "../editor/flushRegistry";
 import type { ColumnPlan, ExportOptions, ExportShape, ExportWritten, ImportEntry, ImportPreview, ImportResult, ImportTarget, WorkspaceImported } from "../../types";
 import { formatBytes } from "../../lib/formatBytes";
 import "./transfer.css";
-import { DEFAULT_EXPORT, EXPORT_FORMATS, columnKinds, defaultTarget, describeOrigin, effectiveOptions, exportWorkspaceArchive, importedWorkspaceName, plural, savesText, summarize } from "./transfer";
+import { DEFAULT_EXPORT, EXPORT_FORMATS, columnKinds, defaultTarget, describeOrigin, effectiveOptions, exportWorkspaceArchive, importedWorkspaceName, pastedTableShape, plural, savesText, summarize } from "./transfer";
 import { useBackupsDialog } from "../backup/store";
 import { WorkspaceBadge } from "../workspaces/WorkspaceBadge";
 import { syncDialog } from "../../lib/dialog";
@@ -75,6 +75,9 @@ function ImportTab({ onDone, workspaceOnly }: { onDone: () => void; workspaceOnl
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const pasteShape = pastedTableShape(pasted);
   const previewId = useRef<string | null>(null);
   previewId.current = preview?.id ?? null;
   useEffect(() => { void useWorkspace.getState().refreshWorkspaces(); }, []);
@@ -90,14 +93,16 @@ function ImportTab({ onDone, workspaceOnly }: { onDone: () => void; workspaceOnl
     [],
   );
 
-  const pick = async (mode: "files" | "folder" | "workspace") => {
+  const pick = (mode: "files" | "folder" | "workspace") => stage(() => ipc.importPick(mode));
+
+  const stage = async (load: () => Promise<ImportPreview | null>) => {
     working("pick");
     setError(null);
     setResult(null);
     setWorkspaceResult(null);
     try {
       if (preview) void ipc.importCancel(preview.id);
-      const p = await ipc.importPick(mode);
+      const p = await load();
       if (p) {
         setPreview(p);
         setNewWorkspace(true);
@@ -295,13 +300,33 @@ function ImportTab({ onDone, workspaceOnly }: { onDone: () => void; workspaceOnl
         {!workspaceOnly && <button type="button" className="btn" disabled={!!busy} onClick={() => void pick("folder")}>
           Choose a folder…
         </button>}
+        {!workspaceOnly && <button type="button" className="btn" aria-expanded={pasting} disabled={!!busy} onClick={() => setPasting((v) => !v)}>
+          Paste a table…
+        </button>}
       </div>
-      {!workspaceOnly && <ul className="imp-help">
-        <li>Notion exports are recognized on their own: choose the zip as Notion saved it, or its unpacked folder. Subpages, databases with their column types, record pages and relations come back as they were; Markdown & CSV and HTML exports both work.</li>
-        <li>Markdown and HTML become pages; headings, lists, tasks, code, tables, images and links are kept. Images and files next to them are stored with the page.</li>
-        <li>CSV becomes a database. The first column is the title and the types are guessed; you can change them first. A PDF becomes a page that shows it.</li>
-        <li>Folders become nested pages, and links between files become page links.</li>
-      </ul>}
+      {!workspaceOnly && pasting && (
+        <div className="imp-paste">
+          <label className="field">
+            <span>Paste cells copied from Excel, Google Sheets or any table</span>
+            <textarea autoFocus rows={7} spellCheck={false} placeholder="Copy a range of cells, then paste it here. The first row becomes the column names." value={pasted} onChange={(e) => setPasted(e.target.value)} />
+          </label>
+          <div className="imp-paste-foot">
+            <span className="picker-muted" role="status">
+              {pasteShape ? `${plural(pasteShape.rows, "row", "rows")} and ${plural(pasteShape.columns, "column", "columns")} found.` : pasted.trim() ? "No columns found. Copy more than one cell, or choose a file." : ""}
+            </span>
+            <button type="button" className="btn primary" disabled={!!busy || !pasteShape} onClick={() => void stage(() => ipc.importPasteTable(pasted))}>
+              {busy === "pick" ? "Reading…" : "Preview import"}
+            </button>
+          </div>
+        </div>
+      )}
+      {!workspaceOnly && <dl className="imp-help" aria-label="What can be imported">
+          <div><dt>Notion</dt><dd>Notion exports are recognized on their own: choose the zip as Notion saved it, or its unpacked folder. Subpages, databases with their column types, record pages and relations come back as they were; Markdown & CSV and HTML exports both work.</dd></div>
+          <div><dt>Markdown and HTML</dt><dd>Markdown and HTML become pages; headings, lists, tasks, code, tables, images and links are kept. Images and files next to them are stored with the page.</dd></div>
+          <div><dt>Pasted table</dt><dd>A pasted table becomes a database the same way, with the same preview.</dd></div>
+          <div><dt>CSV and PDF</dt><dd>CSV becomes a database. The first column is the title and the types are guessed; you can change them first. A PDF becomes a page that shows it.</dd></div>
+          <div><dt>Folders</dt><dd>Folders become nested pages, and links between files become page links.</dd></div>
+      </dl>}
       {error && (
         <p className="field-error" role="alert">
           {error}

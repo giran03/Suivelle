@@ -94,3 +94,49 @@ export function importedWorkspaceName(name: string, existing: string[]): string 
   return suggestion;
 }
 
+
+/** Splits tab-separated text the way a spreadsheet writes it: quoted cells may hold tabs, line breaks and doubled quotes. */
+export function parseTsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  let atStart = true;
+  const endCell = () => {
+    row.push(cell);
+    cell = "";
+    atStart = true;
+  };
+  const endRow = () => {
+    endCell();
+    if (row.some((c) => c.trim() !== "")) rows.push(row);
+    row = [];
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') (cell += '"'), i++;
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"' && atStart) {
+      quoted = true;
+      atStart = false;
+    } else if (ch === "\t") endCell();
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      endRow();
+    } else {
+      cell += ch;
+      atStart = false;
+    }
+  }
+  if (cell !== "" || row.length) endRow();
+  return rows;
+}
+
+/** How many records and columns a pasted table would make (the first row is the column names); null when there is nothing to import. */
+export function pastedTableShape(text: string): { rows: number; columns: number } | null {
+  const table = parseTsv(text);
+  if (!table.length) return null;
+  return { rows: table.length - 1, columns: Math.max(...table.map((r) => r.length)) };
+}

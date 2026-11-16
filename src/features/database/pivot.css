@@ -1,0 +1,17 @@
+/* ---- pivot view ---- */
+.pivot-view { gap: 12px; }
+.pivot-check { display: inline-flex; align-items: center; gap: 6px; padding-bottom: 3px; font-size: 0.8125rem; color: var(--muted); }
+.pivot-scroll { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--border); }
+.pivot { border-collapse: separate; border-spacing: 0; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.pivot th, .pivot td { padding: 6px 12px; border-bottom: 1px solid var(--border-subtle); background: var(--bg); white-space: nowrap; }
+.pivot thead th { position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--border); font-weight: 600; text-align: right; color: var(--muted); }
+.pivot thead th.pivot-corner { left: 0; z-index: 4; text-align: left; }
+.pivot .pivot-row { position: sticky; left: 0; z-index: 1; min-width: 140px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: 500; border-right: 1px solid var(--border-subtle); }
+.pivot .pivot-cell { text-align: right; min-width: 72px; }
+.pivot tbody tr:hover :is(th, td) { background: color-mix(in srgb, var(--hover) 55%, var(--bg)); }
+.pivot .pivot-total { font-weight: 600; }
+.pivot td.pivot-total:last-child, .pivot thead th.pivot-total { border-left: 1px solid var(--border); }
+.pivot tfoot th, .pivot tfoot td { position: sticky; bottom: 0; z-index: 1; border-top: 1px solid var(--border); border-bottom: 0; }
+.pivot tfoot th.pivot-row { z-index: 3; }
+.pivot-view .tag { justify-content: flex-end; }
+.pivot-view .pivot-row .tag { justify-content: flex-start; }
